@@ -33,7 +33,11 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - runner: macos-14
+          # macos-14 on arm64 was withdrawn: the v0.1.0 tag's run was refused
+          # with "The configuration 'macos-14-arm64-us-default' is not
+          # supported" (2026-11-13). package.yml builds the same matrix on
+          # pull requests, so a runner change shows before a tag.
+          - runner: macos-15
             target: aarch64-apple-darwin
             host_features: ""
           - runner: ubuntu-24.04
