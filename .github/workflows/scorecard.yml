@@ -1,0 +1,51 @@
+# OpenSSF Scorecard: scores this repository's supply-chain practices and
+# publishes the result to the public Scorecard API (publish_results), where
+# anyone can read it at https://scorecard.dev/viewer/?uri=github.com/coproduct-opensource/qed.
+# The SARIF goes to code scanning. Read-only token; the OIDC identity is what
+# publish_results uses to prove the results came from this workflow.
+#
+# Publishing restricts this job: no env, defaults, containers or `run` steps,
+# only checkout, upload-artifact, upload-sarif and the action itself, on a
+# GitHub-hosted Ubuntu runner. The action's own action.yaml (fixed by the SHA
+# below) names its image by tag (ghcr.io/ossf/scorecard-action:v2.5.0), so the
+# image is not pinned by digest.
+name: scorecard
+
+on:
+  branch_protection_rule:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 2"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  analysis:
+    name: scorecard analysis
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+          # A rejected publish fails the run instead of passing with a warning.
+          fail_on_publish_error: true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: results.sarif

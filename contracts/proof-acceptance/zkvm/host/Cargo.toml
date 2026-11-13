@@ -27,7 +27,8 @@ in-process-prover = ["risc0-zkvm/prove"]
 risc0-zkvm = { version = "=3.1.0" }
 # The Groth16 step in Rust, in place of the x86 prover container.
 nucleus-groth16-native = { path = "../groth16-native" }
-
-[dev-dependencies]
-# To split a published program binary into the user program and the kernel.
+# `verify-programs`: wrap a rebuilt user ELF with RISC Zero's kernel exactly as
+# risc0-build does, to compute the image ID a published binary would have.
+# (Also used by the tests to split a published binary.)
 risc0-binfmt = { version = "=3.0.6" }
+risc0-zkos-v1compat = { version = "=2.2.3" }
