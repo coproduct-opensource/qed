@@ -726,16 +726,41 @@ fn security_txt_names_the_repositorys_private_reporting_only_when_public() {
 }
 
 #[test]
-fn the_seller_page_says_nothing_is_published_and_how_to_check_the_image() {
-    let files = built(&input(), Some(SITE));
+fn the_seller_page_names_the_released_image_and_how_to_check_it() {
+    let i = input();
+    let files = built(&i, Some(SITE));
     let page = file(&files, "sellers/run/index.html");
-    assert!(page.contains("Not published yet."), "{page}");
-    assert!(page.contains("cosign verify ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST"));
-    assert!(page.contains("gh attestation verify oci://"));
+    let release = &nucleus_site::pages::SELLER_RELEASE;
+    let digest = release.digest.trim_start_matches("sha256:");
+    assert!(
+        digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit()),
+        "the release digest is not a SHA-256: {}",
+        release.digest
+    );
+    let image = format!("{}@{}", release.image, release.digest);
+    assert!(page.contains(&format!("cosign verify {image}")), "{page}");
+    assert!(page.contains(&format!("gh attestation verify oci://{image}")));
     assert!(page.contains("nucleus-acceptance-host order2-image"));
+    assert!(!page.contains("Not published yet."));
+    // The bounty's board, its deployment block and the planned relayer.
+    let m = i
+        .mainnet
+        .as_ref()
+        .expect("the input carries a mainnet bounty");
+    assert!(page.contains(&m.board.address));
+    let start = format!("\"startBlock\": {}", m.board.deploy_block.unwrap());
+    assert!(page.contains(&start.replace('"', "&quot;")) || page.contains(&start));
+    assert!(page.contains("Gas relayer (planned)"));
     assert!(page.contains("Fetch the Groth16 data"), "no measured table");
     let markdown = file(&files, "sellers/run/index.md");
-    assert!(markdown.contains("Not published yet."), "{markdown}");
+    assert!(
+        markdown.contains(&format!("cosign verify {image}")),
+        "{markdown}"
+    );
+    assert!(
+        file(&files, "bounty/index.html").contains("href=\"/sellers/run\""),
+        "the bounty page does not point to the seller page"
+    );
     assert!(
         file(&files, "index.html").contains("href=\"/sellers/run\""),
         "the seller page is not reachable from the index"

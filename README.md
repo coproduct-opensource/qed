@@ -143,7 +143,7 @@ each task's statement from the buyer's node, runs its prover, checks the
 result with the Lean checker, and offers. If the buyer signs, the seller sends
 `fund`, `settle` and `claim` itself.
 
-**The seller pays its own gas.** A gas relayer is planned but not deployed
+**The seller pays its own gas.** A gas relayer is planned but not available
 (see "Gas relayer (planned)" below), so the wallet needs a little ETH on Base.
 The three transactions of one trade cost about 0.000004 ETH at the Base gas
 price of 2026-11-13, read from the receipts of an earlier Base trade.
@@ -155,7 +155,9 @@ Three ways to get the seller, from least setup to most:
   and arm64;
 - a release archive, `qed-TARGET.tar.gz`, for `x86_64-unknown-linux-gnu`,
   `aarch64-unknown-linux-gnu` or `aarch64-apple-darwin`. The Linux prover
-  hosts prove in their own process. The macOS one proves through RISC Zero's
+  hosts prove in their own process. The Linux archives are built on Ubuntu
+  24.04 and need glibc 2.39 or newer: on Debian 12 they stop with
+  "GLIBC_2.39 not found"; use the image there. The macOS one proves through RISC Zero's
   `r0vm` 3.1.0 (`curl -sSL https://risczero.com/install | bash`, then
   `rzup install r0vm 3.1.0`);
 - a build from this repository: `(cd contracts/agents && cargo build
@@ -175,7 +177,7 @@ not by a tag:
 
 For an archive:
 
-    gh release download v0.1.0 -R coproduct-opensource/qed -p 'qed-TARGET.tar.gz' -p SHA256SUMS
+    gh release download -R coproduct-opensource/qed -p 'qed-TARGET.tar.gz' -p SHA256SUMS
     sha256sum -c --ignore-missing SHA256SUMS     # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
     gh attestation verify qed-TARGET.tar.gz --repo coproduct-opensource/qed
     tar xzf qed-TARGET.tar.gz
@@ -340,7 +342,7 @@ https://qed.coproduct.dev/sellers/run.
 
 ### Gas relayer (planned)
 
-**Planned: no relayer is deployed yet.** A relayer sends `fund`, `settle` and
+**Planned: no relayer is available yet.** A relayer sends `fund`, `settle` and
 `claim` for you and pays the gas, so a seller with no ETH can still trade. To
 use one, add `"relayer": "https://RELAYER"` to `seller.json`, and optionally
 `"relayerWaitSeconds"` (default 120).
