@@ -324,7 +324,7 @@ pub fn markdown_negotiation(
                 md.body.len()
             ));
         }
-        if !md.vary.to_ascii_lowercase().contains("accept") {
+        if !crate::serving::varies_on_accept(&md.vary) {
             out.push(format!("{path}: no Vary: Accept"));
         }
         let html = get(base, path, Some("text/html"))?;

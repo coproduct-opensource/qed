@@ -84,7 +84,7 @@ const FACTS: [&str; 6] = [
     "Don't trust us. Ask your agent.",
     AUTHORS_ONLY,
     "The contracts are unaudited.",
-    "The task board is on a test network.",
+    "The board now runs on Base mainnet with real USDC.",
     "Plain HTML. No account required.",
 ];
 
@@ -291,12 +291,11 @@ fn every_internal_link_and_anchor_resolves() {
     );
 }
 
-#[test]
-fn nothing_is_loaded_from_another_site_and_links_out_go_where_expected() {
-    let s = Served::new("external");
-    let docs = s.documents();
-    let allowed: Vec<String> = [
-        SITE,
+/// Where pages may link out to, besides the site itself: one list for the
+/// local and the live checks, so the two cannot disagree.
+fn outbound(site: &str) -> Vec<String> {
+    [
+        site,
         "https://sepolia.arbiscan.io/",
         "https://basescan.org/",
         "https://developers.circle.com/",
@@ -307,7 +306,14 @@ fn nothing_is_loaded_from_another_site_and_links_out_go_where_expected() {
     ]
     .iter()
     .map(|s| (*s).to_owned())
-    .collect();
+    .collect()
+}
+
+#[test]
+fn nothing_is_loaded_from_another_site_and_links_out_go_where_expected() {
+    let s = Served::new("external");
+    let docs = s.documents();
+    let allowed = outbound(SITE);
     assert_eq!(
         harness::nothing_external(&s.base, &docs, &allowed).unwrap(),
         Vec::<String>::new()
@@ -402,16 +408,7 @@ fn live_site_passes_the_table() {
     }
     docs.sort();
     assert!(docs.len() >= 25, "{docs:?}");
-    let allowed: Vec<String> = [
-        base.as_str(),
-        "https://sepolia.arbiscan.io/",
-        "https://basescan.org/",
-        "https://developers.circle.com/",
-        "https://iroh.computer",
-    ]
-    .iter()
-    .map(|s| (*s).to_owned())
-    .collect();
+    let allowed = outbound(&base);
     let checks: Vec<(&str, Vec<String>)> = vec![
         (
             "root page complete without scripts",

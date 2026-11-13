@@ -50,29 +50,21 @@ pub(crate) fn settled_artifact(
             .trim_start_matches("0x"),
         16,
     )?;
-    // Asked for in bounded ranges: a long-lived buyer may look back over more
-    // blocks than a node answers for in one call.
-    let mut transaction = None;
-    let mut start = from;
-    while transaction.is_none() && start <= latest {
-        let end = latest.min(start.saturating_add(4_999));
-        let logs = chain.rpc(
-            "eth_getLogs",
-            json!([{
-                "address": hex(&vault_address),
-                "topics": [hex(&topic), hex(&digest)],
-                "fromBlock": format!("{start:#x}"),
-                "toBlock": format!("{end:#x}"),
-            }]),
-        )?;
-        transaction = logs
-            .as_array()
-            .and_then(|logs| logs.first())
-            .and_then(|log| log["transactionHash"].as_str())
-            .map(str::to_owned);
-        start = end + 1;
-    }
-    let transaction = transaction.ok_or("no Settled log for this order")?;
+    // Asked for in bounded ranges (`Chain::logs`): a long-lived buyer may
+    // look back over more blocks than a node answers for in one call.
+    let logs = chain.logs(
+        &json!({
+            "address": hex(&vault_address),
+            "topics": [hex(&topic), hex(&digest)],
+        }),
+        from,
+        latest,
+    )?;
+    let transaction = logs
+        .first()
+        .and_then(|log| log["transactionHash"].as_str())
+        .map(str::to_owned)
+        .ok_or("no Settled log for this order")?;
     let sent = chain.rpc("eth_getTransactionByHash", json!([transaction]))?;
     let input = unhex(sent["input"].as_str().ok_or("transaction input expected")?)?;
     let artifact = artifact_in(form, &input)

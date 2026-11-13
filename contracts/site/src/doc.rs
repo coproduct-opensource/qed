@@ -150,11 +150,12 @@ impl Doc {
 }
 
 /// The numbered index every page carries, as in the brief's mock.
-pub const INDEX: [(&str, &str); 5] = [
+pub const INDEX: [(&str, &str); 6] = [
     ("protocol/specification", "Specification"),
     ("transactions", "Ledger"),
     ("verify", "Verify"),
     ("protocol/threat-model", "Threat model"),
+    ("sellers/run", "Run a seller"),
     ("verification/source", "Source"),
 ];
 
@@ -433,6 +434,52 @@ fn header(current: &str) -> Html {
                 )],
             ),
         ],
+    )
+}
+
+/// The page sent with every 404 (`crate::NOT_FOUND_PATH`): the masthead,
+/// one sentence and a link home. No script and no Markdown twin. Without it
+/// the host answered a missing path with an empty body and no media type,
+/// which iPhone Safari offered to download.
+pub fn not_found() -> String {
+    let head = [
+        void("meta", &[("charset", "utf-8")]),
+        void(
+            "meta",
+            &[
+                ("name", "viewport"),
+                ("content", "width=device-width, initial-scale=1"),
+            ],
+        ),
+        void(
+            "meta",
+            &[("name", "color-scheme"), ("content", "light dark")],
+        ),
+        tx("title", &[], "Not found · Q.E.D."),
+        void("meta", &[("name", "robots"), ("content", "noindex")]),
+        void("link", &[("rel", "icon"), ("href", "data:,")]),
+        void("link", &[("rel", "stylesheet"), ("href", "/qed.css")]),
+    ];
+    let main = [
+        tx("h1", &[], "Not found"),
+        tx("p", &[], "Nothing is served at this address."),
+        el("p", &[], [tx("a", &[("href", "/")], "Go to the home page")]),
+    ];
+    format!(
+        "<!doctype html>\n{}\n",
+        el(
+            "html",
+            &[("lang", "en")],
+            [
+                el("head", &[], head),
+                el(
+                    "body",
+                    &[],
+                    [header("404"), el("main", &[("id", "main")], main)]
+                )
+            ]
+        )
+        .as_str()
     )
 }
 

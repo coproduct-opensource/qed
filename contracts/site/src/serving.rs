@@ -9,7 +9,7 @@
 //! with `protocol/index.md` when the request's `Accept` names
 //! `text/markdown`. Every other path is a file served as its exact bytes,
 //! never converted. Every response carries `Vary: Accept`.
-use crate::{CARD_PATH, JWKS_PATH, SELLER_CARD_PATH, SPEC_PATH};
+use crate::{CARD_PATH, JWKS_PATH, NOT_FOUND_PATH, SELLER_CARD_PATH, SPEC_PATH};
 
 /// Files read by agents from other origins. A2A 1.0.1 says nothing about
 /// CORS; browsers enforce it, and a web-based client fetching a card,
@@ -60,6 +60,32 @@ pub fn media_type(path: &str) -> &'static str {
         "ndjson" => "application/x-ndjson",
         _ => "application/octet-stream",
     }
+}
+
+/// `Vary` on every response. The representation depends on `Accept`
+/// (Markdown or HTML) and on `Accept-Encoding` (the host compresses).
+pub const VARY: &str = "Accept, Accept-Encoding";
+
+/// Media types the host compresses, as Caddy `Content-Type` patterns: every
+/// type `media_type` can return. Measured live 2026-11-13 (Caddy 2.11.9,
+/// zstd / gzip as sent): the checker module 37 % / 38 %, the .v2 statement
+/// 68 % / 65 %, an NDJSON statement 16 %, a 1.9 kB artifact 29 % / 26 %;
+/// those under 512 bytes are not compressed.
+pub const COMPRESSED: [&str; 6] = [
+    "text/*",
+    "application/json*",
+    "application/xml*",
+    "application/wasm*",
+    "application/x-ndjson*",
+    "application/octet-stream*",
+];
+
+/// Whether a `Vary` value names `Accept` itself. A substring test is not
+/// enough: `Accept-Encoding` contains it, and once the host compressed, a
+/// response varying on encoding alone would have passed.
+pub fn varies_on_accept(vary: &str) -> bool {
+    vary.split(',')
+        .any(|token| token.trim().eq_ignore_ascii_case("accept") || token.trim() == "*")
 }
 
 /// Whether `Accept` asks for Markdown.
@@ -122,7 +148,7 @@ pub fn headers(path: &str, https: bool) -> Vec<(&'static str, &'static str)> {
         ("x-content-type-options", "nosniff"),
         ("referrer-policy", "no-referrer"),
         ("cache-control", cache_control(path)),
-        ("vary", "Accept"),
+        ("vary", VARY),
     ];
     if https {
         out.push(("strict-transport-security", HSTS));
@@ -155,11 +181,23 @@ pub fn caddy(host: &str, root: &str) -> String {
 \t\ttry_files {{path}} {{path}}/index.html\n\
 \t}}\n\
 \tfile_server\n\
+\t# Compressed when the client asks; a reader hashes the decoded bytes, so\n\
+\t# every digest the site publishes still matches. The matcher replaces\n\
+\t# Caddy's default list, which leaves out NDJSON statements and\n\
+\t# octet-stream (.v2 statements, artifacts): live, the 1.1 MB .v2\n\
+\t# statement goes out at 65 % with gzip. Under 512 bytes, sent as is.\n\
+\tencode zstd gzip {{\n\
+\t\t# One type per line: values of one field on separate lines are\n\
+\t\t# OR-ed, and Caddy refuses several values on one line.\n\
+\t\tmatch {{\n\
+{compressed}\
+\t\t}}\n\
+\t}}\n\
 \theader {{\n\
 \t\tStrict-Transport-Security \"{HSTS}\"\n\
 \t\tX-Content-Type-Options \"nosniff\"\n\
 \t\tReferrer-Policy \"no-referrer\"\n\
-\t\tVary \"Accept\"\n\
+\t\tVary \"{VARY}\"\n\
 \t}}\n\
 \t# Caddy applies a header directive without a matcher after those with\n\
 \t# one, so a per-path value is never also set unconditionally: each\n\
@@ -182,6 +220,21 @@ pub fn caddy(host: &str, root: &str) -> String {
 \theader @cross Access-Control-Allow-Origin \"*\"\n\
 \t# Pages that run the WebAssembly checker; the host sets their CSP.\n\
 \t@checker path {checker}\n\
+\t# A missing path gets the site's own small page, as HTML, status 404.\n\
+\thandle_errors 404 {{\n\
+\t\trewrite * /{not_found}\n\
+\t\theader Content-Type \"text/html; charset=utf-8\"\n\
+\t\t# A path missing now may be served by the next release.\n\
+\t\theader Cache-Control \"no-cache\"\n\
+\t\t# Headers set before the error survive into this route, but a\n\
+\t\t# deletion (deferred) does not: live, the first 404 page carried\n\
+\t\t# `Server: Caddy`, and a second `Vary` line.\n\
+\t\theader Vary \"{VARY}\"\n\
+\t\theader -Server\n\
+\t\tfile_server {{\n\
+\t\t\tstatus 404\n\
+\t\t}}\n\
+\t}}\n\
 \tlog {{\n\
 \t\toutput stderr\n\
 \t\tformat console\n\
@@ -195,6 +248,11 @@ pub fn caddy(host: &str, root: &str) -> String {
             .collect::<Vec<_>>()
             .join(" "),
         checker = CHECKER_PAGE_PATHS.join(" "),
+        not_found = NOT_FOUND_PATH,
+        compressed = COMPRESSED
+            .iter()
+            .map(|t| format!("\t\t\theader Content-Type {t}\n"))
+            .collect::<String>(),
     )
 }
 

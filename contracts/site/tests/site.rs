@@ -279,7 +279,11 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
             "{path}"
         );
     }
-    assert!(serving::headers("", true).contains(&("vary", "Accept")));
+    assert!(serving::headers("", true).contains(&("vary", "Accept, Accept-Encoding")));
+    assert!(serving::varies_on_accept("Accept, Accept-Encoding"));
+    assert!(serving::varies_on_accept("accept-encoding, Accept"));
+    // The substring test this replaced passed on encoding alone.
+    assert!(!serving::varies_on_accept("Accept-Encoding"));
     assert_eq!(
         serving::cache_control("artifacts/ab.bin"),
         "public, max-age=31536000, immutable"
@@ -298,7 +302,41 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
         .and_then(|r| r.split("\t}\n").next())
         .unwrap();
     assert!(!unconditional.contains("Cache-Control"), "{unconditional}");
-    assert_eq!(caddy.matches("Cache-Control \"").count(), 3);
+    let (served, errors) = caddy.split_once("\thandle_errors 404 {\n").unwrap();
+    assert_eq!(served.matches("Cache-Control \"").count(), 3);
+    // The not-found page: HTML, never cached past the next release, and
+    // the site's own file rather than Caddy's empty body.
+    for present in [
+        "rewrite * /404.html",
+        "header Content-Type \"text/html; charset=utf-8\"",
+        "header Cache-Control \"no-cache\"",
+        "header Vary \"Accept, Accept-Encoding\"",
+        "header -Server",
+        "status 404",
+    ] {
+        assert!(errors.contains(present), "{present}");
+    }
+    assert!(caddy.contains("\tencode zstd gzip {\n"));
+    // One value per line: `caddy validate` refused several on one line
+    // ("malformed header matcher: expected both field and value").
+    for media in serving::COMPRESSED {
+        assert!(caddy.contains(&format!("\t\t\theader Content-Type {media}\n")));
+    }
+    assert!(!caddy.contains("header Content-Type text/* "));
+    // Every type the site serves is compressible: Caddy's default list
+    // left out NDJSON and octet-stream statements.
+    for path in [
+        "", "a.md", "a.json", "a.css", "a.js", "a.txt", "a.xml", "a.wasm", "a.ndjson", "a.v2",
+        "a.bin",
+    ] {
+        let media = serving::media_type(path);
+        assert!(
+            serving::COMPRESSED
+                .iter()
+                .any(|p| media.starts_with(p.trim_end_matches('*'))),
+            "{path} {media}"
+        );
+    }
     assert!(caddy.contains("@cache_short not path /abi/* /artifacts/* /statements/*\n"));
     assert_eq!(
         serving::cache_control("statements/ab.v2"),
@@ -311,7 +349,7 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
         "header_regexp Accept (?i)text/markdown",
         "file {path}/index.md",
         "try_files {path} {path}/index.html",
-        "Vary \"Accept\"",
+        "Vary \"Accept, Accept-Encoding\"",
         "/receipts/*",
         "/artifacts/*",
     ] {
@@ -423,6 +461,50 @@ fn author_addresses_are_not_named_unless_the_input_says_so() {
         !labelled(&on, &i).is_empty(),
         "with disclosure on, the treasury and the live board's list name the authors' addresses"
     );
+}
+
+/// The main-network bounty: its page states the offer from the input, the
+/// card and `deployment.json` carry the deployment, and the main-network
+/// treasury is named nowhere unless author addresses are disclosed.
+#[test]
+fn the_bounty_page_states_the_input_and_names_no_mainnet_treasury() {
+    let i = input();
+    let m = i
+        .mainnet
+        .clone()
+        .expect("the input carries a mainnet bounty");
+    let treasury = m.vault.treasury.to_lowercase();
+    let bare = treasury.trim_start_matches("0x").to_owned();
+    let files = built(&i, Some(SITE));
+    let page = file(&files, "bounty/index.html");
+    let price = nucleus_site::amount(m.bounty.price, m.token.decimals);
+    let receives = nucleus_site::amount(m.seller_receives(), m.token.decimals);
+    assert_eq!(receives, "24.9375", "25 USDC less 25 basis points");
+    for needle in [
+        format!("{price} {}", m.token.name),
+        format!("{receives} {}", m.token.name),
+        m.board.address.clone(),
+        m.vault.address.clone(),
+        m.treasury_kind.clone(),
+    ] {
+        assert!(page.contains(&needle), "bounty page lacks {needle}");
+    }
+    assert!(file(&files, "index.html").contains("href=\"/bounty\""));
+    let deployment: Value = serde_json::from_str(file(&files, "deployment.json")).unwrap();
+    assert_eq!(deployment["mainnet"]["board"]["address"], m.board.address);
+    assert!(deployment["mainnet"]["vault"].get("treasury").is_none());
+    // A published copy of the input carries the zero address in place of
+    // the treasury, and forty zeros occur in receipts as ordinary chain data,
+    // so the scan applies to a real treasury only (as for the test vault's).
+    // Found 2026-11-13: the public tree's CI would have failed here.
+    let redacted = bare.bytes().all(|b| b == b'0');
+    for (path, bytes) in &files {
+        if redacted || path.ends_with(".bin") {
+            continue;
+        }
+        let text = String::from_utf8_lossy(bytes).to_lowercase();
+        assert!(!text.contains(&bare), "{path} names the mainnet treasury");
+    }
 }
 
 #[test]
@@ -640,5 +722,22 @@ fn security_txt_names_the_repositorys_private_reporting_only_when_public() {
         !built(&private, Some(SITE))
             .iter()
             .any(|(p, _)| p == nucleus_site::SECURITY_TXT_PATH)
+    );
+}
+
+#[test]
+fn the_seller_page_says_nothing_is_published_and_how_to_check_the_image() {
+    let files = built(&input(), Some(SITE));
+    let page = file(&files, "sellers/run/index.html");
+    assert!(page.contains("Not published yet."), "{page}");
+    assert!(page.contains("cosign verify ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST"));
+    assert!(page.contains("gh attestation verify oci://"));
+    assert!(page.contains("nucleus-acceptance-host order2-image"));
+    assert!(page.contains("Fetch the Groth16 data"), "no measured table");
+    let markdown = file(&files, "sellers/run/index.md");
+    assert!(markdown.contains("Not published yet."), "{markdown}");
+    assert!(
+        file(&files, "index.html").contains("href=\"/sellers/run\""),
+        "the seller page is not reachable from the index"
     );
 }

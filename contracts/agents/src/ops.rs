@@ -22,6 +22,130 @@ use crate::world::*;
 /// What `prepare` mints to the buyer on a test chain.
 const TASK_PRICE: u64 = 1_000_000;
 
+/// A trailing `--dry-run` makes a deploy command estimate and print the
+/// transaction it would send (with the predicted contract address) and stop.
+fn dry_run(args: &[String]) -> (&[String], bool) {
+    match args {
+        [rest @ .., flag] if flag == "--dry-run" => (rest, true),
+        _ => (args, false),
+    }
+}
+/// Call every parameterless view function an ABI file lists and print each
+/// returned word. Read-only.
+///
+///   contract-read RPC ADDRESS ABI_JSON
+pub fn contract_read(args: &[String]) -> Res<()> {
+    let [rpc, address, abi] = args else {
+        return Err("usage: contract-read RPC ADDRESS ABI_JSON".into());
+    };
+    let chain = Chain::connect(rpc)?;
+    let address = address_arg(address)?;
+    let abi: Value = serde_json::from_slice(&fs::read(abi)?)?;
+    let functions = abi.as_array().ok_or("ABI must be a JSON array")?;
+    for f in functions {
+        let view = f["type"] == "function"
+            && f["stateMutability"] == "view"
+            && f["inputs"].as_array().is_some_and(Vec::is_empty);
+        if !view {
+            continue;
+        }
+        let name = f["name"].as_str().ok_or("function name")?;
+        let selector = keccak(format!("{name}()").as_bytes());
+        let out = chain.call([0; 20], address, &selector[..4])?;
+        println!("  {name}() = {}", hex(&out));
+    }
+    Ok(())
+}
+
+/// Compare the runtime code of two deployments of the same contract, byte by
+/// byte, and print the differing ranges (where immutables live). Read-only.
+///
+///   code-diff RPC_A ADDRESS_A RPC_B ADDRESS_B
+pub fn code_diff(args: &[String]) -> Res<()> {
+    let [rpc_a, a, rpc_b, b] = args else {
+        return Err("usage: code-diff RPC_A ADDRESS_A RPC_B ADDRESS_B".into());
+    };
+    let code_a = Chain::connect(rpc_a)?.code(address_arg(a)?)?;
+    let code_b = Chain::connect(rpc_b)?.code(address_arg(b)?)?;
+    println!(
+        "  lengths {} and {}; keccak {} and {}",
+        code_a.len(),
+        code_b.len(),
+        hex(&keccak(&code_a)),
+        hex(&keccak(&code_b))
+    );
+    if code_a.len() != code_b.len() {
+        return Err("different code lengths".into());
+    }
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    for (i, (x, y)) in code_a.iter().zip(&code_b).enumerate() {
+        if x == y {
+            continue;
+        }
+        match ranges.last_mut() {
+            Some((_, end)) if *end + 1 >= i => *end = i,
+            _ => ranges.push((i, i)),
+        }
+    }
+    let differing: usize = ranges.iter().map(|(s, e)| e - s + 1).sum();
+    println!("  {differing} differing bytes in {} ranges", ranges.len());
+    for (start, end) in ranges {
+        println!(
+            "  [{start}..={end}] a {} | b {}",
+            hex(&code_a[start..=end]),
+            hex(&code_b[start..=end])
+        );
+    }
+    Ok(())
+}
+
+/// What transactions cost their sender, read from their receipts: gas used,
+/// effective gas price, and on OP-stack chains such as Base the L1 data fee
+/// (`l1Fee`), which is charged on top. Read-only.
+///
+///   receipt-cost RPC TX...
+pub fn receipt_cost(args: &[String]) -> Res<()> {
+    let Some((rpc, transactions)) = args.split_first() else {
+        return Err("usage: receipt-cost RPC TX...".into());
+    };
+    let chain = Chain::connect(rpc)?;
+    let quantity = |value: &Value| -> Res<u128> {
+        match value.as_str() {
+            Some(text) => Ok(u128::from_str_radix(text.trim_start_matches("0x"), 16)?),
+            None => Ok(0),
+        }
+    };
+    let (mut gas, mut fee) = (0u128, 0u128);
+    for transaction in transactions {
+        let receipt = chain.rpc("eth_getTransactionReceipt", json!([transaction]))?;
+        if receipt.is_null() {
+            return Err(format!("no receipt for {transaction}").into());
+        }
+        let used = quantity(&receipt["gasUsed"])?;
+        let price = quantity(&receipt["effectiveGasPrice"])?;
+        let l1 = quantity(&receipt["l1Fee"])?;
+        let total = used * price + l1;
+        println!(
+            "  {transaction}: status {} gas {used} at {price} wei; L2 {} wei + L1 {l1} wei = {total} wei",
+            receipt["status"].as_str().unwrap_or("?"),
+            used * price
+        );
+        gas += used;
+        fee += total;
+    }
+    println!(
+        "  chain {}: {} transactions, {gas} gas, {fee} wei",
+        chain.id,
+        transactions.len()
+    );
+    Ok(())
+}
+
+fn connect(rpc: &str, dry: bool) -> Res<Chain> {
+    let chain = Chain::connect(rpc)?;
+    Ok(if dry { chain.dry() } else { chain })
+}
+
 pub fn deploy(args: &[String]) -> Res<()> {
     let [
         rpc,
@@ -497,13 +621,16 @@ pub fn swap_native(args: &[String]) -> Res<()> {
 ///
 ///   board-deploy RPC KEYFILE BOARD_BIN VAULT_ADDRESS OUT_JSON
 pub fn board_deploy(args: &[String]) -> Res<()> {
+    let (args, dry) = dry_run(args);
     let [rpc, keyfile, board_bin, vault_address, out] = args else {
-        return Err("usage: board-deploy RPC KEYFILE BOARD_BIN VAULT_ADDRESS OUT_JSON".into());
+        return Err(
+            "usage: board-deploy RPC KEYFILE BOARD_BIN VAULT_ADDRESS OUT_JSON [--dry-run]".into(),
+        );
     };
     if !Path::new(keyfile).exists() {
         return Err("key file does not exist".into());
     }
-    let chain = Chain::connect(rpc)?;
+    let chain = connect(rpc, dry)?;
     let payer = Keys::load_or_create(keyfile)?.wallet.clone();
     let vault_address = address_arg(vault_address)?;
     if chain.code(vault_address)?.is_empty() {
@@ -553,6 +680,7 @@ pub fn board_deploy(args: &[String]) -> Res<()> {
 ///
 ///   deploy3 RPC KEYFILE VAULT3_BIN REGISTRY VERIFIER TOKEN TREASURY MAXIMUM_TERM_SECONDS OUT_DIR
 pub fn deploy3(args: &[String]) -> Res<()> {
+    let (args, dry) = dry_run(args);
     let [
         rpc,
         keyfile,
@@ -565,7 +693,7 @@ pub fn deploy3(args: &[String]) -> Res<()> {
         out,
     ] = args
     else {
-        return Err("usage: deploy3 RPC KEYFILE VAULT3_BIN REGISTRY VERIFIER TOKEN TREASURY MAXIMUM_TERM_SECONDS OUT_DIR".into());
+        return Err("usage: deploy3 RPC KEYFILE VAULT3_BIN REGISTRY VERIFIER TOKEN TREASURY MAXIMUM_TERM_SECONDS OUT_DIR [--dry-run]".into());
     };
     if !Path::new(keyfile).exists() {
         return Err("key file does not exist".into());
@@ -574,7 +702,7 @@ pub fn deploy3(args: &[String]) -> Res<()> {
     if term == 0 {
         return Err("the maximum term must be positive".into());
     }
-    let chain = Chain::connect(rpc)?;
+    let chain = connect(rpc, dry)?;
     let payer = Keys::load_or_create(keyfile)?.wallet.clone();
     let before = chain.balance(address_of(&payer))?;
     println!(
@@ -726,13 +854,14 @@ pub fn claim(args: &[String]) -> Res<()> {
 ///
 ///   registry-deploy RPC KEYFILE REGISTRY_BIN VERIFIER_ADDRESS BASE_PROGRAM_HEX MAXIMUM_BPS OUT_JSON
 pub fn registry_deploy(args: &[String]) -> Res<()> {
+    let (args, dry) = dry_run(args);
     let [rpc, keyfile, registry_bin, verifier, program, maximum, out] = args else {
-        return Err("usage: registry-deploy RPC KEYFILE REGISTRY_BIN VERIFIER_ADDRESS BASE_PROGRAM_HEX MAXIMUM_BPS OUT_JSON".into());
+        return Err("usage: registry-deploy RPC KEYFILE REGISTRY_BIN VERIFIER_ADDRESS BASE_PROGRAM_HEX MAXIMUM_BPS OUT_JSON [--dry-run]".into());
     };
     if !Path::new(keyfile).exists() {
         return Err("key file does not exist".into());
     }
-    let chain = Chain::connect(rpc)?;
+    let chain = connect(rpc, dry)?;
     let payer = Keys::load_or_create(keyfile)?.wallet.clone();
     let verifier = address_arg(verifier)?;
     if chain.code(verifier)?.is_empty() {

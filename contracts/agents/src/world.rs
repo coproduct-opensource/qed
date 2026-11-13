@@ -170,6 +170,31 @@ pub(crate) fn token_domain(chain: &Chain, token: Address) -> Res<x402::TokenDoma
 /// Price of the one task these agents trade, in the token's smallest unit.
 /// Seller and buyer each read `NUCLEUS_TASK_PRICE`; unset, it is 1,000,000
 /// (one USDC). The buyer treats its value as the most it will pay.
+/// The RPC endpoints a deployment file names: `rpcs`, in order, when it has
+/// them; otherwise `rpc` alone. Files written before `rpcs` keep working.
+pub fn endpoints(deployment: &Value) -> Res<Vec<String>> {
+    match deployment.get("rpcs") {
+        Some(list) => {
+            let urls = list
+                .as_array()
+                .ok_or("rpcs must be a list")?
+                .iter()
+                .map(|url| {
+                    url.as_str()
+                        .map(str::to_owned)
+                        .ok_or("rpcs entries are URLs")
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if urls.is_empty() {
+                return Err("rpcs is empty".into());
+            }
+            Ok(urls)
+        }
+        None => Ok(vec![
+            deployment["rpc"].as_str().ok_or("rpc missing")?.to_owned(),
+        ]),
+    }
+}
 pub fn wall_clock() -> Res<u64> {
     Ok(std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -198,8 +223,7 @@ impl World {
         let field = |name: &str| -> Res<Address> {
             address_arg(value[name].as_str().ok_or("deployment field missing")?)
         };
-        let rpc = value["rpc"].as_str().ok_or("rpc missing")?.to_owned();
-        let chain = Chain::connect(&rpc)?;
+        let chain = Chain::connect_any(&endpoints(&value)?, crate::chain::Patience::DEFAULT)?;
         let vault = field("vault")?;
         let word = |data: Vec<u8>| -> Res<Vec<u8>> { chain.call([0; 20], vault, &data) };
         let treasury: Address = word(treasuryCall {}.abi_encode())?[12..]
