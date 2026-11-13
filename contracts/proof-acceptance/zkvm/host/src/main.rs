@@ -50,6 +50,7 @@ use risc0_zkvm::{
 };
 use std::{error::Error, fs, process::ExitCode, time::Instant};
 
+mod reproduce;
 mod wrap;
 
 fn hex(bytes: &[u8]) -> String {
@@ -285,6 +286,18 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Rebuild the published programs with the pinned recipe and compare IDs:
+    // exit 0 on a match, 1 on a mismatch, 2 when the check could not run.
+    if let Some(("verify-programs", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
+        return match reproduce::run(rest) {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::from(1),
+            Err(error) => {
+                eprintln!("verify-programs could not run: {error}");
+                ExitCode::from(2)
+            }
+        };
+    }
     match run(&args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

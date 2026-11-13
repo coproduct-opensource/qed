@@ -182,6 +182,14 @@ For an archive:
     gh attestation verify qed-TARGET.tar.gz --repo coproduct-opensource/qed
     tar xzf qed-TARGET.tar.gz
 
+From the release after v0.1.1 on, each archive also has two CycloneDX SBOMs,
+`qed-TARGET.agents.cdx.json` and `qed-TARGET.prover.cdx.json`. They list the
+crates in the two `Cargo.lock` files its binaries are built from. They are
+attached to the release and attested against the archive:
+
+    gh attestation verify qed-TARGET.tar.gz --repo coproduct-opensource/qed \
+      --predicate-type https://cyclonedx.org/bom
+
 These show which workflow built the artifact and from which commit. They do
 not show the source is correct. The program the vault pays for is checked
 separately: `nucleus-acceptance-host order2-image` must print

@@ -47,6 +47,15 @@ jobs:
         run: |
           target/release/nucleus-acceptance-host order2-image
           target/release/nucleus-acceptance-host base2-image
+      # The release's SBOM step, run on pull requests so a failure shows
+      # before a tag. Must match release.yml's.
+      - name: sboms
+        run: |
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+          cargo cyclonedx --manifest-path contracts/agents/Cargo.toml --format json --spec-version 1.5 --target ${{ matrix.target }} --no-build-deps --override-filename sbom
+          cargo cyclonedx --manifest-path contracts/proof-acceptance/zkvm/Cargo.toml --format json --spec-version 1.5 --target ${{ matrix.target }} --no-build-deps --override-filename sbom ${{ matrix.host_features }}
+          jq -e '.bomFormat == "CycloneDX" and (.components | length) > 100' contracts/agents/sbom.json
+          jq -e '.bomFormat == "CycloneDX" and (.components | length) > 100' contracts/proof-acceptance/zkvm/host/sbom.json
 
 
   image:

@@ -74,6 +74,28 @@ the file (host test, with the feature); the encoder still writes the input
 layout it reads (`core/tests/vault_program.rs`); and the vault test settles on
 its real seal.
 
+## Rebuilding from source (2026-11-13)
+
+`nucleus-acceptance-host verify-programs` rebuilds the guests inside RISC
+Zero's guest builder image, named by digest in `REPRODUCIBLE`, and compares
+the image IDs (exit 0 match, 1 mismatch, 2 could not run). It runs under
+`--runtime docker` or Apple `--runtime container`.
+
+The published IDs here do **not** reproduce that way: the fmt2 pair builds to
+`4e332565…d440` / `b2cab783…9fec` and the earlier third-form pair to
+`96ec2ec6…2d38` / `5bf03472…e4bb`. They were built with the macOS guest
+toolchain, whose output depends on the host compiler and the checkout path.
+
+A candidate pair built by the pinned route is base `4e332565…d440` and order
+`704bdf3b…42ed` (its source differs from this tree only in the order
+guest's `BASE_IMAGE_ID`, which names that base). Intel
+and AMD x86-64 VMs and this Mac (under Rosetta) built byte-identical ELFs for
+it. Nothing on any chain names it. Measurements, and what switching would
+take, are in `docs/rfcs/qed-reproducible-programs-2026-11-13.md`.
+
+The `/Users/administrator/` paths described below come from the macOS build
+of the guest toolchain only. Programs built in the Linux image carry none.
+
 ## What an ID does and does not give you
 
 - An ID is a fact about the loaded program image. It is not a hash of the

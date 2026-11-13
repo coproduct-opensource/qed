@@ -4,6 +4,7 @@
 #
 # How a seller checks what this publishes (from the repository README):
 #   gh attestation verify <binary or archive> --repo coproduct-opensource/qed
+#   gh attestation verify <archive> --repo coproduct-opensource/qed --predicate-type https://cyclonedx.org/bom
 #   cosign verify ghcr.io/coproduct-opensource/qed-seller@<digest> \
 #     --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\.github/workflows/release\.yml@refs/tags/v' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
@@ -67,16 +68,61 @@ jobs:
             cp "target/release/$b" "dist/qed-${{ matrix.target }}/"
           done
           tar -C dist -czf "dist/qed-${{ matrix.target }}.tar.gz" "qed-${{ matrix.target }}"
+      # CycloneDX 1.5 SBOMs from the two Cargo.lock files the archive's
+      # binaries are built from, for this target and these features, without
+      # build-time dependencies. cargo-cyclonedx is a Rust tool, installed at
+      # a fixed version with its own lockfile.
+      - name: sboms
+        run: |
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+          cargo cyclonedx --manifest-path contracts/agents/Cargo.toml --format json --spec-version 1.5 --target ${{ matrix.target }} --no-build-deps --override-filename sbom
+          cargo cyclonedx --manifest-path contracts/proof-acceptance/zkvm/Cargo.toml --format json --spec-version 1.5 --target ${{ matrix.target }} --no-build-deps --override-filename sbom ${{ matrix.host_features }}
+          mv contracts/agents/sbom.json "dist/qed-${{ matrix.target }}.agents.cdx.json"
+          mv contracts/proof-acceptance/zkvm/host/sbom.json "dist/qed-${{ matrix.target }}.prover.cdx.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qed-${{ matrix.target }}
-          path: dist/qed-${{ matrix.target }}.tar.gz
+          path: |
+            dist/qed-${{ matrix.target }}.tar.gz
+            dist/qed-${{ matrix.target }}.agents.cdx.json
+            dist/qed-${{ matrix.target }}.prover.cdx.json
           if-no-files-found: error
+
+  sbom:
+    name: SBOM attestations (${{ matrix.target }})
+    needs: binaries
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: qed-${{ matrix.target }}
+          path: dist
+      # actions/attest-sbom v4 is a wrapper over actions/attest and is being
+      # deprecated in its favour; actions/attest takes the same sbom-path.
+      # Check: gh attestation verify ARCHIVE --repo coproduct-opensource/qed --predicate-type https://cyclonedx.org/bom
+      - name: attest the agents SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/qed-${{ matrix.target }}.tar.gz
+          sbom-path: dist/qed-${{ matrix.target }}.agents.cdx.json
+      - name: attest the prover SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/qed-${{ matrix.target }}.tar.gz
+          sbom-path: dist/qed-${{ matrix.target }}.prover.cdx.json
 
   release:
     name: release and attest binaries
     # After the image index, so the release notes can name its digest.
-    needs: [binaries, image-index]
+    needs: [binaries, sbom, image-index]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -100,9 +146,9 @@ jobs:
           IMAGE: ${{ needs.image-index.outputs.image }}
           DIGEST: ${{ needs.image-index.outputs.digest }}
         run: >-
-          gh release create "$TAG" dist/qed-*.tar.gz dist/SHA256SUMS
+          gh release create "$TAG" dist/qed-*.tar.gz dist/qed-*.cdx.json dist/SHA256SUMS
           --repo "$GITHUB_REPOSITORY" --title "$TAG" --verify-tag
-          --notes "Prebuilt binaries. Check each archive with gh attestation verify ARCHIVE --repo $GITHUB_REPOSITORY and sha256sum -c SHA256SUMS. Seller image: $IMAGE@$DIGEST (check it by this digest with cosign verify and gh attestation verify, as the README says)."
+          --notes "Prebuilt binaries. Check each archive with gh attestation verify ARCHIVE --repo $GITHUB_REPOSITORY and sha256sum -c SHA256SUMS. Each archive has two attested CycloneDX SBOMs (agents and prover, from Cargo.lock), attached here: gh attestation verify ARCHIVE --repo $GITHUB_REPOSITORY --predicate-type https://cyclonedx.org/bom. Seller image: $IMAGE@$DIGEST (check it by this digest with cosign verify and gh attestation verify, as the README says)."
 
   image:
     name: image (${{ matrix.platform }})
