@@ -13,7 +13,9 @@
     { "network": "arbitrum-sepolia", "address": "0x26f78b53af75ef5c4df2a786325e398c37b919ad", "name": "Third form, first base registry" },
     { "network": "arbitrum-sepolia", "address": "0x4188c7683fc4976f1aa2498897249ab68c424bfe", "name": "Third form, programs rebuilt without build paths" },
     { "network": "arbitrum-sepolia", "address": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426", "name": "Third form, statement format v2 programs" },
-    { "network": "base", "address": "0x30f522bc30d46b3a4089931d698f04656fa23b8d", "name": "Second form on Base (mainnet)" }
+    { "network": "arbitrum-sepolia", "address": "0xb1d68c62497384a8d19da1860bb4990c3e83aeac", "name": "Third form, reproducible programs; refuses a registry whose ceiling exceeds its fee room" },
+    { "network": "base", "address": "0x30f522bc30d46b3a4089931d698f04656fa23b8d", "name": "Second form on Base (mainnet)" },
+    { "network": "base", "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b", "name": "Third form on Base (mainnet), statement format v2 programs" }
   ],
   "programs": [
     { "imageId": "f0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca", "name": "second-form order program", "status": "not-distributed" },
@@ -23,7 +25,9 @@
     { "imageId": "fc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb", "name": "third-form order program (nucleus-vault3-acceptance.bin)", "status": "published" },
     { "imageId": "67bddd199136658cc6552facce96be32647c42ee44a10c54e79a0e1f4beccd3a", "name": "base program (nucleus-base-check.bin)", "status": "published" },
     { "imageId": "fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081", "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)", "status": "published" },
-    { "imageId": "84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237", "name": "base program, statement format v2 (nucleus-base-check-fmt2.bin)", "status": "published" }
+    { "imageId": "84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237", "name": "base program, statement format v2 (nucleus-base-check-fmt2.bin)", "status": "published" },
+    { "imageId": "704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed", "name": "third-form order program, statement format v2, rebuilds from source (nucleus-order-fmt2r.bin)", "status": "published" },
+    { "imageId": "4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440", "name": "base program, statement format v2, rebuilds from source (nucleus-base-check-fmt2r.bin)", "status": "published" }
   ],
   "settlements": [
     { "network": "arbitrum-sepolia", "settleTransaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218", "what": "First settlement on a public chain, in a test token deployed by the authors.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
@@ -42,6 +46,8 @@
     { "network": "arbitrum-sepolia", "settleTransaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130", "what": "Buyer speaking only A2A over iroh.", "record": "docs/rfcs/a2a-over-iroh-binding-2026-11-13.md" },
     { "network": "arbitrum-sepolia", "settleTransaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899", "what": "First task about Nucleus's own code: should_gate on the extracted pure core of Kernel::decide (gate completeness).", "record": "docs/rfcs/proof-commerce-nucleus-open-obligations-2026-11-13.md" },
     { "network": "arbitrum-sepolia", "settleTransaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4", "what": "Standing bounty on the statement format v2 programs.", "record": "docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md" },
-    { "network": "arbitrum-sepolia", "settleTransaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3", "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.", "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md" }
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3", "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.", "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md" },
+    { "network": "base", "settleTransaction": "0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8", "what": "First trade on the Base third-form vault: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.", "record": "docs/rfcs/qed-relayer-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x617c633ffc1990ac62774ac415deb41b1f1e92bd39aea5f205777f8640dc85a8", "what": "First trade on the programs that rebuild from source: a task on the registered toy base, with the vault that checks its registry's ceiling at construction.", "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md" }
   ]
 }

@@ -603,14 +603,16 @@ fn the_receipts_are_the_snapshot_and_their_artifacts_hash_to_the_vaults_record()
         let html = file(&files, &format!("transactions/{id}/index.html"));
         assert!(html.contains(id));
     }
-    // One settlement was in real money, on Base, and the rest in test tokens.
+    // Two settlements were in real money, both on Base (the second-form
+    // vault, then the first relayed trade on the third-form vault); the rest
+    // were in test tokens.
     let real: Vec<_> = snap
         .receipts()
         .iter()
         .filter(|r| !r["asserted"]["realMoney"].is_null())
         .collect();
-    assert_eq!(real.len(), 1);
-    assert_eq!(real[0]["network"]["chainId"], 8453);
+    assert_eq!(real.len(), 2);
+    assert!(real.iter().all(|r| r["network"]["chainId"] == 8453));
 }
 
 #[test]
@@ -742,7 +744,7 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
     assert!(page.contains(&format!("gh attestation verify oci://{image}")));
     assert!(page.contains("nucleus-acceptance-host order2-image"));
     assert!(!page.contains("Not published yet."));
-    // The bounty's board, its deployment block and the planned relayer.
+    // The bounty's board, its deployment block and the relayer.
     let m = i
         .mainnet
         .as_ref()
@@ -750,7 +752,11 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
     assert!(page.contains(&m.board.address));
     let start = format!("\"startBlock\": {}", m.board.deploy_block.unwrap());
     assert!(page.contains(&start.replace('"', "&quot;")) || page.contains(&start));
-    assert!(page.contains("Gas relayer (planned)"));
+    assert!(page.contains("Gas relayer") && !page.contains("Gas relayer (planned)"));
+    assert!(
+        page.contains("&quot;relayer&quot;: &quot;https://relay.qed.coproduct.dev&quot;")
+            || page.contains("\"relayer\": \"https://relay.qed.coproduct.dev\"")
+    );
     assert!(page.contains("Fetch the Groth16 data"), "no measured table");
     let markdown = file(&files, "sellers/run/index.md");
     assert!(

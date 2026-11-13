@@ -1,0 +1,42 @@
+# Rebuild the published proof programs from source in RISC Zero's guest
+# builder image, named by digest in contracts/proof-acceptance/program/REPRODUCIBLE,
+# and fail unless every image ID and every published binary's bytes match.
+# No secrets, read-only token.
+#
+# Runs on GitHub's x86-64 Ubuntu runner, natively: the builder image is
+# linux/amd64 only. About 2 to 2.5 minutes of building after the image pull
+# (1.7 GB) on an 8-vCPU x86 machine.
+name: verify-programs
+
+on:
+  pull_request:
+    paths:
+      - "contracts/proof-acceptance/**"
+      - "crates/nucleus-proof-commerce/**"
+      - ".github/workflows/verify-programs.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-programs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-programs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain for the verifier (the guests use the image's)
+        run: rustup toolchain install 1.96.1 --profile minimal && rustup default 1.96.1
+      - name: Build the verifier
+        working-directory: contracts/proof-acceptance/zkvm
+        run: cargo build --release --locked -p nucleus-acceptance-host
+      - name: Rebuild the guests in the pinned image and compare image IDs and bytes
+        run: contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD --work "$RUNNER_TEMP/reproduce"

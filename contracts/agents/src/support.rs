@@ -200,10 +200,14 @@ pub struct BaseOffer {
 /// match the deployment and the posts it answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ThirdProgram {
-    /// Statement format v2 (`program/nucleus-order-fmt2.bin`, bases from
-    /// `nucleus-base-check-fmt2.bin`): the default since the redeployment
-    /// of 2026-11-13.
+    /// Statement format v2, built reproducibly (`program/nucleus-order-fmt2r.bin`,
+    /// bases from `nucleus-base-check-fmt2r.bin`): the default since the
+    /// switch of 2026-11-13 (docs/rfcs/qed-reproducible-switch-2026-11-13.md).
     #[default]
+    Reproducible,
+    /// Statement format v2 as first built (`program/nucleus-order-fmt2.bin`,
+    /// bases from `nucleus-base-check-fmt2.bin`), named by the Base mainnet
+    /// deployment until its own switch.
     FormatV2,
     /// The earlier pair (`nucleus-vault3-acceptance.bin`,
     /// `nucleus-base-check.bin`), still named by the deployment of
@@ -211,15 +215,18 @@ pub enum ThirdProgram {
     Earlier,
 }
 impl ThirdProgram {
-    /// From a seller config's `proofProgram`: absent or `"fmt2"` for format
-    /// v2, `"vault3"` for the earlier program. Anything else is refused.
+    /// From a seller config's `proofProgram`: absent or `"fmt2r"` for the
+    /// reproducible build, `"fmt2"` for format v2 as first built, `"vault3"`
+    /// for the earlier program. Anything else is refused.
     pub fn from_config(value: Option<&str>) -> Res<Self> {
         match value {
-            None | Some("fmt2") => Ok(Self::FormatV2),
+            None | Some("fmt2r") => Ok(Self::Reproducible),
+            Some("fmt2") => Ok(Self::FormatV2),
             Some("vault3") => Ok(Self::Earlier),
-            Some(other) => {
-                Err(format!("proofProgram {other:?}: expected \"fmt2\" or \"vault3\"").into())
-            }
+            Some(other) => Err(format!(
+                "proofProgram {other:?}: expected \"fmt2r\", \"fmt2\" or \"vault3\""
+            )
+            .into()),
         }
     }
 }
@@ -239,6 +246,7 @@ impl RealProofs {
         match (form, self.third) {
             (nucleus_proof_commerce::vault::Form::Second, _) => "vault-",
             // The base-aware programs: they also prove orders that name no base.
+            (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::Reproducible) => "order2r-",
             (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::FormatV2) => "order2-",
             (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::Earlier) => "vault3-",
         }
@@ -436,10 +444,11 @@ mod tests {
         assert!(Groth16::from_config(Some("remote:http://127.0.0.1:4460"), None, None).is_ok());
     }
 
-    /// The third-form program defaults to statement format v2; the earlier
-    /// one is chosen by name; a misspelling is refused, not defaulted.
+    /// The third-form program defaults to the reproducible statement-format-v2
+    /// build; the earlier builds are chosen by name; a misspelling is refused,
+    /// not defaulted.
     #[test]
-    fn the_third_form_program_is_chosen_by_name_and_defaults_to_format_v2() {
+    fn the_third_form_program_is_chosen_by_name_and_defaults_to_the_reproducible_build() {
         let proofs = |third| RealProofs {
             host: String::new(),
             groth16: Groth16::Native { data: None },
@@ -449,7 +458,15 @@ mod tests {
         use nucleus_proof_commerce::vault::Form;
         assert_eq!(
             ThirdProgram::from_config(None).unwrap(),
-            ThirdProgram::FormatV2
+            ThirdProgram::Reproducible
+        );
+        assert_eq!(
+            ThirdProgram::from_config(Some("fmt2r")).unwrap(),
+            ThirdProgram::Reproducible
+        );
+        assert_eq!(
+            proofs(ThirdProgram::Reproducible).prefix(Form::Third),
+            "order2r-"
         );
         assert_eq!(
             ThirdProgram::from_config(Some("fmt2")).unwrap(),

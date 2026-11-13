@@ -15,7 +15,7 @@ definition; where this page and they differ, they are right.
 
 A statement and an artifact may also be given in **export v2**, a binary
 encoding of the same export, one record per NDJSON line. The order program
-`fbfdc68c…0081` reads either form; a policy for it pins the SHA-256 of the v2
+`704bdf3b…42ed` (and the earlier build `fbfdc68c…0081`) reads either form; a policy for it pins the SHA-256 of the v2
 bytes. `export_v2_from_ndjson` (in `contracts/proof-acceptance/core`) converts
 a Lean export, so anyone can recompute that hash from Lean's own output.
 

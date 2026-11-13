@@ -8,6 +8,15 @@
     "statementFormat": "ndjson",
     "statementSha256": "897e05c832d4f330503e2f9bf826be31e682a28917e0f9d980bfa183e206d550"
   },
+  "0x214394c3af4e8dfe30d71e41a5918a6dc8555cadebe114ad4c0713f2fb064de2": {
+    "claim": "Nucleus.Claim",
+    "maximumArtifactBytes": 65536,
+    "permittedAxioms": [],
+    "statementBytes": 4681,
+    "statementFile": "da3f7999469c4773eefc39f32ab24fb9e311841d78b3cea716e070e49af86f19.v2",
+    "statementFormat": "v2",
+    "statementSha256": "da3f7999469c4773eefc39f32ab24fb9e311841d78b3cea716e070e49af86f19"
+  },
   "0x3024faf0348f0f480f0ab3c6df3b2a0b0ce8fd8ffc2361429d9f63b77aef3bee": {
     "claim": "Nucleus.Claim",
     "maximumArtifactBytes": 65536,

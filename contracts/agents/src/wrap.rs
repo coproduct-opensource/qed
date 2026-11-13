@@ -41,7 +41,7 @@ use std::{
 
 /// The order programs a wrap may be for, by the prover host's command prefix.
 /// Base registrations are wrapped by whoever proves the base; not here.
-pub const PREFIXES: [&str; 2] = ["order2", "vault3"];
+pub const PREFIXES: [&str; 3] = ["order2r", "order2", "vault3"];
 /// `keccak256("NucleusAcceptanceV1")`, the first word of every order journal.
 fn acceptance_tag() -> [u8; 32] {
     keccak(b"NucleusAcceptanceV1")

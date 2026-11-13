@@ -11,16 +11,31 @@ a seller needs no RISC-V toolchain.
 
 | file | ID file | image ID | SHA-256 of the file | what it proves |
 |---|---|---|---|---|
+| `nucleus-order-fmt2r.bin` | `IMAGE_ID_ORDER_FMT2R` | `704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed` | `5782c9f11b18a89d578314cff35b34452dd457e95973004e511feb0cd67cf91e` | as `nucleus-order-fmt2.bin`; bases committed by `nucleus-base-check-fmt2r.bin` only. **Reproducible**: `verify-programs` rebuilds these bytes |
+| `nucleus-base-check-fmt2r.bin` | `IMAGE_ID_BASE_FMT2R` | `4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440` | `a66caa75d21213558c09189fddf1c4915dae872ffe5b313e714a76350da062ce` | as `nucleus-base-check-fmt2.bin`. **Reproducible** |
 | `nucleus-vault3-acceptance.bin` | `IMAGE_ID_VAULT3` | `fc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb` | `85242aed4fa19657bd0497464ffb82a4fc37275a09315fd1c6aebfbe36c76b42` | a `NucleusVault3` order's delivery is accepted; for an order naming a base, on a verified commitment of the base program for that base and the order's axioms, with the base's declarations parsed and not re-checked |
 | `nucleus-base-check.bin` | `IMAGE_ID_BASE` | `67bddd199136658cc6552facce96be32647c42ee44a10c54e79a0e1f4beccd3a` | `cfb3cade2615690311a3a8957c614d481c7f0c94c7aa90935d65e48377abd377` | a base library (a complete Lean export) parses and type-checks under a stated list of axioms; commits base id, axioms hash, payee and rate |
 | `nucleus-vault-acceptance.bin` | `IMAGE_ID` | `f0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca` | `5db02defbe1a6b0b55df95c524f40b858981e9934546b2182bb37497ba521f74` | a `NucleusVault2` order's delivery is accepted (the second form, live on Base) |
 | `nucleus-order-fmt2.bin` | `IMAGE_ID_ORDER_FMT2` | `fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081` | `a69d2abf7f93241720779d08da7dd3a593ebf1e2faa6ff54d62922acffd3c177` | as `nucleus-vault3-acceptance.bin`, reading the export once and in place, as NDJSON or as export v2; an order without a base is parsed once; bases committed by `nucleus-base-check-fmt2.bin` only |
 | `nucleus-base-check-fmt2.bin` | `IMAGE_ID_BASE_FMT2` | `84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237` | `feaa9a81f9165ac1c8030ab134a303a12c494de46e56c100f9c4435129361a07` | as `nucleus-base-check.bin`, reading the base as NDJSON or export v2 |
 
-The `-fmt2` pair is statement format v2
-(`docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md`), after its
-optimization pass. The source at HEAD builds it, and
-`methods/tests/published.rs` checks that. The earlier third-form pair
+**The `-fmt2r` pair is current** (owner decision 2026-11-13, the switch to
+reproducible programs; `docs/rfcs/qed-reproducible-switch-2026-11-13.md`). It
+is the same source as the `-fmt2` pair except for the base program ID the
+order guest names, built in RISC Zero's pinned builder image, so anyone can
+rebuild it: `nucleus-acceptance-host verify-programs` (recipe
+`REPRODUCIBLE`) rebuilds both guests and requires the recorded IDs and these
+exact bytes. The Arbitrum Sepolia deployment of 2026-11-13 (registry, vault
+and board of the switch) names it. Host commands `order2r-` and `base2r-`;
+a seller's default (`proofProgram` absent or `"fmt2r"`).
+
+**The `-fmt2` pair is retiring.** Statement format v2
+(`docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md`), built with
+the macOS guest toolchain; nobody can rebuild it elsewhere. The Base mainnet
+deployment and its standing bounty name it until the mainnet switch, so it
+stays published and the host keeps `order2-` and `base2-` (`proofProgram`
+`"fmt2"`). On Arbitrum Sepolia it is retired: its registry, vault and board
+stay on chain, unused. Its source is commit `a0cfceb2a`. The earlier third-form pair
 (`fc879ae4…`, `67bddd19…`) stays published because testnet contracts and
 posted tasks name it; its source is commit `37bc16b7d`.
 
@@ -78,20 +93,19 @@ its real seal.
 
 `nucleus-acceptance-host verify-programs` rebuilds the guests inside RISC
 Zero's guest builder image, named by digest in `REPRODUCIBLE`, and compares
-the image IDs (exit 0 match, 1 mismatch, 2 could not run). It runs under
-`--runtime docker` or Apple `--runtime container`.
+the image IDs and the published bytes (exit 0 match, 1 mismatch, 2 could not
+run). It runs under `--runtime docker` or Apple `--runtime container`.
 
-The published IDs here do **not** reproduce that way: the fmt2 pair builds to
+    cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host && cd -
+    contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD
+
+The `-fmt2r` pair is what it rebuilds (Intel and AMD x86-64 VMs and a Mac
+under Rosetta built byte-identical ELFs;
+`docs/rfcs/qed-reproducible-programs-2026-11-13.md`). The other published IDs
+here do **not** reproduce that way: the fmt2 pair's source builds to
 `4e332565…d440` / `b2cab783…9fec` and the earlier third-form pair to
 `96ec2ec6…2d38` / `5bf03472…e4bb`. They were built with the macOS guest
 toolchain, whose output depends on the host compiler and the checkout path.
-
-A candidate pair built by the pinned route is base `4e332565…d440` and order
-`704bdf3b…42ed` (its source differs from this tree only in the order
-guest's `BASE_IMAGE_ID`, which names that base). Intel
-and AMD x86-64 VMs and this Mac (under Rosetta) built byte-identical ELFs for
-it. Nothing on any chain names it. Measurements, and what switching would
-take, are in `docs/rfcs/qed-reproducible-programs-2026-11-13.md`.
 
 The `/Users/administrator/` paths described below come from the macOS build
 of the guest toolchain only. Programs built in the Linux image carry none.
@@ -102,17 +116,17 @@ of the guest toolchain only. Programs built in the Linux image carry none.
   file: bytes that are never loaded (the file's last byte, for one) can change
   without changing the ID.
 - That a binary does what `zkvm/methods/vault3`, `zkvm/methods/base` and their
-  dependencies say rests on the source build. On the machine that published
-  them, at the checkout path they were built from,
-  `cargo test -p nucleus-acceptance-methods` rebuilds both guests and finds
-  the same bytes and IDs, and checks the order program's constant naming the
-  base program against the base guest it built.
-- **Builds do not reproduce across checkout paths.** The same commit built
-  from a second directory on the same machine gave different bytes and IDs
-  (measured 2026-11-13). Source paths are remapped, but the compiler's
-  per-crate symbol hashes still depend on where a path dependency lives. So
-  that test failing elsewhere is a finding about the build, not evidence the
-  binary is wrong, and not evidence it is right.
+  dependencies say rests on the source build. For the `-fmt2r` pair anyone
+  can check that with `verify-programs` (above), on any x86-64 machine or
+  under faithful translation. That the order program names the base program
+  published beside it is a separate check: the host's test
+  `the_order_guest_source_names_the_published_reproducible_base_program`.
+- **Native builds do not reproduce across checkout paths or host
+  toolchains.** The same commit built natively from a second directory on the
+  same Mac gave different bytes and IDs (measured 2026-11-13). Source paths
+  are remapped, but the compiler's per-crate symbol hashes still depend on
+  where a path dependency lives. That is why the published pair is built in
+  the pinned image, where the source is always at `/src`.
 - Changing any non-wire code of `crates/nucleus-proof-commerce`, or
   `contracts/proof-acceptance/core`, or the vendored checker, changes both
   third-form IDs.

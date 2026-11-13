@@ -79,12 +79,14 @@ impl Drop for Served {
     }
 }
 
-const FACTS: [&str; 6] = [
+const FACTS: [&str; 8] = [
     "Q.E.D.",
     "Don't trust us. Ask your agent.",
     AUTHORS_ONLY,
     "The contracts are unaudited.",
-    "The board now runs on Base mainnet with real USDC.",
+    "Live on Base mainnet, in USDC.",
+    "Sellers need no ETH.",
+    "The current proof programs rebuild from source, byte for byte.",
     "Plain HTML. No account required.",
 ];
 

@@ -1,9 +1,10 @@
 import Std
 set_option warningAsError true
 
-/- PROPOSAL for the third vault. A model; it moves no funds, and no contract
-   implements it yet. Owner decisions 13 and 18 of 2026-11-12
-   (docs/rfcs/proof-commerce-marketplace-decisions-2026-11-12.md).
+/- The third vault. A model; it moves no funds. `NucleusVault3.sol`
+   implements it. Owner decisions 13 and 18 of 2026-11-12, and 22 of
+   2026-11-13 (the registry's ceiling fits under the cap at construction;
+   docs/rfcs/proof-commerce-marketplace-decisions-2026-11-12.md).
 
    What changes from the deployed vault (Vault.lean):
 
@@ -40,9 +41,16 @@ structure Deployment where
   feeBps : Nat
   maximumFeeBps : Nat
   maximumTerm : Nat
+  /-- The largest rate the named registry admits for any entry: its
+      `maximumBps`, read by the constructor (`Registry.lean`,
+      `every_entry_was_proved`). -/
+  registryMaximumBps : Nat
   feePositive : 0 < feeBps
   feeWithinCap : feeBps ≤ maximumFeeBps
   capBounded : maximumFeeBps ≤ 10000
+  /-- Decision 22: the constructor refuses a registry whose ceiling does not
+      fit in the room the fee leaves under the cap. -/
+  ceilingWithinRoom : feeBps + registryMaximumBps ≤ maximumFeeBps
 
 structure Order where
   buyer : Nat
@@ -85,6 +93,67 @@ def royalty (reg : Registry) (o : Order) : Nat :=
     later: registry entries never change. -/
 def WithinCap (d : Deployment) (reg : Registry) (o : Order) : Prop :=
   (fee d o + royalty reg o) * 10000 ≤ o.amount * d.maximumFeeBps
+
+/-- The rate an order's base is charged at, or 0. -/
+def rate (reg : Registry) (o : Order) : Nat :=
+  match entry reg o with
+  | some e => e.bps
+  | none => 0
+
+/-- Every entry the registry answers with is within its ceiling. The real
+    registry guarantees this for every entry it ever holds
+    (`Registry.every_entry_was_proved`). -/
+def Bounded (d : Deployment) (reg : Registry) : Prop :=
+  ∀ b e, reg b = some e → e.bps ≤ d.registryMaximumBps
+
+/-- The cap check of `fund` on bare numbers: an order of `amount` at fee rate
+    `feeBps`, on a base charged at `bps`, under the cap `maximumFeeBps`. -/
+def Fits (amount feeBps bps maximumFeeBps : Nat) : Prop :=
+  ((amount * feeBps + 9999) / 10000 + amount * bps / 10000) * 10000 ≤ amount * maximumFeeBps
+
+theorem withinCap_iff_fits (d : Deployment) (reg : Registry) (o : Order) :
+    WithinCap d reg o ↔ Fits o.amount d.feeBps (rate reg o) d.maximumFeeBps := by
+  unfold WithinCap Fits fee royalty rate
+  split <;> simp
+
+theorem rate_le_ceiling {d : Deployment} {reg : Registry} (bounded : Bounded d reg) (o : Order) :
+    rate reg o ≤ d.registryMaximumBps := by
+  unfold rate entry
+  split
+  · rename_i e found
+    cases hb : o.base with
+    | none => rw [hb] at found; cases found
+    | some b => rw [hb] at found; exact bounded b e found
+  · exact Nat.zero_le _
+
+/-- Decision 22, why it suffices: with the ceiling inside the room the fee
+    leaves, no registered base can make an order of a whole number of
+    10,000 units unfundable (for a six-decimal token, a whole cent). Such an
+    order's fee is exact, so fee plus royalty is at most fee rate plus
+    ceiling, which the deployment keeps under the cap. -/
+theorem every_base_fits_a_round_order {d : Deployment} {reg : Registry} {o : Order}
+    (bounded : Bounded d reg) (round : o.amount % 10000 = 0) : WithinCap d reg o := by
+  rw [withinCap_iff_fits]
+  have hb := rate_le_ceiling bounded o
+  have room := d.ceilingWithinRoom
+  unfold Fits
+  obtain ⟨k, hk⟩ : 10000 ∣ o.amount := Nat.dvd_of_mod_eq_zero round
+  rw [hk]
+  have e1 : 10000 * k * d.feeBps = 10000 * (k * d.feeBps) := Nat.mul_assoc _ _ _
+  have e2 : 10000 * k * rate reg o = 10000 * (k * rate reg o) := Nat.mul_assoc _ _ _
+  have e3 : 10000 * k * d.maximumFeeBps = 10000 * (k * d.maximumFeeBps) := Nat.mul_assoc _ _ _
+  have l1 : k * rate reg o ≤ k * d.registryMaximumBps := Nat.mul_le_mul_left k hb
+  have l2 : k * d.feeBps + k * d.registryMaximumBps ≤ k * d.maximumFeeBps := by
+    rw [← Nat.mul_add]; exact Nat.mul_le_mul_left k room
+  rw [e1, e2, e3]
+  omega
+
+/-- Decision 22, why it is needed: had the constructor admitted a ceiling
+    past the room (`maximumFeeBps < feeBps + ceiling`), an order of 10,000
+    units on a base registered at the ceiling could never be funded. -/
+theorem a_ceiling_past_the_room_strands_a_base (feeBps maximumFeeBps ceiling : Nat)
+    (over : maximumFeeBps < feeBps + ceiling) : ¬ Fits 10000 feeBps ceiling maximumFeeBps := by
+  unfold Fits; omega
 
 theorem charges_le_amount {d : Deployment} {reg : Registry} {o : Order}
     (capped : WithinCap d reg o) : fee d o + royalty reg o ≤ o.amount := by
@@ -293,4 +362,8 @@ namespace Nucleus.ProofCommerce.Vault3
 #guard_msgs in #print axioms settled_was_accepted
 /-- info: 'Nucleus.ProofCommerce.Vault3.owed_falls_only_by_a_claim' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms owed_falls_only_by_a_claim
+/-- info: 'Nucleus.ProofCommerce.Vault3.every_base_fits_a_round_order' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms every_base_fits_a_round_order
+/-- info: 'Nucleus.ProofCommerce.Vault3.a_ceiling_past_the_room_strands_a_base' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms a_ceiling_past_the_room_strands_a_base
 end Nucleus.ProofCommerce.Vault3

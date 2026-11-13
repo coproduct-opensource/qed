@@ -191,6 +191,57 @@ fn a_registry_without_a_verifier_or_program_or_with_a_ceiling_over_the_whole_can
     }
 }
 
+/// Decision 22 (model: `ceilingWithinRoom` and `a_ceiling_past_the_room_strands_a_base`
+/// in proofs/commerce/Vault3.lean): a vault refuses at construction a registry
+/// whose ceiling does not fit in the room its fee leaves under its cap. With
+/// fee 25 and cap 100 the room is 75 basis points.
+#[test]
+fn a_vault_refuses_a_registry_whose_ceiling_does_not_fit_under_its_fee_cap() {
+    let mut chain = Chain::new();
+    let verifier = chain.verifier;
+    let vault_code = || unhex(VAULT3_BIN);
+    for (ceiling, admitted) in [
+        (0u16, true),
+        (50, true),
+        (75, true),
+        (76, false),
+        (10_000, false),
+    ] {
+        let constructor = (verifier, B256::from(BASE_PROGRAM), ceiling).abi_encode();
+        let registry = chain.create([unhex(REGISTRY_BIN), constructor].concat());
+        let deploy = (TREASURY, 25u16, 100u16, TERM, registry).abi_encode();
+        let result = chain.transact(
+            ADMIN,
+            revm::primitives::TxKind::Create,
+            1,
+            [vault_code(), deploy].concat(),
+        );
+        let created = matches!(
+            result,
+            revm::context_interface::result::ExecutionResult::Success { .. }
+        );
+        assert_eq!(created, admitted, "ceiling {ceiling}: {result:?}");
+    }
+    // A registry that cannot say its ceiling (no code, or no `maximumBps`) is
+    // refused too: the vault cannot check what it cannot read.
+    for registry in [Address::new([0x77; 20]), chain.verifier] {
+        let deploy = (TREASURY, 25u16, 100u16, TERM, registry).abi_encode();
+        let result = chain.transact(
+            ADMIN,
+            revm::primitives::TxKind::Create,
+            1,
+            [vault_code(), deploy].concat(),
+        );
+        assert!(
+            !matches!(
+                result,
+                revm::context_interface::result::ExecutionResult::Success { .. }
+            ),
+            "{registry}: {result:?}"
+        );
+    }
+}
+
 #[test]
 fn a_vault_naming_the_registry_books_the_royalty_of_a_registered_base() {
     let mut chain = Chain::new();

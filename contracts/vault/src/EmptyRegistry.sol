@@ -9,4 +9,9 @@ contract EmptyRegistry {
     function entryOf(bytes32) external pure returns (address payee, uint16 bps) {
         return (address(0), 0);
     }
+
+    /// No entry, so no rate: a third vault reads this at construction.
+    function maximumBps() external pure returns (uint16) {
+        return 0;
+    }
 }
