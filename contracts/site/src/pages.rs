@@ -1175,7 +1175,7 @@ pub const SELLER_RELEASE: SellerRelease = SellerRelease {
     image: "ghcr.io/coproduct-opensource/qed-seller",
     digest: "sha256:f7c2701d1cea6d32ce2710689c1763c2a3e35f28d27a9cd331b8dbe9603946ac",
     // 2026-11-13: an anonymous pull of the digest answered 401.
-    image_public: false,
+    image_public: true,
 };
 
 /// The standing bounty on the main network: the offer, how to take part,
@@ -2027,7 +2027,9 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ),
         ]),
         p(if r.image_public {
-            vec![t("The registry serves the image without a login.")]
+            vec![t(
+                "The registry serves the image to anyone; the pull needs no account.",
+            )]
         } else {
             vec![
                 strong("The image cannot be pulled yet."),
