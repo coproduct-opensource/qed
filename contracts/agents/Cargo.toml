@@ -1,0 +1,58 @@
+[package]
+name = "nucleus-commerce-agents"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Seller and buyer agents for the thin vault over iroh or HTTP, and operations on a deployment."
+
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nucleus-seller"
+path = "src/bin/nucleus-seller.rs"
+
+[[bin]]
+name = "nucleus-buyer"
+path = "src/bin/nucleus-buyer.rs"
+
+[[bin]]
+name = "nucleus-vault-ops"
+path = "src/bin/nucleus-vault-ops.rs"
+
+[[bin]]
+name = "nucleus-fixture-prover"
+path = "src/bin/nucleus-fixture-prover.rs"
+
+[dependencies]
+p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+nucleus-proof-acceptance = { path = "../proof-acceptance/core" }
+nucleus-proof-commerce = { path = "../../crates/nucleus-proof-commerce", features = ["x402-wire"] }
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+sha3 = { version = "0.10.9", default-features = false }
+sha2 = { version = "0.10.9", default-features = false }
+serde_json = "1"
+base64 = "0.23"
+ureq = { version = "3", default-features = false, features = ["json", "rustls"] }
+alloy-sol-types = { version = "=1.7.3", default-features = false }
+alloy-primitives = { version = "=1.7.3", default-features = false }
+# The same iroh the rest of the repository uses (crates/nucleus-spiffe-hail).
+# No relay and no address lookup are configured; see src/iroh_net.rs.
+iroh = { version = "=1.3.0", default-features = false, features = ["tls-ring"] }
+# Statements travel as content-addressed blobs (decision 4). The same version
+# crates/nucleus-bundle-cas uses; in-memory store only.
+iroh-blobs = { version = "=0.103.1", default-features = false }
+nucleus-board-reference = { path = "../board/reference" }
+# The A2A-over-iroh identifiers and seller card, shared with contracts/site.
+nucleus-a2a-iroh-card = { path = "../a2a-iroh-card" }
+# The bounty's journal: one atomic append and a sync per event (ADR 0007 G-1).
+nucleus-jsonl = { path = "../../crates/nucleus-jsonl" }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }
+
+[dev-dependencies]
+# A relay the tests start themselves (tests/relay.rs), so that reaching a node
+# by ID alone is exercised without the public internet.
+iroh = { version = "=1.3.0", default-features = false, features = ["tls-ring", "test-utils"] }

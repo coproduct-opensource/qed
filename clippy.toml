@@ -1,0 +1,10 @@
+# Clippy configuration for every crate in this repository.
+#
+# A record log (one JSON value per line) is appended to in one place:
+# `nucleus_jsonl::append_line`, which writes each record in one call. That
+# function is the only allowed use of these methods, and says so with
+# `#[expect(clippy::disallowed_methods)]`.
+disallowed-methods = [
+    { path = "std::fs::OpenOptions::append", reason = "append a record with nucleus_jsonl::append_line (one atomic write)" },
+    { path = "tokio::fs::OpenOptions::append", reason = "append a record with nucleus_jsonl::append_line (one atomic write)" },
+]

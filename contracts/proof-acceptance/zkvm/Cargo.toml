@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = ["host", "methods", "groth16-native"]
+exclude = ["methods/base", "methods/vault3"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"

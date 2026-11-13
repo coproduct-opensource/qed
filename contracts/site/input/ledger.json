@@ -1,0 +1,47 @@
+{
+  "networks": [
+    { "key": "arbitrum-sepolia", "name": "Arbitrum Sepolia", "chainId": 421614, "testnet": true, "rpc": "https://sepolia-rollup.arbitrum.io/rpc", "explorer": "https://sepolia.arbiscan.io" },
+    { "key": "base", "name": "Base", "chainId": 8453, "testnet": false, "rpc": "https://base-rpc.publicnode.com", "explorer": "https://basescan.org" }
+  ],
+  "realTokens": [
+    { "network": "base", "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "what": "USDC issued by Circle on Base", "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses" }
+  ],
+  "vaults": [
+    { "network": "arbitrum-sepolia", "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038", "name": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)" },
+    { "network": "arbitrum-sepolia", "address": "0xce8d925b542b4c4b1c2d34a81abe21e4c5da4681", "name": "Second form: fee booked, then swept" },
+    { "network": "arbitrum-sepolia", "address": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b", "name": "Third form, with a registry that has no entries" },
+    { "network": "arbitrum-sepolia", "address": "0x26f78b53af75ef5c4df2a786325e398c37b919ad", "name": "Third form, first base registry" },
+    { "network": "arbitrum-sepolia", "address": "0x4188c7683fc4976f1aa2498897249ab68c424bfe", "name": "Third form, programs rebuilt without build paths" },
+    { "network": "arbitrum-sepolia", "address": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426", "name": "Third form, statement format v2 programs" },
+    { "network": "base", "address": "0x30f522bc30d46b3a4089931d698f04656fa23b8d", "name": "Second form on Base (mainnet)" }
+  ],
+  "programs": [
+    { "imageId": "f0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca", "name": "second-form order program", "status": "not-distributed" },
+    { "imageId": "52fcab1102b1b0d7ab75010f3c3836b8cc7397dc9238f6523f931d58d1c55439", "name": "third-form order program, no bases", "status": "retired" },
+    { "imageId": "c24fc74fcab6075694d7fef64d056b96d8ff982af1de794d6681f3274081c0df", "name": "third-form order program with bases", "status": "retired" },
+    { "imageId": "6fbdc98409a42f255b314f9bd62624b422c72d378c025313edbd9c045cb68443", "name": "base program", "status": "retired" },
+    { "imageId": "fc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb", "name": "third-form order program (nucleus-vault3-acceptance.bin)", "status": "published" },
+    { "imageId": "67bddd199136658cc6552facce96be32647c42ee44a10c54e79a0e1f4beccd3a", "name": "base program (nucleus-base-check.bin)", "status": "published" },
+    { "imageId": "fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081", "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)", "status": "published" },
+    { "imageId": "84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237", "name": "base program, statement format v2 (nucleus-base-check-fmt2.bin)", "status": "published" }
+  ],
+  "settlements": [
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218", "what": "First settlement on a public chain, in a test token deployed by the authors.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780", "what": "Same vault, paid in Circle's test USDC.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
+    { "network": "base", "settleTransaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf", "what": "Settlement in USDC on Base (mainnet): 0.40 USDC, fee 0.001 USDC.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x00528f833084175726816eb3b8da3fcbb47e1bbe9fefd1262617bc42443d993e", "what": "Second form: the fee booked in settle and swept to the treasury afterwards.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x0459ba1e98d495ddf25dc996b93cd9d89311c271220aa3d055a810419337ef66", "what": "Buyer and seller as two processes talking over iroh.", "record": "docs/rfcs/proof-commerce-harness-and-iroh-2026-11-12.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xfe7e8855170f71532e6200feef0d5685868565d05216dd0426d6cb7d7cc4825c", "what": "First trade found through the task board.", "record": "docs/rfcs/proof-commerce-task-board-2026-11-12.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x91bd2e1c4a9391314e04fea4abb069bf8e1f15cb8bc24df576345ee499eeb7c7", "what": "Third form: everything booked and claimed.", "record": "docs/rfcs/proof-commerce-third-vault-2026-11-12.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x14c95288fd99780b54f176a7cfdf5d025861a4779346d83073ec14603b5bb44d", "what": "Groth16 seal produced by the native Rust wrap, with no container on the seller.", "record": "docs/rfcs/proof-commerce-native-groth16-2026-11-12.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa", "what": "Order on a registered base: seller, treasury and the base's payee each owed a share.", "record": "docs/rfcs/proof-commerce-checked-bases-2026-11-12.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4", "what": "Seller behind home NAT, buyer on a cloud machine, reached by node ID through a relay.", "record": "docs/rfcs/proof-commerce-cross-machine-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322", "what": "Seller on a CPU-only Linux cloud machine.", "record": "docs/rfcs/proof-commerce-linux-seller-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xb90258b2ccbc4fb76dbc4653a222252cbfca05918f6f8868360e76861df38549", "what": "First task of the standing bounty.", "record": "docs/rfcs/proof-commerce-standing-bounty-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f", "what": "Standing bounty on the rebuilt programs.", "record": "docs/rfcs/proof-commerce-program-rebuild-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130", "what": "Buyer speaking only A2A over iroh.", "record": "docs/rfcs/a2a-over-iroh-binding-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899", "what": "First task about Nucleus's own code: should_gate on the extracted pure core of Kernel::decide (gate completeness).", "record": "docs/rfcs/proof-commerce-nucleus-open-obligations-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4", "what": "Standing bounty on the statement format v2 programs.", "record": "docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md" },
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3", "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.", "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "exfil-classification",
+  "statement": "statement.ndjson",
+  "claim": "Nucleus.Claim",
+  "permittedAxioms": ["propext", "Classical.choice", "Quot.sound"],
+  "maximumArtifactBytes": 90000,
+  "program": "0xfc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb",
+  "maximumPrice": 2000000,
+  "fundingWindowSeconds": 1209600,
+  "deliveryWindowSeconds": 2592000
+}

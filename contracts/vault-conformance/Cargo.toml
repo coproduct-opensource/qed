@@ -1,0 +1,18 @@
+[package]
+name = "nucleus-vault-conformance"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Runs the compiled Solidity vault in a local EVM against real token and verifier bytecode and compares it with the Rust reference. Test-only; separate workspace."
+
+[workspace]
+
+[dev-dependencies]
+nucleus-proof-acceptance = { path = "../proof-acceptance/core" }
+revm = { version = "=43.0.3", default-features = false, features = ["std"] }
+alloy-sol-types = { version = "=1.7.3", default-features = false }
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+nucleus-proof-commerce = { path = "../../crates/nucleus-proof-commerce" }
+sha2 = "0.10.9"
+nucleus-board-reference = { path = "../board/reference" }

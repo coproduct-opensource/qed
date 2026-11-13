@@ -1,0 +1,28 @@
+[package]
+name = "nucleus-site"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Builds the qed site for one deployment: documents as HTML and Markdown, the signed A2A Agent Card, receipts from a chain snapshot, and the serving table the host and preview share. Only snapshot and check-live touch a network, and only to read."
+
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = { version = "0.10.9", default-features = false }
+alloy-primitives = { version = "=1.7.3", default-features = false }
+alloy-sol-types = { version = "=1.7.3", default-features = false }
+nucleus-board-reference = { path = "../board/reference" }
+# The A2A-over-iroh identifiers and the seller card, shared with the agents.
+nucleus-a2a-iroh-card = { path = "../a2a-iroh-card" }
+# The specification page, rendered from its Markdown source. Raw HTML in the
+# source is shown as text (src/docs.rs).
+pulldown-cmark = { version = "=0.13.6", default-features = false, features = ["html"] }
+# check-live (GET after upload) and snapshot (read-only JSON-RPC). The same
+# client the agents use.
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+# ES256 for the Agent Card's JWS signature, as the agents' DPoP uses it.
+p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+base64 = "0.23"

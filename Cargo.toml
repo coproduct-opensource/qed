@@ -1,0 +1,29 @@
+# Workspace root. It exists so the two crates under crates/ find the package,
+# dependency and lint settings they inherit. Every other crate here
+# (contracts/*) is its own workspace with its own lockfile.
+[workspace]
+resolver = "2"
+members = ["crates/nucleus-proof-commerce", "crates/nucleus-jsonl"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+authors = ["Coproduct"]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1", default-features = false }
+hex = "0.4"
+base64 = "0.23"
+tempfile = "3"
+
+[workspace.lints.clippy]
+type_complexity = "allow"
+collapsible_if = "allow"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }

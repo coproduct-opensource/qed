@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"bytes","name":"seal","type":"bytes"},{"internalType":"bytes32","name":"imageId","type":"bytes32"},{"internalType":"bytes32","name":"journalDigest","type":"bytes32"}],"name":"verify","outputs":[],"stateMutability":"view","type":"function"}]

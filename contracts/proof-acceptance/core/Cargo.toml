@@ -1,0 +1,25 @@
+[package]
+name = "nucleus-proof-acceptance"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Decides whether a delivered Lean proof artifact satisfies a buyer's pinned claim. Pure; runs natively and inside a proof guest."
+
+[dependencies]
+nucleus-proof-commerce = { path = "../../../crates/nucleus-proof-commerce" }
+nanoda_lib = { path = "../vendor/nanoda_lib" }
+sha2 = { version = "0.10.9", default-features = false }
+sha3 = { version = "0.10.9", default-features = false }
+
+[dev-dependencies]
+serde_json = "1"
+sha3 = { version = "0.10.9", default-features = false }
+nanoda_lib = { path = "../vendor/nanoda_lib" }
+sha2 = { version = "0.10.9", default-features = false }
+
+# Inside a proof guest, SHA-256 of the statement and of a base is the zkVM's
+# own accelerated SHA-256 rather than `sha2` compiled to RISC-V. Not linked
+# anywhere else.
+[target.'cfg(target_os = "zkvm")'.dependencies]
+risc0-zkvm = { version = "=3.1.0", default-features = false, features = ["std"] }

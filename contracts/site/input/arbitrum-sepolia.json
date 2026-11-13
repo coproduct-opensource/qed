@@ -1,0 +1,116 @@
+{
+  "name": "Proof-gated settlement for Lean proofs (testnet)",
+  "version": "0.1.0",
+  "network": {
+    "name": "Arbitrum Sepolia",
+    "chainId": 421614,
+    "testnet": true,
+    "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
+    "explorer": "https://sepolia.arbiscan.io"
+  },
+  "board": {
+    "address": "0x3c96abe5be0e37ec9651ca9728dc48418f5b0151",
+    "codeKeccak": "0x4b3c99a9f2a06f82d86bd1ae7e1e5888b4b0a60dfc63fe33ff24820c23fedf74",
+    "codeBytes": 1971,
+    "deployBlock": 328652134,
+    "deployTransaction": "0xa636df0170916f0a79c871423945f41b10eb3211f41727c680fbc04b88801731"
+  },
+  "vault": {
+    "address": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426",
+    "codeKeccak": "0x561a4c845ce769992d9b70de9125e210ed5c03525e7f405b740ae24fb115d979",
+    "codeBytes": 7521,
+    "deployTransaction": "0x011b12acb5819c3dbfd1e7afb8ea25330be4d5a6599b53a88b19ae39c968af45",
+    "treasury": "0x0000000000000000000000000000000000000000",
+    "feeBps": 25,
+    "maximumFeeBps": 100,
+    "maximumTermSeconds": 2592000
+  },
+  "registry": {
+    "address": "0xb4d28451ee2caa713d87d9d05db749015bd48a7a",
+    "codeKeccak": "0x0c227639457300ecd6077d70d3879b51138234d030aa78ebad5a7d0105b5a773",
+    "codeBytes": 1578,
+    "deployTransaction": "0x4e828ec415c88acf7fe4e469c7f4640c32c9316475c0c6c0b9ce1bf805aa1f33",
+    "maximumBps": 50
+  },
+  "verifier": {
+    "address": "0x8c915b5071206c6e328bc18529586c513408ab3b",
+    "codeKeccak": "0x8639f10cacfaa87a9e4f18db3a357ae496a9c835e74ab43ac0c63143226bc59a",
+    "codeBytes": 5313
+  },
+  "token": {
+    "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+    "name": "test USDC",
+    "decimals": 6
+  },
+  "programs": [
+    {
+      "role": "order",
+      "imageId": "fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081",
+      "binary": "contracts/proof-acceptance/program/nucleus-order-fmt2.bin"
+    },
+    {
+      "role": "base",
+      "imageId": "84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237",
+      "binary": "contracts/proof-acceptance/program/nucleus-base-check-fmt2.bin"
+    }
+  ],
+  "assurance": {
+    "audited": false,
+    "review": "Each has had one read-only review by an AI model, which built and ran nothing. That is not an audit.",
+    "counterparties": {
+      "kind": "authors-only"
+    }
+  },
+  "software": {
+    "availability": "public",
+    "url": "https://github.com/coproduct-opensource/qed"
+  },
+  "ourAddresses": [],
+  "settlements": [
+    {
+      "what": "0.10 test USDC for the standing task, buyer and seller both ours, on one machine",
+      "transaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4"
+    },
+    {
+      "what": "0.25 test USDC for the credential obligation on the registered Nucleus library base, proved on a GPU; seller, treasury and the base's payee paid; all ours",
+      "transaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3"
+    }
+  ],
+  "earlier": [
+    {
+      "what": "0.10 test USDC for the standing task on the previous deployment; both ours",
+      "network": "Arbitrum Sepolia",
+      "vault": "0x4188c7683fc4976f1aa2498897249ab68c424bfe",
+      "transaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f",
+      "link": "https://sepolia.arbiscan.io/tx/0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f"
+    },
+    {
+      "what": "0.40 USDC of real funds, buyer and seller both ours; fee 0.001 USDC",
+      "network": "Base (mainnet)",
+      "vault": "0x30f522bc30d46b3a4089931d698f04656fa23b8d",
+      "transaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf",
+      "link": "https://basescan.org/tx/0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf"
+    },
+    {
+      "what": "Seller on a Mac behind home NAT, buyer on a cloud VM, found through the board; both ours",
+      "network": "Arbitrum Sepolia",
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b",
+      "transaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4",
+      "link": "https://sepolia.arbiscan.io/tx/0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4"
+    },
+    {
+      "what": "Seller on a Linux cloud machine with no GPU, buyer on a Mac; both ours",
+      "network": "Arbitrum Sepolia",
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b",
+      "transaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322",
+      "link": "https://sepolia.arbiscan.io/tx/0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322"
+    },
+    {
+      "what": "An order on a registered base, paying seller, treasury and the base's payee; all ours",
+      "network": "Arbitrum Sepolia",
+      "vault": "0x26f78b53af75ef5c4df2a786325e398c37b919ad",
+      "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa",
+      "link": "https://sepolia.arbiscan.io/tx/0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
+    }
+  ]
+}

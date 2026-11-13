@@ -1,0 +1,12 @@
+[package]
+name = "nucleus-a2a-iroh-card"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Identifiers of the A2A-over-iroh binding and the Agent Card a seller serves under it. Shared by the agents and the static site, so the two cannot drift."
+
+[workspace]
+
+[dependencies]
+serde_json = "1"
