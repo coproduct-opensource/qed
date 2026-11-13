@@ -1,11 +1,13 @@
 //! Every page of the site, as typed components over typed data. Each page is
 //! a `Doc`; `doc::page` and `doc::markdown` render it.
-use crate::doc::{Block, Doc, INDEX, Inline, Line, code, code_link, h2, link, p, para, strong, t};
+use crate::doc::{
+    Block, Doc, INDEX, Inline, Line, code, code_link, h2, h3, link, p, para, strong, t,
+};
 use crate::ledger::{LedgerInput, Snapshot};
 use crate::{
-    A2A_VERSION, ALPN, AUTHORS_ONLY, BINDING, CARD_PATH, Counterparties, Input, JWKS_PATH,
-    Published, Role, SELLER_CARD_PATH, SETTLEMENT_EXTENSION, SPEC_PATH, Software, UNAUDITED,
-    X402_SCHEME, hex,
+    A2A_VERSION, ALPN, AUTHORS_ONLY, BINDING, CARD_PATH, Counterparties, Deployed, Input,
+    JWKS_PATH, Mainnet, Network, Published, Role, SELLER_CARD_PATH, SETTLEMENT_EXTENSION,
+    SPEC_PATH, Software, Token, UNAUDITED, X402_SCHEME, amount, hex,
 };
 use alloy_primitives::keccak256;
 use serde_json::Value;
@@ -299,15 +301,40 @@ fn before_anything(input: &Input) -> Block {
             t("."),
         ]),
     }
-    items.push(vec![
-        strong("The task board is on a test network."),
-        t(format!(
-            " ({}; {} has no value.) One settlement used 0.40 real USDC on Base (",
-            input.network.name, input.token.name
-        )),
-        link("/transactions", "ledger"),
-        t(")."),
-    ]);
+    match &input.mainnet {
+        Some(m) => {
+            items.push(vec![
+                strong(format!(
+                    "The board now runs on {} mainnet with real {}.",
+                    m.network.name, m.token.name
+                )),
+                t(format!(
+                    " The older deployments on {} ({}, no value) stay in the ",
+                    input.network.name, input.token.name
+                )),
+                link("/transactions", "ledger"),
+                t("."),
+            ]);
+            items.push(vec![
+                t(format!(
+                    "A bounty pays {} {} a task to anyone: ",
+                    amount(m.bounty.price, m.token.decimals),
+                    m.token.name
+                )),
+                link("/bounty", "how to take part"),
+                t("."),
+            ]);
+        }
+        None => items.push(vec![
+            strong("The task board is on a test network."),
+            t(format!(
+                " ({}; {} has no value.) One settlement used 0.40 real USDC on Base (",
+                input.network.name, input.token.name
+            )),
+            link("/transactions", "ledger"),
+            t(")."),
+        ]),
+    }
     items.push(vec![
         strong("A seller can lose"),
         t(" gas and proving time to a missed deadline."),
@@ -949,6 +976,51 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
         )),
     }
     blocks.push(h2("board", "Tasks on the board now"));
+    let ours = if input.disclose_author_addresses {
+        input
+            .our_addresses
+            .iter()
+            .map(|n| n.address.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let (live, data) = live_board(
+        Board {
+            network: &input.network,
+            board: &input.board,
+            vault: &input.vault.address,
+            token: &input.token,
+            ours,
+        },
+        vectors,
+        programs,
+    );
+    blocks.push(live);
+    let mut d = doc(
+        "transactions",
+        "Public transaction ledger",
+        "Every recorded settlement, read back from the chain, with canonical receipts and the delivered artifacts.",
+        blocks,
+    );
+    d.script = true;
+    d.data = Some(("site-data".into(), data.to_string()));
+    d
+}
+
+/// One board, as the live list reads it.
+struct Board<'a> {
+    network: &'a Network,
+    board: &'a Deployed,
+    vault: &'a str,
+    token: &'a Token,
+    /// Addresses the list marks as ours; empty unless they are disclosed.
+    ours: Vec<String>,
+}
+
+/// The live list of a board's posts (markup the page's script fills, and
+/// what a Markdown reader gets instead) and the data block the script reads.
+fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Value) {
     let live = crate::html::Html::join([
         crate::html::el(
             "noscript",
@@ -968,7 +1040,7 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
                     &[],
                     &format!(
                         "Read in your browser with eth_getLogs from a public {} endpoint; use any other.",
-                        input.network.name
+                        b.network.name
                     ),
                 ),
                 crate::html::el(
@@ -981,7 +1053,7 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
                             &[
                                 ("id", "rpc-url"),
                                 ("type", "url"),
-                                ("value", &input.network.rpc),
+                                ("value", &b.network.rpc),
                                 ("required", "required"),
                             ],
                         ),
@@ -1025,37 +1097,304 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
             ],
         ),
     ]);
-    blocks.push(Block::Rendered {
+    let block = Block::Rendered {
         html: live,
         markdown: format!(
             "The live list of posts is read from the chain by the page's script. To read it yourself, call eth_getLogs on the board {} from block {} on {} (chain {}); the events are decoded as in /verification/test-vectors.",
-            input.board.address,
-            input.board.deploy_block.unwrap_or(0),
-            input.network.name,
-            input.network.chain_id
+            b.board.address,
+            b.board.deploy_block.unwrap_or(0),
+            b.network.name,
+            b.network.chain_id
         ),
+    };
+    let mut network = serde_json::json!({
+        "chainId": b.network.chain_id,
+        "explorer": b.network.explorer,
+        "rpc": b.network.rpc,
     });
+    if let Some(range) = b.network.log_range {
+        network["logRange"] = range.into();
+    }
     let data = serde_json::json!({
-        "network": { "chainId": input.network.chain_id, "explorer": input.network.explorer, "rpc": input.network.rpc },
-        "board": { "address": input.board.address, "deployBlock": input.board.deploy_block },
-        "vault": { "address": input.vault.address },
-        "token": { "name": input.token.name, "decimals": input.token.decimals },
+        "network": network,
+        "board": { "address": b.board.address, "deployBlock": b.board.deploy_block },
+        "vault": { "address": b.vault },
+        "token": { "name": b.token.name, "decimals": b.token.decimals },
         "programs": programs.iter().map(|x| x.image_id.clone()).collect::<Vec<_>>(),
-        "ours": if input.disclose_author_addresses {
-            input.our_addresses.iter().map(|n| n.address.clone()).collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        },
+        "ours": b.ours,
         "topics": {
             "posted": format!("0x{}", hex(&nucleus_board_reference::posted_topic())),
             "withdrawn": format!("0x{}", hex(&nucleus_board_reference::withdrawn_topic())),
         },
         "vectors": vectors,
     });
+    (block, data)
+}
+
+/// The statement the bounty posts, and its proof, as files of the public
+/// repository (`contracts/site/input/`).
+const BOUNTY_STATEMENT: &str = "contracts/site/input/statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2";
+const BOUNTY_PROOF: &str = "contracts/site/input/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin";
+
+/// The standing bounty on the main network: the offer, how to take part,
+/// what it costs in time, what can go wrong, and the board read live. Its
+/// steps build from `repo`, so there is no page until the source is public.
+pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) -> Doc {
+    let usdc = |units: u64| format!("{} {}", amount(units, m.token.decimals), m.token.name);
+    let ex = &m.network.explorer;
+    let pre = |id: &str, text: String| Block::Pre {
+        id: id.into(),
+        text,
+        copy: Some("Copy".into()),
+    };
+    let mut blocks = vec![
+        p(vec![t(format!(
+            "A buyer the authors run posts tasks on the task board on {} and pays {} for each one a seller proves. The vault keeps a fee of {} basis points, so the seller receives {}.",
+            m.network.name,
+            usdc(m.bounty.price),
+            m.vault.fee_bps,
+            usdc(m.seller_receives()),
+        ))]),
+        h2("offer", "The offer"),
+        Block::Dl(vec![
+            (
+                "Price".into(),
+                vec![t(format!(
+                    "{} a task, the price cap in each post.",
+                    usdc(m.bounty.price)
+                ))],
+            ),
+            (
+                "Seller receives".into(),
+                vec![t(format!(
+                    "{}. The fee, {}, is booked to the vault's treasury, {}.",
+                    usdc(m.seller_receives()),
+                    usdc(m.bounty.price - m.seller_receives()),
+                    m.treasury_kind
+                ))],
+            ),
+            (
+                "Budget".into(),
+                vec![t(format!(
+                    "{}: at most {} tasks. One post is open at a time.",
+                    usdc(m.bounty.budget),
+                    m.bounty.tasks
+                ))],
+            ),
+            (
+                "Window".into(),
+                vec![t(format!(
+                    "Each post names a funding deadline {} hours after it is posted. The buyer may withdraw a post earlier; the list below shows what is open now.",
+                    m.bounty.post_window_seconds / 3600
+                ))],
+            ),
+            (
+                "Who is paid".into(),
+                vec![t(
+                    "The first offer that passes the buyer's review: price at or under the cap, the verifier and proof program the post names, and deadlines that fit the post.",
+                )],
+            ),
+            (
+                "The task".into(),
+                vec![
+                    t("A fixed statement whose proof is already public ("),
+                    code(BOUNTY_PROOF),
+                    t(
+                        "). It tests the machinery — board, transport, proof, settlement, claim — not hard proving.",
+                    ),
+                ],
+            ),
+            (
+                "Who may take part".into(),
+                vec![t(format!(
+                    "Anyone with a wallet on {}. No account, no sign-up, nothing to send us.",
+                    m.network.name
+                ))],
+            ),
+        ]),
+        h2("board", "The board now"),
+        p(vec![
+            t("Board "),
+            code_link(
+                format!("{ex}/address/{}", m.board.address),
+                m.board.address.clone(),
+            ),
+            t(format!(
+                " on {} (chain {}), naming vault ",
+                m.network.name, m.network.chain_id
+            )),
+            code_link(
+                format!("{ex}/address/{}", m.vault.address),
+                m.vault.address.clone(),
+            ),
+            t(format!(
+                ". The first post was task {} in ",
+                short(&m.bounty.first_task)
+            )),
+            code_link(
+                format!("{ex}/tx/{}", m.bounty.first_post_transaction),
+                short(&m.bounty.first_post_transaction),
+            ),
+            t("."),
+        ]),
+    ];
+    let (live, data) = live_board(
+        Board {
+            network: &m.network,
+            board: &m.board,
+            vault: &m.vault.address,
+            token: &m.token,
+            ours: Vec::new(),
+        },
+        vectors,
+        programs,
+    );
+    blocks.push(live);
+    blocks.extend([
+        h2("steps", "Take part"),
+        p(vec![
+            t("No prebuilt image or binaries are published yet, so the seller is built from the source at "),
+            code_link(repo, repo),
+            t(". Every command runs from the root of a checkout."),
+        ]),
+        h3("install", "1. Install Rust and RISC Zero"),
+        p(vec![
+            t("Rust from "),
+            code("https://rustup.rs"),
+            t(", then RISC Zero's "),
+            code("r0vm"),
+            t(" 3.1.0 and its Groth16 circuit data, about 5.5 GB on disk:"),
+        ]),
+        pre(
+            "install",
+            "curl -sSL https://risczero.com/install | bash\nrzup install r0vm 3.1.0 && rzup install risc0-groth16".into(),
+        ),
+        h3("build", "2. Build the seller"),
+        pre(
+            "build",
+            format!(
+                "git clone {repo} qed && cd qed\n(cd contracts/agents && cargo build --release --locked)\n(cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)"
+            ),
+        ),
+        h3("wallet", "3. Make a wallet and give it gas"),
+        pre(
+            "wallet",
+            "contracts/agents/target/release/nucleus-vault-ops keys seller.keys".into(),
+        ),
+        p(vec![
+            t("It prints the wallet address. "),
+            code("seller.keys"),
+            t(format!(
+                " holds three keys, readable only by you: the wallet, a key for proof of possession, and your network node identity. Send the wallet a little ETH on {}: the seller sends the fund, settle and claim transactions. The fund and settle transactions of the 2026-11-12 settlement on {} cost 0.0000034 ETH together; 0.0002 ETH leaves room.",
+                m.network.name, m.network.name
+            )),
+        ]),
+        h3("files", "4. Write two files"),
+        p(vec![code("base.json"), t(", where the vault is:")]),
+        pre(
+            "base-json",
+            format!(
+                "{{\"chainId\": {}, \"kind\": \"vault3\",\n \"rpc\": \"{}\",\n \"vault\": \"{}\",\n \"token\": \"{}\",\n \"verifier\": \"{}\"}}",
+                m.network.chain_id, m.network.rpc, m.vault.address, m.token.address, m.verifier.address
+            ),
+        ),
+        p(vec![
+            code("seller.json"),
+            t(". The prover is the fixture prover, which answers this one statement with its public proof:"),
+        ]),
+        pre(
+            "seller-json",
+            format!(
+                "{{\n  \"deployment\": \"base.json\",\n  \"keys\": \"seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"contracts/agents/target/release/nucleus-fixture-prover\",\n             \"{BOUNTY_STATEMENT}\",\n             \"{BOUNTY_PROOF}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"expectedProvingSeconds\": 1200,\n  \"workDir\": \"seller-work\"\n}}",
+                m.board.address,
+                m.board.deploy_block.unwrap_or(0),
+                m.bounty.price,
+            ),
+        ),
+        p(vec![
+            code("startBlock"),
+            t(" is the board's deployment block, so a post already open is seen; without it the seller sees only posts made after it starts. On a machine without Apple silicon set "),
+            code("expectedProvingSeconds"),
+            t(" to 3600: the seller does not start a proof it expects to finish after the delivery deadline."),
+        ]),
+        h3("run", "5. Run it"),
+        pre(
+            "run",
+            "contracts/agents/target/release/nucleus-seller watch seller.json".into(),
+        ),
+        p(vec![t("It prints each step: the post it read, the statement it fetched from the buyer's node over iroh, the Lean checker's verdict on the proof, its offer, and, if the buyer signs, the fund, settle and claim transactions. If the claim fails, the share stays booked to the seller's address in the vault, and anyone can claim it later:")]),
+        pre(
+            "claim",
+            "contracts/agents/target/release/nucleus-vault-ops claim base.json seller.keys YOUR_WALLET_ADDRESS".into(),
+        ),
+        h2("times", "How long it takes"),
+        Block::Table {
+            caption: "Measured times for one task's proof".into(),
+            head: vec!["Machine".into(), "Time".into(), "What was measured".into()],
+            rows: vec![
+                vec![
+                    vec![t("Apple-silicon Mac, 18 cores")],
+                    vec![t("about 11 minutes")],
+                    vec![t("the seller's proof, with the final Groth16 step")],
+                ],
+                vec![
+                    vec![t("16-vCPU x86-64 cloud machine, no GPU")],
+                    vec![t("about 56 minutes")],
+                    vec![t("the seller's proof, with the final Groth16 step")],
+                ],
+                vec![
+                    vec![t("one NVIDIA L4 GPU")],
+                    vec![t("about 1 minute")],
+                    vec![t("the same proof without the Groth16 step, from a benchmark built with CUDA; the seller's proof host has no GPU build yet")],
+                ],
+            ],
+        },
+        para("First-time setup — installing, building and writing the files — took about an hour."),
+        h2("risks", "What can go wrong"),
+        Block::Ul(vec![
+            vec![
+                strong(UNAUDITED),
+                t(format!(
+                    " They hold real {}. At most one deposit of {} is in the vault at a time.",
+                    m.token.name,
+                    usdc(m.bounty.price)
+                )),
+            ],
+            vec![
+                strong("A seller can lose"),
+                t(" its gas and its time if its proof is not on chain before the delivery deadline. The buyer is then refunded."),
+            ],
+            vec![
+                strong("USDC is Circle's token."),
+                t(" Circle can freeze an address, for example a sanctioned one; the vault cannot pay a frozen address."),
+            ],
+            vec![
+                strong("This site is a projection."),
+                t(" The contracts decide who is paid. Read them on the chain ("),
+                link("/verify", "verify"),
+                t(")."),
+            ],
+            vec![t(format!(
+                "A relayer that would pay a seller's gas is planned, not available. {}",
+                AUTHORS_ONLY
+            ))],
+        ]),
+        h2("proves", "What a settlement here shows, and what it does not"),
+        Block::Ul(vec![
+            vec![t("A settlement by someone other than the authors would show that a stranger can find a post, fetch its statement, prove, and be paid by the contract without contacting the authors. None has happened yet.")],
+            vec![t("It does not show that the system finds proofs: the proof is public, and the fixture prover only copies it.")],
+            vec![t("It does not show the contracts are free of defects. They are unaudited.")],
+        ]),
+    ]);
     let mut d = doc(
-        "transactions",
-        "Public transaction ledger",
-        "Every recorded settlement, read back from the chain, with canonical receipts and the delivered artifacts.",
+        "bounty",
+        &format!("Bounty: {} a task", usdc(m.bounty.price)),
+        &format!(
+            "A standing bounty on {}: {} per task to the first seller whose proof passes, at most {} tasks. Anyone may take part; the steps, measured times and risks.",
+            m.network.name,
+            usdc(m.bounty.price),
+            m.bounty.tasks
+        ),
         blocks,
     );
     d.script = true;
@@ -1566,6 +1905,165 @@ pub fn source(input: &Input) -> Doc {
         "Source code",
         "Where the source is, and what can and cannot be checked without it.",
         blocks,
+    )
+}
+
+/// What the seller image and its first run cost, as measured for the page
+/// below: (step, where, what was measured). From
+/// `docs/rfcs/qed-seller-distribution-2026-11-13.md`; change both together.
+const SELLER_MEASURED: [(&str, &str, &str); 8] = [
+    ("Make a wallet", "x86-64 and arm64", "under 1 s"),
+    (
+        "Fetch the Groth16 data (local wrap only, once)",
+        "x86-64, Google Cloud us-east1",
+        "215 s: 2,406,044,780 bytes checked, 4.2 GB kept",
+    ),
+    (
+        "One trade, remote wrap",
+        "arm64, 8 CPUs, 16 GB (service on the same machine)",
+        "13 min 33 s from post to the buyer's check; 783 s proving and wrapping",
+    ),
+    (
+        "One trade, local wrap",
+        "arm64, 8 CPUs, 16 GB",
+        "13 min 35 s; 784 s proving and wrapping",
+    ),
+    (
+        "One trade, remote wrap",
+        "x86-64, 32 vCPUs (service on the same machine)",
+        "16 min 38 s; 975 s proving and wrapping",
+    ),
+    (
+        "One trade, local wrap",
+        "x86-64, 32 vCPUs, shared with another measurement",
+        "17 min 41 s; 1,017 s proving and wrapping",
+    ),
+    (
+        "Wrap service, one receipt",
+        "x86-64: 32 vCPUs; 2 vCPUs and 16 GB",
+        "118 s; 511 s",
+    ),
+    (
+        "Seller memory peak",
+        "x86-64, local wrap",
+        "9.9 GB (container peak, page cache included)",
+    ),
+];
+
+/// "Run a seller in 15 minutes": the prebuilt image, how to check it, and
+/// what the first run costs. Says plainly that nothing is published yet.
+pub fn run_a_seller() -> Doc {
+    const IMAGE: &str = "ghcr.io/coproduct-opensource/qed-seller";
+    let run = |args: &str| format!("docker run --rm -v qed:/data {args}");
+    let rows = SELLER_MEASURED
+        .iter()
+        .map(|(step, place, measured)| vec![vec![t(*step)], vec![t(*place)], vec![t(*measured)]])
+        .collect();
+    doc(
+        "sellers/run",
+        "Run a seller in 15 minutes",
+        "A prebuilt seller image for Linux on x86-64 and arm64, how to check it before running it, and measured times for a first and a repeat settlement.",
+        vec![
+            p(vec![
+                strong("Not published yet."),
+                t(
+                    " The image, the release binaries and any wrap service on this page are built and tested but not released. Until they are, build the image from the source with ",
+                ),
+                code("docker build -f Containerfile -t qed-seller ."),
+                t(" (or Apple "),
+                code("container build"),
+                t(") and use "),
+                code("qed-seller"),
+                t(" where this page says "),
+                code(IMAGE),
+                t("."),
+            ]),
+            h2("check", "1. Check the image"),
+            para(
+                "Every release image is signed keyless by the release workflow and carries a build-provenance attestation. Check both against the digest you will run, not a tag:",
+            ),
+            verification_command(
+                "seller-cosign",
+                format!(
+                    "cosign verify {IMAGE}@sha256:DIGEST \\\n  --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\\.github/workflows/release\\.yml@refs/tags/v' \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com\ngh attestation verify oci://{IMAGE}@sha256:DIGEST --repo coproduct-opensource/qed"
+                ),
+            ),
+            p(vec![
+                t(
+                    "This shows who built the image and from which commit. It does not show the source is correct. The program the vault pays for is checked separately: ",
+                ),
+                code("nucleus-acceptance-host order2-image"),
+                t(" inside the image must print the program ID the order names."),
+            ]),
+            h2("key", "2. Make a wallet"),
+            verification_command(
+                "seller-keys",
+                run(&format!(
+                    "--entrypoint nucleus-vault-ops {IMAGE} keys /data/seller.keys"
+                )),
+            ),
+            para(
+                "It prints the wallet address. Send it about 0.0005 Arbitrum Sepolia ETH: one trade (fund, settle, claim) cost about 0.000012 ETH in gas at the 0.021 gwei of 2026-11-13. The key file stays in the volume, readable only by the image's user.",
+            ),
+            p(vec![
+                t("With Apple "),
+                code("container"),
+                t(", a new named volume belongs to root, so make it the image user's once: "),
+                code(
+                    "container run --rm --user 0 -v qed:/data --entrypoint /bin/chown IMAGE 10001:999 /data",
+                ),
+                t(". Docker gives a new volume the image's ownership, so it needs nothing."),
+            ]),
+            h2("config", "3. Configure"),
+            p(vec![
+                t("Put "),
+                code("deployment.json"),
+                t(" and "),
+                code("seller.json"),
+                t(" in the volume, as in the repository README's seller section, with "),
+                code("\"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\""),
+                t(". Then choose how the final proof is wrapped."),
+            ]),
+            Block::Ul(vec![
+                vec![
+                    strong("Remote wrap"),
+                    t(": "),
+                    code("\"groth16\": \"remote:https://WRAP-SERVICE\""),
+                    t(
+                        ". Nothing to download. The service sees the order's succinct proof, whose public output is hashes, not your artifact; it cannot redirect payment, and the seller checks its answer and derives the seal itself. A refusal or a wrong answer fails the settlement unless local data is also configured.",
+                    ),
+                ],
+                vec![
+                    strong("Local wrap"),
+                    t(": fetch RISC Zero's Groth16 data once ("),
+                    code("qed-groth16-data /data/groth16"),
+                    t(
+                        ", a 2.4 GB download checked against a pinned SHA-256, 4.2 GB kept) and set ",
+                    ),
+                    code("\"groth16\": \"native\""),
+                    t(" and "),
+                    code("\"groth16Data\": \"/data/groth16\""),
+                    t("."),
+                ],
+            ]),
+            h2("run", "4. Run"),
+            verification_command(
+                "seller-run",
+                format!(
+                    "docker run -d --name qed-seller --read-only --tmpfs /tmp -v qed:/data {IMAGE}"
+                ),
+            ),
+            para(
+                "The seller watches the board, offers on tasks its prover can answer, and settles. It needs outbound network only. Setup takes minutes; a trade then takes 13 to 18 minutes on the machines below, nearly all of it proving.",
+            ),
+            h2("measured", "Measured"),
+            Block::Table {
+                caption: "One settlement each, Arbitrum Sepolia, from the distribution record"
+                    .into(),
+                head: vec!["Step".into(), "Where".into(), "Measured".into()],
+                rows,
+            },
+        ],
     )
 }
 

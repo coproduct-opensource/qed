@@ -112,5 +112,59 @@
       "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa",
       "link": "https://sepolia.arbiscan.io/tx/0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
     }
-  ]
+  ],
+  "mainnet": {
+    "network": {
+      "name": "Base",
+      "chainId": 8453,
+      "testnet": false,
+      "rpc": "https://base-rpc.publicnode.com",
+      "explorer": "https://basescan.org",
+      "logRange": 49999
+    },
+    "board": {
+      "address": "0xde0b91b747898ae296c14d6703c05a15845f49c0",
+      "codeKeccak": "0xd6bb846850ab408fd1f9e67e171f7a752f1f13c332d5ffecdda7faccc763a900",
+      "codeBytes": 1971,
+      "deployBlock": 56773051,
+      "deployTransaction": "0xc5cdf7f7a5bb1f6839e8cdd8c39cbcae383f1e8cfea0579eb157334b18720c3e"
+    },
+    "vault": {
+      "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+      "codeKeccak": "0x4e3a737e9b89f5b32e0e0ee8733636dc4ffd1cfe6bd22314d3c941dac7302afa",
+      "codeBytes": 7521,
+      "deployTransaction": "0x4921032cc8648fe8ffb0064ee1d7958f9ac675a469fef2ccd063ef4f12880348",
+      "treasury": "0x0000000000000000000000000000000000000000",
+      "feeBps": 25,
+      "maximumFeeBps": 100,
+      "maximumTermSeconds": 2592000
+    },
+    "treasuryKind": "a Safe controlled by the authors",
+    "registry": {
+      "address": "0x843f6c3ff6c68e027ae3bd2cb13001f6075da75f",
+      "codeKeccak": "0x0c227639457300ecd6077d70d3879b51138234d030aa78ebad5a7d0105b5a773",
+      "codeBytes": 1578,
+      "deployTransaction": "0x981b69c7cc11512f2ac554c6758161b545d54b64581951dbd24e4d97a1f9e23e",
+      "maximumBps": 50
+    },
+    "verifier": {
+      "address": "0x8c915b5071206c6e328bc18529586c513408ab3b",
+      "codeKeccak": "0x8639f10cacfaa87a9e4f18db3a357ae496a9c835e74ab43ac0c63143226bc59a",
+      "codeBytes": 5313
+    },
+    "token": {
+      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "name": "USDC",
+      "decimals": 6
+    },
+    "bounty": {
+      "price": 25000000,
+      "budget": 100000000,
+      "tasks": 4,
+      "postWindowSeconds": 86400,
+      "program": "fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081",
+      "firstPostTransaction": "0x475e2b112b13a32c2e0504249a2844efde6c2f58b8bd0b1ccf8f2cad8b32cdf1",
+      "firstTask": "0x73029e8e857ae8f2df1e89aa8c091dc35c730857ccdcbacc5f9ac7ecf2a08ff8"
+    }
+  }
 }

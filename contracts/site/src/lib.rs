@@ -56,6 +56,9 @@ pub const CHECKER_WASM: &[u8] = include_bytes!("../assets/qed-checker.wasm");
 /// The only page that runs the checker; the host grants it
 /// `'wasm-unsafe-eval'` and nothing else does.
 pub const CHECKER_PAGE: &str = "verify";
+/// The page every missing path is answered with, status 404
+/// (`doc::not_found`; the host's `handle_errors`, the local preview).
+pub const NOT_FOUND_PATH: &str = "404.html";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -82,6 +85,11 @@ pub struct Input {
     pub disclose_author_addresses: bool,
     pub settlements: Vec<Settlement>,
     pub earlier: Vec<Earlier>,
+    /// A deployment on a main network with a standing bounty, beside the
+    /// test deployment above. Absent: the site describes the test deployment
+    /// only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mainnet: Option<Mainnet>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -94,6 +102,61 @@ pub struct Network {
     /// change it on the page.
     pub rpc: String,
     pub explorer: String,
+    /// Most blocks the default endpoint answers in one `eth_getLogs`.
+    /// Absent: the page uses its own default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_range: Option<u64>,
+}
+
+/// The same contracts on a main network, and the bounty its board carries.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Mainnet {
+    pub network: Network,
+    pub board: Deployed,
+    pub vault: Vault,
+    /// What the treasury is, said without its address: the address is one
+    /// of the authors' and is shown only when author addresses are disclosed.
+    pub treasury_kind: String,
+    pub registry: Registry,
+    pub verifier: Deployed,
+    pub token: Token,
+    pub bounty: Bounty,
+}
+
+/// A standing offer on the main-network board. Amounts are in the token's
+/// smallest unit.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Bounty {
+    pub price: u64,
+    pub budget: u64,
+    pub tasks: u32,
+    pub post_window_seconds: u64,
+    /// The order program the posts name.
+    pub program: String,
+    pub first_post_transaction: String,
+    pub first_task: String,
+}
+
+impl Mainnet {
+    /// What a seller receives for one task: the price less the fee, which is
+    /// rounded up as the vault rounds it.
+    pub fn seller_receives(&self) -> u64 {
+        let fee = (self.bounty.price * u64::from(self.vault.fee_bps)).div_ceil(10_000);
+        self.bounty.price - fee
+    }
+}
+
+/// `units` of a token with `decimals` decimals, without trailing zeros.
+pub fn amount(units: u64, decimals: u8) -> String {
+    let scale = 10u64.pow(u32::from(decimals));
+    let (whole, frac) = (units / scale, units % scale);
+    if frac == 0 {
+        return whole.to_string();
+    }
+    let frac = format!("{frac:0width$}", width = usize::from(decimals));
+    format!("{whole}.{}", frac.trim_end_matches('0'))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -392,8 +455,62 @@ pub fn deployment(input: &Input, programs: &[Published]) -> Value {
         if let Some(vault) = value["vault"].as_object_mut() {
             vault.remove("treasury");
         }
+        if let Some(vault) = value["mainnet"]["vault"].as_object_mut() {
+            vault.remove("treasury");
+        }
     }
     value
+}
+
+fn mainnet_deployment(m: &Mainnet) -> Value {
+    json!({
+        "network": {
+            "name": m.network.name,
+            "chainId": m.network.chain_id,
+            "caip2": format!("eip155:{}", m.network.chain_id),
+            "testnet": m.network.testnet,
+            "rpc": m.network.rpc,
+            "explorer": m.network.explorer,
+        },
+        "board": {
+            "address": m.board.address,
+            "deployBlock": m.board.deploy_block,
+            "codeKeccak256": m.board.code_keccak,
+        },
+        "vault": {
+            "address": m.vault.address,
+            "codeKeccak256": m.vault.code_keccak,
+            "treasury": m.vault.treasury,
+            "treasuryKind": m.treasury_kind,
+            "feeBps": m.vault.fee_bps,
+            "maximumFeeBps": m.vault.maximum_fee_bps,
+            "maximumTermSeconds": m.vault.maximum_term_seconds,
+            "registry": m.registry.address,
+        },
+        "registry": {
+            "address": m.registry.address,
+            "codeKeccak256": m.registry.code_keccak,
+            "verifier": m.verifier.address,
+            "maximumBps": m.registry.maximum_bps,
+        },
+        "verifier": {
+            "address": m.verifier.address,
+            "codeKeccak256": m.verifier.code_keccak,
+        },
+        "token": m.token,
+        "bounty": {
+            "price": m.bounty.price,
+            "sellerReceives": m.seller_receives(),
+            "budget": m.bounty.budget,
+            "tasks": m.bounty.tasks,
+            "oneOpenAtATime": true,
+            "postWindowSeconds": m.bounty.post_window_seconds,
+            "program": m.bounty.program,
+            "firstPostTransaction": m.bounty.first_post_transaction,
+            "firstTask": m.bounty.first_task,
+            "page": "/bounty",
+        },
+    })
 }
 
 /// A receipt as published. With author addresses not disclosed, the
@@ -409,7 +526,7 @@ pub fn elide_counterparties(receipt: &Value, disclose: bool) -> Value {
 }
 
 fn deployment_with_treasury(input: &Input, programs: &[Published]) -> Value {
-    json!({
+    let mut value = json!({
         "network": {
             "name": input.network.name,
             "chainId": input.network.chain_id,
@@ -453,7 +570,11 @@ fn deployment_with_treasury(input: &Input, programs: &[Published]) -> Value {
             "review": input.assurance.review,
             "counterparties": input.assurance.counterparties,
         },
-    })
+    });
+    if let Some(m) = &input.mainnet {
+        value["mainnet"] = mainnet_deployment(m);
+    }
+    value
 }
 
 /// The Agent Card, per A2A 1.0.1. `supportedInterfaces` is empty because no
@@ -468,7 +589,10 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
         "name": input.name,
         "description": format!(
             "Payment for Lean 4 proofs, released by a contract only when a zero-knowledge proof shows a Lean checker accepted the seller's proof of the buyer's statement. Buyers post tasks on a board contract on {}; sellers answer over iroh with x402 v2 payment objects. {} No A2A interface is served at this address; this card is for discovery. A seller serves its own card from its iroh node, with an interface of protocol binding {BINDING}{}.",
-            input.network.name,
+            match &input.mainnet {
+                Some(m) => format!("{} and {}", m.network.name, input.network.name),
+                None => input.network.name.clone(),
+            },
             facts.join(" "),
             match site {
                 Some(site) => format!(
@@ -503,7 +627,7 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
             {
                 "id": "sell-proof",
                 "name": "Sell a Lean proof",
-                "description": format!("A seller watches the board, fetches a statement, finds a proof, checks it with a Lean checker, offers an order, and after the buyer's deposit is in the vault submits a zero-knowledge proof that releases payment. {how}"),
+                "description": format!("A seller watches the board, fetches a statement, finds a proof, checks it with a Lean checker, offers an order, and after the buyer's deposit is in the vault submits a zero-knowledge proof that releases payment.{} {how}", bounty_sentence(input, site)),
                 "tags": ["lean4", "proof", "seller", "x402", "risc-zero"],
             },
             {
@@ -518,6 +642,25 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
         card["documentationUrl"] = json!(format!("{}/", site.trim_end_matches('/')));
     }
     card
+}
+
+/// One sentence on the main-network bounty, for the card; empty without one.
+fn bounty_sentence(input: &Input, site: Option<&str>) -> String {
+    let Some(m) = &input.mainnet else {
+        return String::new();
+    };
+    let page = match site {
+        Some(site) => format!("{}/bounty", site.trim_end_matches('/')),
+        None => "/bounty".into(),
+    };
+    format!(
+        " A standing bounty on {} pays {} {} per task ({} after the fee), at most {} tasks, one open at a time: {page}.",
+        m.network.name,
+        amount(m.bounty.price, m.token.decimals),
+        m.token.name,
+        amount(m.seller_receives(), m.token.decimals),
+        m.bounty.tasks,
+    )
 }
 
 /// The example card of a seller's own node: what `nucleus-seller` serves
@@ -547,6 +690,7 @@ pub fn extension() -> Value {
             "programs": "published proof programs: role, image ID, file name, size and SHA-256",
             "transport": "the iroh ALPN, the x402 version and scheme, and the proof of possession each request carries",
             "assurance": "whether the contracts are audited, what review there has been, and who has traded through them",
+            "mainnet": "optional: the same contracts on a main network (network, board, vault, registry, verifier, token) and its standing bounty (price, what a seller receives, budget, task count, posting window, program, first post)",
         },
     })
 }
@@ -761,8 +905,14 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         pages::verify(input, &programs, &build),
         pages::test_vectors(),
         pages::source(input),
+        pages::run_a_seller(),
         pages::a2a_binding(&spec),
     ];
+    // The bounty's steps build from the public source, so the page exists
+    // only when there is both a main-network bounty and public source.
+    if let (Some(m), Software::Public { url }) = (&input.mainnet, &input.software) {
+        docs_list.push(pages::bounty(m, url, &vectors, &programs));
+    }
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     if let Some((ledger_input, snapshot)) = options.ledger {
         let mut index = Vec::new();
@@ -832,6 +982,7 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         files.push(("sitemap.xml".into(), xml.into_bytes()));
     }
     files.push(("robots.txt".into(), robots.into_bytes()));
+    files.push((NOT_FOUND_PATH.into(), doc::not_found().into_bytes()));
     files.extend([
         (
             "qed.css".into(),

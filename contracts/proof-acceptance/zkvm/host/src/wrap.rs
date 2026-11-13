@@ -15,9 +15,10 @@
 use risc0_zkvm::{
     default_prover,
     sha::{Digest, Digestible},
-    ApiClient, Asset, AssetRequest, Groth16Receipt, Groth16ReceiptVerifierParameters, InnerReceipt,
-    ProverOpts, Receipt,
+    Groth16Receipt, Groth16ReceiptVerifierParameters, InnerReceipt, ProverOpts, Receipt,
 };
+#[cfg(not(feature = "in-process-prover"))]
+use risc0_zkvm::{ApiClient, Asset, AssetRequest};
 use std::{error::Error, path::PathBuf};
 
 pub const CHOICE_ENV: &str = "NUCLEUS_GROTH16";
@@ -81,6 +82,13 @@ fn native(succinct: &Receipt) -> Result<Receipt, Box<dyn Error>> {
         }
     }
     let inner = succinct.inner.succinct()?;
+    // The re-proof over BN254 runs where the rest of the proving runs: in
+    // this process when built with `in-process-prover` (the Linux image has
+    // no `r0vm`; through `ApiClient` it failed with "No such file or
+    // directory", found 2026-11-13), otherwise in `r0vm` over IPC.
+    #[cfg(feature = "in-process-prover")]
+    let identity = risc0_zkvm::recursion::identity_p254(inner)?;
+    #[cfg(not(feature = "in-process-prover"))]
     let identity = ApiClient::from_env()?.identity_p254(
         &ProverOpts::succinct(),
         Asset::try_from(inner.clone())?,

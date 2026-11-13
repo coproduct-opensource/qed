@@ -6,6 +6,10 @@
 //! Each rule was driven red once; the table is in
 //! docs/rfcs/proof-commerce-standing-bounty-2026-11-13.md.
 use super::*;
+use crate::chain::{
+    Chain as RpcChain,
+    fault::{Reply, serve},
+};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -60,6 +64,10 @@ struct World {
     posts: u32,
     refunds: u32,
     withdrawals: u32,
+    /// The statement file is gone (R-3).
+    statement_missing: bool,
+    /// Waits for which a transaction from the buyer is still pending.
+    pending: u32,
 }
 impl World {
     fn at_risk(&self) -> u64 {
@@ -103,7 +111,14 @@ struct Fake {
     verdict: Result<(), String>,
     script: Option<Script>,
     waits: u32,
+    /// A real RPC client `on_board` asks first, against a scripted
+    /// endpoint (`chain::fault`): its failures reach the bounty as they
+    /// would from a node.
+    probe: Option<RpcChain>,
+    /// Every health report, in order.
+    reports: Vec<Health>,
 }
+const STATEMENT_GONE: &str = "the statement file /var/lib/qed-buyer/statement.v2 cannot be read: No such file or directory (os error 2)";
 impl Fake {
     fn new(world: &Chain, journal: &Shared) -> Self {
         Self {
@@ -115,7 +130,15 @@ impl Fake {
             verdict: Ok(()),
             script: None,
             waits: 0,
+            probe: None,
+            reports: vec![],
         }
+    }
+    fn degraded(&self) -> usize {
+        self.reports
+            .iter()
+            .filter(|health| matches!(health, Health::Degraded { .. }))
+            .count()
     }
     fn killed(&mut self, operation: &'static str, after: bool) -> Res<()> {
         if self.kill == Some((operation, after)) {
@@ -194,6 +217,9 @@ impl Market for Fake {
     fn prepare(&mut self, price: u64) -> Res<TaskRef> {
         self.prepared += 1;
         let mut world = self.world.borrow_mut();
+        if world.statement_missing {
+            return Err(STATEMENT_GONE.into());
+        }
         world.block += 1;
         let mut id = [0u8; 32];
         id[..8].copy_from_slice(&world.block.to_be_bytes());
@@ -202,7 +228,28 @@ impl Market for Fake {
             price,
             fund_by: world.clock + 600,
             deliver_by: world.clock + 3_600,
+            salt: Some([0x5a; 32]),
         })
+    }
+    fn resume(&mut self, task: &TaskRef) -> Res<Resumption> {
+        let world = self.world.borrow();
+        let why = if task.salt.is_none() {
+            "the journal kept no salt for it"
+        } else if world.board.get(&task.id) == Some(&true) {
+            "the board shows it withdrawn already"
+        } else if world.statement_missing {
+            STATEMENT_GONE
+        } else {
+            self.desks.insert(task.id);
+            return Ok(Resumption::Resumed);
+        };
+        Ok(Resumption::Unresumable(why.into()))
+    }
+    fn quiet(&mut self) -> Res<bool> {
+        Ok(self.world.borrow().pending == 0)
+    }
+    fn report(&mut self, health: &Health) {
+        self.reports.push(health.clone());
     }
     fn post(&mut self, task: &TaskRef) -> Res<String> {
         self.killed("post", false)?;
@@ -221,6 +268,9 @@ impl Market for Fake {
         Ok("0xpost".into())
     }
     fn on_board(&mut self, task: Hash) -> Res<bool> {
+        if let Some(probe) = &self.probe {
+            probe.rpc("eth_call", json!([{}, "latest"]))?;
+        }
         Ok(self.world.borrow().board.contains_key(&task))
     }
     fn desk_open(&mut self, task: Hash) -> Res<bool> {
@@ -276,10 +326,12 @@ impl Market for Fake {
             .collect())
     }
     fn wait(&mut self, seconds: u64) -> Res<()> {
+        self.killed("wait", false)?;
         {
             let mut world = self.world.borrow_mut();
             world.clock += seconds;
             world.block += seconds * 4;
+            world.pending = world.pending.saturating_sub(1);
         }
         self.waits += 1;
         assert!(self.waits < 10_000, "the bounty never stops");
@@ -374,7 +426,7 @@ fn the_budget_holds_across_a_kill_between_post_and_settlement() {
 }
 
 #[test]
-fn a_post_whose_receipt_was_lost_is_found_and_withdrawn_not_reopened() {
+fn a_post_whose_receipt_was_lost_is_found_and_resumed_not_withdrawn() {
     let (path, world) = (scratch(), chain(1_000));
     {
         let journal = open(&path);
@@ -391,12 +443,212 @@ fn a_post_whose_receipt_was_lost_is_found_and_withdrawn_not_reopened() {
     let limits = Limits { tasks: 1, ..LIMITS };
     let mut fake = Fake::new(&world, &journal);
     assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
-    // The earlier run's post counts as a post, was withdrawn, and nothing
-    // was signed for it by the process that did not hold its desk.
+    // R-3: the restarted process reopened the desk, and the post stood for
+    // its whole funding window before it was withdrawn, as a task.
     let world = world.borrow();
     assert_eq!((world.withdrawals, world.posts, world.paid), (1, 0, 0));
-    assert_eq!(journal.lock().unwrap().ledger().posted, 1);
-    assert!(journal.lock().unwrap().ledger().signed.is_empty());
+    assert!(world.clock > 10_000 + 600);
+    let journal = journal.lock().unwrap();
+    assert_eq!((journal.ledger().posted, journal.ledger().consumed), (1, 1));
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains("\"reason\":\"window\"")
+    );
+}
+
+/// A kill while the post is open, then a restart: R-3's case, and the one
+/// the mainnet crash loop withdrew four times.
+fn killed_while_posted(path: &Path, world: &Chain) {
+    let journal = open(path);
+    let mut fake = Fake::new(world, &journal);
+    fake.kill = Some(("wait", false));
+    assert_eq!(
+        run(LIMITS, &journal, &mut fake).unwrap_err().to_string(),
+        "killed at wait"
+    );
+    assert!(matches!(
+        journal.lock().unwrap().ledger().open,
+        Some(Open::Posted(_))
+    ));
+}
+
+#[test]
+fn a_restart_resumes_an_open_unsigned_post_and_a_seller_can_still_win() {
+    let (path, world) = (scratch(), chain(1_000));
+    killed_while_posted(&path, &world);
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(eager());
+    let limits = Limits { tasks: 1, ..LIMITS };
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    let world = world.borrow();
+    // The same post was won and settled; nothing was withdrawn.
+    assert_eq!((world.withdrawals, world.paid), (0, 100));
+    let ledger = journal.lock().unwrap().ledger().clone();
+    assert_eq!((ledger.posted, ledger.consumed, ledger.spent), (1, 1, 100));
+    assert!(!fs::read_to_string(&path).unwrap().contains("\"withdrawn\""));
+}
+
+#[test]
+fn a_restart_without_the_statement_withdraws_and_says_why() {
+    let (path, world) = (scratch(), chain(1_000));
+    killed_while_posted(&path, &world);
+    world.borrow_mut().statement_missing = true;
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    let limits = Limits { tasks: 1, ..LIMITS };
+    // One unresumable post is as many failures as one task allows.
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Failures);
+    assert_eq!(world.borrow().withdrawals, 1);
+    let ledger = journal.lock().unwrap().ledger().clone();
+    assert_eq!((ledger.consumed, ledger.failures), (0, 1));
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("\"reason\":\"unresumable\""), "{text}");
+    assert!(text.contains("statement.v2 cannot be read"), "{text}");
+
+    // With room for another task it would post again, and cannot: that
+    // is an error to exit on, not a loop.
+    let mut fake = Fake::new(&world, &journal);
+    let error = run(LIMITS, &journal, &mut fake).unwrap_err();
+    assert!(error.to_string().contains("cannot be read"), "{error}");
+    assert!(matches!(fake.reports.last(), Some(Health::Failed { .. })));
+}
+
+#[test]
+fn only_settled_refunded_lapsed_and_window_ended_posts_use_up_a_task() {
+    let opened = Entry::Opened(header()).to_json().to_string();
+    let lines = |entries: &[Entry]| {
+        let mut text = opened.clone();
+        for entry in entries {
+            text.push('\n');
+            text.push_str(&entry.to_json().to_string());
+        }
+        replay(&text).unwrap()
+    };
+    let task = |n: u8| TaskRef {
+        id: [n; 32],
+        price: 100,
+        fund_by: 10,
+        deliver_by: 20,
+        salt: None,
+    };
+    let post = |n: u8| {
+        [
+            Entry::Intent(task(n)),
+            Entry::Posted {
+                task: [n; 32],
+                transaction: "(found on the board after a restart)".into(),
+            },
+        ]
+    };
+    let withdrawn = |n: u8, reason: Withdrawal| Entry::Withdrawn {
+        task: [n; 32],
+        transaction: "(already withdrawn)".into(),
+        block: 5,
+        reason,
+    };
+    // The mainnet journal's shape: four posts, each withdrawn by a restart,
+    // journaled before reasons were. None of them is a task.
+    let mut mainnet = vec![];
+    for n in 1..=4 {
+        mainnet.extend(post(n));
+        mainnet.push(withdrawn(n, Withdrawal::Unrecorded));
+    }
+    mainnet.push(Entry::Stopped {
+        reason: "the task limit is reached".into(),
+    });
+    let ledger = lines(&mainnet);
+    assert_eq!(
+        (
+            ledger.posted,
+            ledger.consumed,
+            ledger.failures,
+            ledger.spent,
+            ledger.open
+        ),
+        (4, 0, 0, 0, None)
+    );
+    // An unresumable post is a failure, not a task; a window that ended is
+    // a task; an operator's close is neither.
+    let mut entries = post(1).to_vec();
+    entries.push(withdrawn(1, Withdrawal::Unresumable("gone".into())));
+    entries.extend(post(2));
+    entries.push(withdrawn(2, Withdrawal::WindowEnded));
+    entries.extend(post(3));
+    entries.push(withdrawn(3, Withdrawal::Closed));
+    let ledger = lines(&entries);
+    assert_eq!((ledger.posted, ledger.consumed, ledger.failures), (3, 1, 1));
+}
+
+#[test]
+fn a_rate_limited_rpc_does_not_end_the_bounty_and_the_post_stays_open() {
+    // A node that answers 403 "rate limited" to everything after the
+    // connect, for longer than one call's patience, then recovers.
+    let started = std::time::Instant::now();
+    let node = serve(Box::new(move |method, _, _| {
+        if method == "eth_chainId" {
+            Reply::result(json!("0x2105"))
+        } else if started.elapsed() < std::time::Duration::from_millis(2_500) {
+            Reply::error(403, -32005, "rate limit exceeded")
+        } else {
+            Reply::result(json!("0x"))
+        }
+    }));
+    let probe =
+        RpcChain::connect_any(std::slice::from_ref(&node.url), crate::chain::fault::QUICK).unwrap();
+
+    let (path, world) = (scratch(), chain(1_000));
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    // Post first, then let the node fail: the outage falls while it is open.
+    fake.probe = None;
+    let limits = Limits { tasks: 1, ..LIMITS };
+    fake.kill = Some(("wait", false));
+    assert!(run(limits, &journal, &mut fake).is_err());
+    fake.probe = Some(probe);
+    // The seller wins while the buyer is degraded: its desk still serves.
+    fake.script = Some(Box::new(|fake: &mut Fake| {
+        if fake.degraded() > 0 && fake.open_task().is_some_and(|t| fake.desks.contains(&t.id)) {
+            fake.trade(100);
+        }
+    }));
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    assert!(fake.degraded() >= 1, "{:?}", fake.reports);
+    let world = world.borrow();
+    assert_eq!((world.withdrawals, world.paid), (0, 100));
+    assert_eq!(journal.lock().unwrap().ledger().consumed, 1);
+}
+
+#[test]
+fn an_intent_is_not_abandoned_while_a_transaction_from_the_buyer_is_pending() {
+    let (path, world) = (scratch(), chain(1_000));
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.kill = Some(("post", false));
+        assert!(run(LIMITS, &journal, &mut fake).is_err());
+    }
+    // The post is in a mempool for two more looks, then lands.
+    world.borrow_mut().pending = 2;
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    let id = match journal.lock().unwrap().ledger().open.clone() {
+        Some(Open::Intent(task)) => task.id,
+        other => panic!("{other:?}"),
+    };
+    fake.script = Some(Box::new(move |fake: &mut Fake| {
+        let mut world = fake.world.borrow_mut();
+        if world.pending == 0 && !world.board.contains_key(&id) {
+            world.board.insert(id, false);
+            world.posts += 1;
+        }
+    }));
+    let limits = Limits { tasks: 1, ..LIMITS };
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("\"abandoned\""), "{text}");
+    assert_eq!(journal.lock().unwrap().ledger().consumed, 1);
 }
 
 #[test]
@@ -584,6 +836,7 @@ fn a_journal_records_only_the_moves_of_the_diagram() {
         price: 100,
         fund_by: 10,
         deliver_by: 20,
+        salt: None,
     };
     let other = TaskRef {
         id: [2; 32],
@@ -685,7 +938,8 @@ fn a_journal_records_only_the_moves_of_the_diagram() {
         Entry::Withdrawn {
             task: task.id,
             transaction: "0x".into(),
-            block: 5
+            block: 5,
+            reason: Withdrawal::WindowEnded,
         }
     ]));
     // And the allowed path is allowed.
@@ -707,6 +961,7 @@ fn it_refuses_to_continue_when_the_board_does_not_know_a_post_the_journal_record
             price: 100,
             fund_by: 99_999,
             deliver_by: 199_999,
+            salt: None,
         };
         journal.record(Entry::Intent(task.clone())).unwrap();
         journal
@@ -752,6 +1007,14 @@ fn every_event_survives_its_own_json() {
             price: 5,
             fund_by: 6,
             deliver_by: 7,
+            salt: Some([4; 32]),
+        }),
+        Entry::Intent(TaskRef {
+            id: [1; 32],
+            price: 5,
+            fund_by: 6,
+            deliver_by: 7,
+            salt: None,
         }),
         Entry::Posted {
             task: [1; 32],
@@ -779,6 +1042,25 @@ fn every_event_survives_its_own_json() {
             task: [1; 32],
             transaction: "0xdef".into(),
             block: 9,
+            reason: Withdrawal::WindowEnded,
+        },
+        Entry::Withdrawn {
+            task: [1; 32],
+            transaction: "0xdef".into(),
+            block: 9,
+            reason: Withdrawal::Unresumable("the statement file is missing".into()),
+        },
+        Entry::Withdrawn {
+            task: [1; 32],
+            transaction: "0xdef".into(),
+            block: 9,
+            reason: Withdrawal::Closed,
+        },
+        Entry::Withdrawn {
+            task: [1; 32],
+            transaction: "0xdef".into(),
+            block: 9,
+            reason: Withdrawal::Unrecorded,
         },
         Entry::Abandoned { task: [1; 32] },
         Entry::Stopped {

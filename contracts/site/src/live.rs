@@ -143,7 +143,7 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
                     if !media.starts_with("text/markdown") || got != want {
                         fail(format!("Accept: text/markdown gave {media}, not {wanted}"));
                     }
-                    if !vary.contains("accept") {
+                    if !crate::serving::varies_on_accept(&vary) {
                         fail("no Vary: Accept on the Markdown response".into());
                     }
                 }
@@ -169,6 +169,37 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
                 fail(format!("loads an outside resource: {marker}"));
             }
         }
+    }
+    // A missing path: status 404, the built not-found page, as HTML. An
+    // empty body with no media type is what Safari offered to download.
+    let missing = "no-such-page-check-live";
+    let mut fail = |what: String| findings.push((format!("/{missing}"), what));
+    match agent.get(format!("{base}/{missing}")).call() {
+        Ok(mut response) => {
+            let status = response.status().as_u16();
+            let media = response
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_owned();
+            let body = response.body_mut().read_to_vec()?;
+            let want = fs::read(built.join(crate::NOT_FOUND_PATH)).unwrap_or_default();
+            if status != 404 {
+                fail(format!("status {status}, not 404"));
+            }
+            if !media.starts_with("text/html") {
+                fail(format!("Content-Type {media:?}, not text/html"));
+            }
+            if want.is_empty() || body != want {
+                fail(format!(
+                    "body ({} bytes) is not the built {}",
+                    body.len(),
+                    crate::NOT_FOUND_PATH
+                ));
+            }
+        }
+        Err(error) => fail(format!("no response: {error}")),
     }
     Ok(findings)
 }
