@@ -39,6 +39,8 @@ interface IProofVerifier3 {
 /// An unknown base answers (address(0), 0).
 interface IBaseRegistry {
     function entryOf(bytes32 base) external view returns (address payee, uint16 bps);
+    /// The largest rate any entry may carry. Read once, at construction.
+    function maximumBps() external view returns (uint16);
 }
 
 /// Thin vault, third form. Model: proofs/commerce/Vault3.lean. Reference:
@@ -123,6 +125,7 @@ contract NucleusVault3 {
     event Claimed(address indexed payee, address indexed asset, uint256 amount);
 
     error InvalidDeployment();
+    error CeilingExceedsRoom();
     error InvalidOrder();
     error FundingExpired();
     error TermTooLong();
@@ -149,6 +152,11 @@ contract NucleusVault3 {
             treasury_ == address(0) || treasury_ == address(this) || feeBps_ == 0 || feeBps_ > maximumFeeBps_
                 || maximumFeeBps_ > SCALE || maximumTerm_ == 0 || registry_ == address(0) || registry_ == address(this)
         ) revert InvalidDeployment();
+        // Decision 22 (model: `ceilingWithinRoom` in Vault3.lean): every rate the
+        // registry can ever admit fits in the room the fee leaves under the cap,
+        // so no registration can strand a base here. A registry that cannot
+        // answer reverts the deployment.
+        if (uint256(feeBps_) + IBaseRegistry(registry_).maximumBps() > maximumFeeBps_) revert CeilingExceedsRoom();
         treasury = treasury_;
         feeBps = feeBps_;
         maximumFeeBps = maximumFeeBps_;

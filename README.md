@@ -25,10 +25,14 @@ Read this before anything else.
   standing bounty: 25 USDC a task, at most four tasks, paid to the first
   seller whose proof settles. The bounty's statement has a public proof, so
   it tests running a seller, not proving. See "Run a seller" below.
-- **One settlement used real money:** 0.40 USDC on Base mainnet, through an
-  earlier vault (`NucleusVault2`, `0x30f522bc30d46b3a4089931d698f04656fa23b8d`).
-- **The program builds do not reproduce across machines.** See
-  "Checking the published programs" below.
+- **Two settlements used real money**, both between the authors' keys: 0.40
+  USDC on Base mainnet through an earlier vault (`NucleusVault2`,
+  `0x30f522bc30d46b3a4089931d698f04656fa23b8d`), and 1 USDC through the
+  previous third-form vault (`0x8917c501755f966a5b5f20d6608e297e7066f13b`),
+  every call sent by the gas relayer.
+- **The proof programs rebuild from source, byte for byte.** One command
+  rebuilds both in RISC Zero's builder image and compares image IDs and
+  bytes. See "Checking the published programs" below.
 
 Do not put funds you care about through this code.
 
@@ -57,9 +61,9 @@ Do not put funds you care about through this code.
 
 | | address |
 |---|---|
-| vault (`NucleusVault3`, fee 25 basis points) | `0x8917c501755f966a5b5f20d6608e297e7066f13b` |
-| task board (`NucleusBoard`, names that vault; deployed in block 56773051) | `0xde0b91b747898ae296c14d6703c05a15845f49c0` |
-| base registry (`BaseRegistry`) | `0x843f6c3ff6c68e027ae3bd2cb13001f6075da75f` |
+| vault (`NucleusVault3`, fee 25 basis points) | `0x952c31aa208dd129059f6065a26b57c930c6ab3c` |
+| task board (`NucleusBoard`, names that vault; deployed in block 57107834) | `0xd968d5659b3c63cd74d7b4d09345ff3417711038` |
+| base registry (`BaseRegistry`) | `0x4810022c80777d3ef3951845349ea1e129874c63` |
 | proof verifier (RISC Zero Groth16 3.1.0, deployed by RISC Zero) | `0x8c915b5071206c6e328bc18529586c513408ab3b` |
 | Circle USDC | `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913` |
 
@@ -72,30 +76,44 @@ for the addresses fixed at construction.
 
 | | address |
 |---|---|
-| vault (`NucleusVault3`) | `0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426` |
-| task board (`NucleusBoard`, names that vault) | `0x3c96abe5be0e37ec9651ca9728dc48418f5b0151` |
-| base registry (`BaseRegistry`) | `0xb4d28451ee2caa713d87d9d05db749015bd48a7a` |
+| vault (`NucleusVault3`) | `0xb1d68c62497384a8d19da1860bb4990c3e83aeac` |
+| task board (`NucleusBoard`, names that vault) | `0x81711f647826fe53749c6b73804716655a1bf7c9` |
+| base registry (`BaseRegistry`) | `0x0552026afa8a3b8bf35a5b06922401761f79dc5f` |
 | proof verifier (RISC Zero Groth16 3.1.0, deployed by RISC Zero) | `0x8c915b5071206c6e328bc18529586c513408ab3b` |
 | Circle test USDC | `0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d` |
 
-Proof programs these contracts are used with:
+Proof programs these contracts are used with (they rebuild from source; see
+"Checking the published programs"):
 
 | program | image ID |
 |---|---|
-| order program | `fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081` |
-| base program (the registry accepts only its proofs) | `84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237` |
+| order program | `704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed` |
+| base program (the registry accepts only its proofs) | `4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440` |
 
 Each value above can be read back from the chain: the vault's `treasury`,
 `feeBps`, `maximumFeeBps`, `maximumTerm` and `registry`; the registry's
-`baseProgram`, `verifier` and `maximumBps`; the board's `vault`.
+`baseProgram`, `verifier` and `maximumBps`; the board's `vault`. The vault
+refuses at construction a registry whose `maximumBps` plus the fee exceeds
+the fee cap.
 
-An earlier deployment on the same network (vault
-`0x4188c7683fc4976f1aa2498897249ab68c424bfe`, board
-`0x86d0bd9962a7a87cd1e8e987831ead5fc11d4b66`, registry
-`0x93fde28c6fe4f753d4ae0aa2ff4e70098481771c`) is used with the order program
-`fc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb` and base
-program `67bddd199136658cc6552facce96be32647c42ee44a10c54e79a0e1f4beccd3a`.
-Both of those binaries are here too.
+Earlier deployments stay on chain, with the programs they name; every one of
+those binaries is here too, and none of them rebuilds from source elsewhere:
+
+- statement format v2 as first built, order program
+  `fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081`, base
+  program `84309d9365584b89f0dbd269bd31d448d336b8da4ca714c23a9d90127a968237`:
+  Base vault `0x8917c501755f966a5b5f20d6608e297e7066f13b` (board
+  `0xde0b91b747898ae296c14d6703c05a15845f49c0`, registry
+  `0x843f6c3ff6c68e027ae3bd2cb13001f6075da75f`) and Arbitrum Sepolia vault
+  `0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426` (board
+  `0x3c96abe5be0e37ec9651ca9728dc48418f5b0151`, registry
+  `0xb4d28451ee2caa713d87d9d05db749015bd48a7a`);
+- the third form's first pair, order program
+  `fc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb`, base
+  program `67bddd199136658cc6552facce96be32647c42ee44a10c54e79a0e1f4beccd3a`:
+  Arbitrum Sepolia vault `0x4188c7683fc4976f1aa2498897249ab68c424bfe` (board
+  `0x86d0bd9962a7a87cd1e8e987831ead5fc11d4b66`, registry
+  `0x93fde28c6fe4f753d4ae0aa2ff4e70098481771c`).
 
 The website for this deployment is https://qed.coproduct.dev, generated by
 `contracts/site`. It lists every settlement with a receipt read from the
@@ -140,14 +158,14 @@ Measured time for one small order's proof, with the final wrapping step: about
 
 These steps take the Base mainnet bounty. A seller watches the board, fetches
 each task's statement from the buyer's node, runs its prover, checks the
-result with the Lean checker, and offers. If the buyer signs, the seller sends
-`fund`, `settle` and `claim` itself.
+result with the Lean checker, and offers. If the buyer signs, `fund`, `settle`
+and `claim` follow, sent through the gas relayer or by the seller itself.
 
-**The seller pays its own gas.** A gas relayer is planned but not available
-(see "Gas relayer (planned)" below), so the wallet needs a little ETH on Base.
-The three transactions of one trade cost about 0.000004 ETH at the Base gas
-price of 2026-11-13, read from the receipts of an earlier Base trade.
-0.0002 ETH leaves room.
+**The seller needs no ETH.** The gas relayer at
+`https://relay.qed.coproduct.dev` (see "Gas relayer" below) sends the three
+transactions and pays the gas. A little ETH on Base lets your seller send them
+itself when the relayer is slow or refuses: the first relayed trade's three
+transactions cost 0.0000035 ETH on 2026-11-13, so 0.0002 ETH leaves room.
 
 Three ways to get the seller, from least setup to most:
 
@@ -192,9 +210,10 @@ attached to the release and attested against the archive:
 
 These show which workflow built the artifact and from which commit. They do
 not show the source is correct. The program the vault pays for is checked
-separately: `nucleus-acceptance-host order2-image` must print
-`fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081`, the
-program the bounty's posts name.
+separately: `nucleus-acceptance-host order2r-image` must print
+`704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed`, the
+program the bounty's posts name, and anyone can rebuild that program from
+source ("Checking the published programs").
 
 ### 2. Make a wallet
 
@@ -202,8 +221,9 @@ program the bounty's posts name.
 
 `seller.keys` holds three hex keys, one per line, readable only by you: a
 secp256k1 wallet, a P-256 key for proof of possession, and an Ed25519 key that
-is your network node identity. Send about 0.0002 ETH on Base to the wallet
-address it prints.
+is your network node identity. It prints the wallet address. With the relayer
+the wallet needs no ETH; to defend your deadlines yourself, send it about
+0.0002 ETH on Base.
 
 ### 3. Fetch the task's files and the Groth16 data
 
@@ -233,7 +253,7 @@ endpoint; when one refuses a range of logs, the next is asked:
      "rpcs": ["https://mainnet.base.org", "https://base-rpc.publicnode.com",
               "https://base.gateway.tenderly.co"],
      "rpc": "https://base-rpc.publicnode.com",
-     "vault": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+     "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
      "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
      "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"}
 
@@ -242,9 +262,10 @@ endpoint; when one refuses a range of logs, the next is asked:
     {
       "deployment": "base.json",
       "keys": "seller.keys",
-      "board": "0xde0b91b747898ae296c14d6703c05a15845f49c0",
-      "startBlock": 56773051,
+      "board": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+      "startBlock": 57107834,
       "relay": "default",
+      "relayer": "https://relay.qed.coproduct.dev",
       "prover": ["qed-TARGET/nucleus-fixture-prover",
                  "9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2",
                  "ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"],
@@ -277,7 +298,7 @@ seller's address in the vault, and anyone can claim it later:
 
 To try the same steps first with test tokens: the Arbitrum Sepolia vault and
 board above, `"rpc": "https://sepolia-rollup.arbitrum.io/rpc"`, token
-`0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d`, `"startBlock": 328652134`, a
+`0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d`, `"startBlock": 328913580`, a
 price at or under the post's cap, and Arbitrum Sepolia ETH for gas.
 
 `prover` is any command. For each task the seller runs it, without a shell,
@@ -301,7 +322,7 @@ as an unprivileged user, keeps everything in `/data`, and works with a
 read-only root filesystem. The same steps, with `IMAGE` the checked
 `ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST`:
 
-    docker run --rm --entrypoint nucleus-acceptance-host IMAGE order2-image
+    docker run --rm --entrypoint nucleus-acceptance-host IMAGE order2r-image
     docker run --rm -v qed:/data --entrypoint nucleus-vault-ops IMAGE keys /data/seller.keys
     docker run --rm -v qed:/data --entrypoint qed-groth16-data IMAGE /data/groth16
 
@@ -348,12 +369,22 @@ delay; it cannot redirect payment. Keep `groth16Data` too and a refusal falls
 back to the local wrap. Measured times are on the site's "Run a seller" page,
 https://qed.coproduct.dev/sellers/run.
 
-### Gas relayer (planned)
+### Gas relayer
 
-**Planned: no relayer is available yet.** A relayer sends `fund`, `settle` and
-`claim` for you and pays the gas, so a seller with no ETH can still trade. To
-use one, add `"relayer": "https://RELAYER"` to `seller.json`, and optionally
-`"relayerWaitSeconds"` (default 120).
+The authors run one for the Base vault at `https://relay.qed.coproduct.dev`.
+A relayer sends `fund`, `settle` and `claim` for you and pays the gas, so a
+seller with no ETH can still trade. To use it, add
+`"relayer": "https://relay.qed.coproduct.dev"` to `seller.json`, and
+optionally `"relayerWaitSeconds"` (default 120).
+
+Measured on Base on 2026-11-13, in the first relayed trade (the authors' own
+buyer, and a new seller wallet that never held ETH): the relayer paid 579,567
+gas, 3,489,138,468,751 wei (0.0000035 ETH) including the L1 data fee, for
+[fund](https://basescan.org/tx/0xe517d0232a2fac95feb58da2486299462b18630f73932a87d26e60fc075482aa),
+[settle](https://basescan.org/tx/0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8)
+and
+[claim](https://basescan.org/tx/0x26d8bbffa1e50e29d8dbc104c128954bfee470f1c0c7c64a964c3cfbb7237170).
+The seller's ETH balance was 0 before and after; it was paid 0.9975 USDC.
 
 - **What you depend on it for.** A seller with no ETH depends on the relayer
   for timeliness only, never for payment. Each call pays whom the contract
@@ -386,12 +417,28 @@ binary, so you can check which program you are running without building it:
     contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host vault3-image-of FILE
 
 `contracts/proof-acceptance/program/README.md` lists every published binary
-with its ID and SHA-256. That a binary does what the sources under
-`contracts/proof-acceptance` say rests on a build that does not yet reproduce:
-the same commit built from a second directory on the same machine gave
-different bytes and a different ID. The binaries were built with source paths
-remapped; they still carry paths from RISC Zero's prebuilt guest standard
-library and kernel.
+with its ID and SHA-256.
+
+The current pair (`nucleus-order-fmt2r.bin`, `nucleus-base-check-fmt2r.bin`)
+rebuilds from source byte for byte. This builds both guests from a commit
+inside RISC Zero's guest builder image, named by digest in
+`contracts/proof-acceptance/program/REPRODUCIBLE`, and exits 0 only if every
+image ID and every published file matches (1 if not, 2 if it could not run):
+
+    (cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)
+    contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD
+
+It needs Docker, or Apple `container` with `--runtime container`, on an
+x86-64 machine or under translation (the image is linux/amd64 only), and
+about 1.7 GB for the image; each guest builds in about a minute on eight
+cores. Intel and AMD x86-64 machines and a Mac under Rosetta built the same
+bytes. The `verify-programs` workflow runs it on every pull request that
+touches the programs. What it does not show: that the source does what it
+says, and how RISC Zero built the toolchain inside its image.
+
+The earlier pairs here were built with the macOS guest toolchain and do not
+rebuild elsewhere: the same commit built from a second directory on the same
+machine gave different bytes and a different ID. Compare those by hash.
 
 The program used with the earlier Base mainnet vault (image ID
 `f0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca`) is not
@@ -403,7 +450,8 @@ to the same ID.
 - RISC Zero's installer, `r0vm`, its Groth16 circuit data (checked against a
   hash in a manifest whose signature we did not check) and its on-chain
   verifier contract.
-- The published program binaries, as above.
+- The published program binaries, as above; for the current pair, RISC
+  Zero's guest builder image instead, since you can rebuild them.
 - The vendored Lean checker, `nanoda_lib` 0.4.32
   (`contracts/proof-acceptance/vendor/nanoda_lib`, with our changes listed in
   `VENDOR.md`).

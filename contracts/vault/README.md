@@ -30,3 +30,16 @@ flags; 7,521 bytes of runtime. `EmptyRegistry.sol` is the registry it is
 deployed against for now. `TestRegistry.sol` and `TestWallet.sol` are
 test-only. On Arbitrum Sepolia it is at
 `0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b`. It is on no mainnet.
+
+**Since 2026-11-13 (decision 22) the constructor reads the registry's
+`maximumBps()` and refuses (`CeilingExceedsRoom`) a registry whose ceiling
+plus the fee exceeds the cap** (model: `ceilingWithinRoom`,
+`every_base_fits_a_round_order` and `a_ceiling_past_the_room_strands_a_base`
+in `proofs/commerce/Vault3.lean`; test
+`a_vault_refuses_a_registry_whose_ceiling_does_not_fit_under_its_fee_cap`).
+Only the creation code changed. Vaults deployed before it (Arbitrum Sepolia
+`0x8c39…9a6b` and `0x4a0d…f426`, Base `0x8917…f13b`) were built without the
+check; their registries' ceilings (0 and 50 under a room of 75) fit anyway.
+`EmptyRegistry` and `TestRegistry` gained `maximumBps()` returning 0 so a
+vault can still be deployed against them; the `EmptyRegistry` on Arbitrum
+Sepolia predates that and cannot back a new vault.

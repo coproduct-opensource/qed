@@ -305,24 +305,28 @@ fn before_anything(input: &Input) -> Block {
         Some(m) => {
             items.push(vec![
                 strong(format!(
-                    "The board now runs on {} mainnet with real {}.",
+                    "Live on {} mainnet, in {}.",
                     m.network.name, m.token.name
                 )),
-                t(format!(
-                    " The older deployments on {} ({}, no value) stay in the ",
-                    input.network.name, input.token.name
-                )),
+                t(format!(" {} test runs stay in the ", input.network.name)),
                 link("/transactions", "ledger"),
                 t("."),
             ]);
             items.push(vec![
-                t(format!(
-                    "A bounty pays {} {} a task to anyone: ",
+                strong(format!(
+                    "{} {} a task, to anyone:",
                     amount(m.bounty.price, m.token.decimals),
                     m.token.name
                 )),
-                link("/bounty", "how to take part"),
+                t(" "),
+                link("/bounty", "bounty"),
                 t("."),
+            ]);
+            items.push(vec![
+                strong("Sellers need no ETH."),
+                t(" A relayer pays the gas; it can delay a trade, not redirect payment ("),
+                link("/sellers/run", "run a seller"),
+                t(")."),
             ]);
         }
         None => items.push(vec![
@@ -350,6 +354,25 @@ fn before_anything(input: &Input) -> Block {
         t(" ("),
         link("/verify#control", "check"),
         t(")."),
+    ]);
+    items.push(vec![
+        strong("The current proof programs rebuild from source, byte for byte."),
+        t(" "),
+        code("nucleus-acceptance-host verify-programs"),
+        t(" rebuilds them in RISC Zero's builder image, pinned by digest, and compares IDs and bytes ("),
+        link("/verify#programs", "how"),
+        t(format!(
+            "). {}{}",
+            input.network.name,
+            match &input.mainnet {
+                Some(m) if input.programs.iter().all(|p| p.image_id != m.bounty.program) => format!(
+                    " names them. {} still names the earlier pair, which rebuilds only on the machine that built it, until it switches.",
+                    m.network.name
+                ),
+                Some(m) => format!(" and {} name them.", m.network.name),
+                None => " names them.".into(),
+            }
+        )),
     ]);
     Block::Note {
         title: "Before anything else".into(),
@@ -381,10 +404,13 @@ fn status_line(input: &Input, build: &Build) -> Block {
         }
         None => line.push(t(", without a chain snapshot.")),
     }
-    line.push(t(format!(
-        " Deployment {} on {}. Re-check: ",
-        input.version, input.network.name
-    )));
+    line.push(t(match &input.mainnet {
+        Some(m) => format!(" Live on {}. Re-check: ", m.network.name),
+        None => format!(
+            " Deployment {} on {}. Re-check: ",
+            input.version, input.network.name
+        ),
+    }));
     line.push(link("/verify", "verify"));
     line.push(t("."));
     p(line)
@@ -809,7 +835,7 @@ pub fn threat_model(input: &Input) -> Doc {
         (
             "The proof program does what its source says",
             "Assumed",
-            "Published binaries, identified by image ID. A build from source reproduces them only on the machine that published them, not from another checkout path.",
+            "Published binaries, identified by image ID. The current pair rebuilds from source byte for byte in RISC Zero's builder image (verify-programs), so the binary is the source; that the source does what it says rests on reading it and its tests. Earlier pairs rebuild only on the machine that published them.",
         ),
         (
             "The Lean checker is sound",
@@ -1136,6 +1162,14 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
 const BOUNTY_STATEMENT: &str = "contracts/site/input/statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2";
 const BOUNTY_PROOF: &str = "contracts/site/input/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin";
 
+/// The authors' gas relayer for the Base vault (relayer record, §13–14).
+const RELAYER_URL: &str = "https://relay.qed.coproduct.dev";
+const BASE_TX: &str = "https://basescan.org/tx/";
+/// The first relayed trade on Base, 2026-11-13 (relayer record, §14).
+const RELAYED_FUND: &str = "0xe517d0232a2fac95feb58da2486299462b18630f73932a87d26e60fc075482aa";
+const RELAYED_SETTLE: &str = "0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8";
+const RELAYED_CLAIM: &str = "0x26d8bbffa1e50e29d8dbc104c128954bfee470f1c0c7c64a964c3cfbb7237170";
+
 /// Endpoints a seller on Base asks, in order: receipts and sends go to the
 /// first, and a refused range of logs falls to the next. The bounty buyer's
 /// list, each tested from its host (standing-bounty record, 2026-11-13).
@@ -1419,7 +1453,7 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
                 t(")."),
             ],
             vec![t(format!(
-                "A relayer that would pay a seller's gas is planned, not available. {}",
+                "The authors' gas relayer, {RELAYER_URL}, sends a seller's fund, settle and claim and pays the gas; a seller relies on it for timeliness, never for payment. {}",
                 AUTHORS_ONLY
             ))],
         ]),
@@ -1820,7 +1854,14 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
             rows: program_rows,
         },
         para(
-            "The image ID is computed from the binary (vault3-image-of). Builds reproduce only on the publishing machine; compare by hash.",
+            "The image ID is computed from the binary (vault3-image-of). These binaries rebuild from source byte for byte: the command below builds both guests from a commit inside RISC Zero's guest builder image, named by digest in contracts/proof-acceptance/program/REPRODUCIBLE, and exits 0 only if every image ID and every file matches (1 if not, 2 if it could not run). Intel and AMD x86-64 machines and a Mac under Rosetta built the same bytes. It needs Docker (or Apple container) on an x86-64 machine or under translation, and about 1.7 GB for the image.",
+        ),
+        verification_command(
+            "programs-rebuild",
+            "git clone https://github.com/coproduct-opensource/qed && cd qed\n(cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)\ncontracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD".to_string(),
+        ),
+        para(
+            "What that does not show: that the source does what it says (read it, and its tests), and how RISC Zero built the toolchain inside its image. Earlier program pairs, still named by older deployments, rebuild only on the machine that published them; compare those by hash.",
         ),
         h2("settlement", "5. A settlement"),
         Block::Ol(vec![
@@ -1995,7 +2036,7 @@ const SELLER_MEASURED: [(&str, &str, &str); 8] = [
 ];
 
 /// "Run a seller": the released image and archives, how to check them, the
-/// steps that take the main-network bounty with them, the planned relayer,
+/// steps that take the main-network bounty with them, the gas relayer,
 /// and what a first run costs.
 pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
     let r = &SELLER_RELEASE;
@@ -2039,10 +2080,10 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ]
         }),
         p(vec![
-            strong("The seller pays its own gas."),
-            t(
-                " A gas relayer is planned but not available (below), so the seller's wallet needs a little ETH to send fund, settle and claim.",
-            ),
+            strong("The seller needs no ETH."),
+            t(format!(
+                " The gas relayer at {RELAYER_URL} (below) sends fund, settle and claim and pays the gas. A little ETH lets your seller send them itself when the relayer is slow or refuses.",
+            )),
         ]),
         h2("check", "1. Check the image"),
         para(
@@ -2114,7 +2155,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
     };
     blocks.extend([
         p(vec![t(format!(
-            "Send the wallet about 0.0002 ETH on {}. The three transactions of one trade cost about 0.000004 ETH at the gas price of 2026-11-13, read from the receipts of an earlier trade there.",
+            "With the relayer the wallet needs no ETH. To be able to send a call yourself when the relayer is slow, send it about 0.0002 ETH on {}: the three transactions of the first relayed trade there cost 0.0000035 ETH on 2026-11-13.",
             m.network.name
         ))]),
         h2("files", "3. Fetch the task's files and the Groth16 data"),
@@ -2139,7 +2180,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
         verification_command(
             "seller-json",
             format!(
-                "{{\n  \"deployment\": \"/data/base.json\",\n  \"keys\": \"/data/seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"/usr/local/bin/nucleus-fixture-prover\",\n             \"/data/{}\",\n             \"/data/{}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"groth16Data\": \"/data/groth16\",\n  \"expectedProvingSeconds\": 3600,\n  \"workDir\": \"/data/seller-work\"\n}}",
+                "{{\n  \"deployment\": \"/data/base.json\",\n  \"keys\": \"/data/seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"relayer\": \"{RELAYER_URL}\",\n  \"prover\": [\"/usr/local/bin/nucleus-fixture-prover\",\n             \"/data/{}\",\n             \"/data/{}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"groth16Data\": \"/data/groth16\",\n  \"expectedProvingSeconds\": 3600,\n  \"workDir\": \"/data/seller-work\"\n}}",
                 m.board.address,
                 m.board.deploy_block.unwrap_or(0),
                 file_name(STATEMENT_FILE),
@@ -2180,7 +2221,7 @@ fn file_name(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-/// Run, the planned relayer, a wrap service, and the measured times.
+/// Run, the gas relayer, a wrap service, and the measured times.
 fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
     vec![
         h2("run", "5. Run"),
@@ -2193,17 +2234,19 @@ fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
         para(
             "The seller watches the board, offers on tasks its prover can answer, and settles. It needs outbound network only. Setup takes minutes; a trade then takes 13 to 18 minutes on the machines below, nearly all of it proving.",
         ),
-        h2("relayer", "Gas relayer (planned)"),
+        h2("relayer", "Gas relayer"),
         p(vec![
-            strong("Gas relayer (planned)."),
-            t(" No relayer is available yet. A relayer sends "),
+            strong("Gas relayer."),
+            t(" The authors run one at "),
+            code(RELAYER_URL),
+            t(", for the Base vault. It sends "),
             code("fund"),
             t(", "),
             code("settle"),
             t(" and "),
             code("claim"),
             t(" for you and pays the gas, so a seller needs no ETH. Set "),
-            code("\"relayer\": \"https://…\""),
+            code(format!("\"relayer\": \"{RELAYER_URL}\"")),
             t(" in "),
             code("seller.json"),
             t(". "),
@@ -2216,6 +2259,19 @@ fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
             code("settle"),
             t(
                 "'s artifact before it is on chain. If nothing lands in time, your seller sends the call itself, which needs a little ETH.",
+            ),
+        ]),
+        p(vec![
+            t(
+                "Measured on Base, 2026-11-13, the first relayed trade (the authors' own buyer, and a new seller wallet that never held ETH): the relayer paid ",
+            ),
+            code_link(format!("{BASE_TX}{RELAYED_FUND}"), "fund"),
+            t(" 148,411 gas, "),
+            code_link(format!("{BASE_TX}{RELAYED_SETTLE}"), "settle"),
+            t(" 348,953 and "),
+            code_link(format!("{BASE_TX}{RELAYED_CLAIM}"), "claim"),
+            t(
+                " 82,203: 579,567 gas, 3,489,138,468,751 wei (0.0000035 ETH) with the L1 data fee, at 0.006 gwei. The seller's ETH balance was 0 before and after, and it was paid 0.9975 USDC. From post to claim took 5 minutes 48 seconds, 5 minutes 34 of it proving.",
             ),
         ]),
         para(

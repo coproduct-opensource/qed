@@ -45,8 +45,8 @@ jobs:
         run: cargo build --locked --release --manifest-path contracts/proof-acceptance/zkvm/Cargo.toml -p nucleus-acceptance-host ${{ matrix.host_features }}
       - name: the prover host names the published programs
         run: |
-          target/release/nucleus-acceptance-host order2-image
-          target/release/nucleus-acceptance-host base2-image
+          target/release/nucleus-acceptance-host order2r-image
+          target/release/nucleus-acceptance-host base2r-image
       # The release's SBOM step, run on pull requests so a failure shows
       # before a tag. Must match release.yml's.
       - name: sboms
@@ -86,4 +86,4 @@ jobs:
         if: matrix.platform == 'linux/amd64'
         run: |
           docker buildx build --load -t qed-seller:pr -f Containerfile .
-          docker run --rm --entrypoint /usr/local/bin/nucleus-acceptance-host qed-seller:pr order2-image
+          docker run --rm --entrypoint /usr/local/bin/nucleus-acceptance-host qed-seller:pr order2r-image

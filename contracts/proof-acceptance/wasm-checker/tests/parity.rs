@@ -230,5 +230,7 @@ fn every_settled_artifact_on_the_site_agrees() {
             "the served artifact is the settled one"
         );
     }
-    assert_eq!(seen.len(), 5);
+    // Distinct (policy, artifact) pairs; the sixth is the first trade on the
+    // reproducible programs (task on the toy base, 2026-11-13).
+    assert_eq!(seen.len(), 6);
 }

@@ -32,6 +32,14 @@ contract TestRegistry {
         mode = m;
     }
 
+    /// The ceiling a third vault reads at construction. This registry does
+    /// not keep its entries under it: `set` takes any rate, so tests can
+    /// still drive the vault's own cap check at `fund` with a registry that
+    /// lies about its ceiling.
+    function maximumBps() external pure returns (uint16) {
+        return 0;
+    }
+
     fallback() external {
         // entryOf(bytes32) by hand, so the reply can be malformed.
         bytes32 base;

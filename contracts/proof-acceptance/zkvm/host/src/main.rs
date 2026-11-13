@@ -45,6 +45,14 @@ const NUCLEUS_BASE_GUEST_ELF: &[u8] = include_bytes!("../../../program/nucleus-b
 const NUCLEUS_ORDER2_GUEST_ELF: &[u8] = include_bytes!("../../../program/nucleus-order-fmt2.bin");
 const NUCLEUS_BASE2_GUEST_ELF: &[u8] =
     include_bytes!("../../../program/nucleus-base-check-fmt2.bin");
+/// The reproducible pair (docs/rfcs/qed-reproducible-switch-2026-11-13.md):
+/// the same source as the statement-format-v2 pair, built in RISC Zero's
+/// pinned builder image, so anyone can rebuild these bytes
+/// (`verify-programs`). The order program differs from `order2-` only in the
+/// base program it names. `order2r-` and `base2r-` address them.
+const NUCLEUS_ORDER2R_GUEST_ELF: &[u8] = include_bytes!("../../../program/nucleus-order-fmt2r.bin");
+const NUCLEUS_BASE2R_GUEST_ELF: &[u8] =
+    include_bytes!("../../../program/nucleus-base-check-fmt2r.bin");
 use risc0_zkvm::{
     default_executor, default_prover, sha::Digest, ExecutorEnv, ProverOpts, Receipt, ReceiptClaim,
 };
@@ -95,7 +103,7 @@ fn second_form() -> Result<&'static [u8], Box<dyn Error>> {
 }
 
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-seal GROTH16_RECEIPT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2-... and base2-... for the statement-format-v2 pair; vault-... for the second form, in a build with the `second-form` feature)";
+    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-seal GROTH16_RECEIPT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2r-... and base2r-... for the reproducible statement-format-v2 pair, order2-... and base2-... for the earlier build of it; vault-... for the second form, in a build with the `second-form` feature)";
     let Some((command, rest)) = args.split_first() else {
         return Err(usage.into());
     };
@@ -150,12 +158,17 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     }
     // `vault3-` addresses the third-form program, `base-` the base program,
     // and `vault-` the second-form one where this build carries it.
-    // `order2-` and `base2-` address the statement-format-v2 pair. Each order
-    // program is paired with the base program whose receipts it accepts.
+    // `order2-` and `base2-` address the statement-format-v2 pair, and
+    // `order2r-` and `base2r-` its reproducible build. Each order program is
+    // paired with the base program whose receipts it accepts.
     let (program, base_program, command) = if let Some(command) = command.strip_prefix("base-") {
         (NUCLEUS_BASE_GUEST_ELF, NUCLEUS_BASE_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("vault3-") {
         (NUCLEUS_VAULT3_GUEST_ELF, NUCLEUS_BASE_GUEST_ELF, command)
+    } else if let Some(command) = command.strip_prefix("base2r-") {
+        (NUCLEUS_BASE2R_GUEST_ELF, NUCLEUS_BASE2R_GUEST_ELF, command)
+    } else if let Some(command) = command.strip_prefix("order2r-") {
+        (NUCLEUS_ORDER2R_GUEST_ELF, NUCLEUS_BASE2R_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("base2-") {
         (NUCLEUS_BASE2_GUEST_ELF, NUCLEUS_BASE2_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("order2-") {
@@ -318,6 +331,8 @@ mod tests {
         let base = include_str!("../../../program/IMAGE_ID_BASE").trim();
         let order2 = include_str!("../../../program/IMAGE_ID_ORDER_FMT2").trim();
         let base2 = include_str!("../../../program/IMAGE_ID_BASE_FMT2").trim();
+        let order2r = include_str!("../../../program/IMAGE_ID_ORDER_FMT2R").trim();
+        let base2r = include_str!("../../../program/IMAGE_ID_BASE_FMT2R").trim();
         let id = |program: &[u8]| {
             image_of(program)
                 .map(|d| hex(d.as_bytes()))
@@ -327,11 +342,13 @@ mod tests {
         assert_eq!(id(NUCLEUS_BASE_GUEST_ELF), base);
         assert_eq!(id(NUCLEUS_ORDER2_GUEST_ELF), order2);
         assert_eq!(id(NUCLEUS_BASE2_GUEST_ELF), base2);
-        let mut all = [third, base, order2, base2];
+        assert_eq!(id(NUCLEUS_ORDER2R_GUEST_ELF), order2r);
+        assert_eq!(id(NUCLEUS_BASE2R_GUEST_ELF), base2r);
+        let mut all = [third, base, order2, base2, order2r, base2r];
         all.sort_unstable();
         assert!(
             all.windows(2).all(|w| w[0] != w[1]),
-            "four distinct programs"
+            "six distinct programs"
         );
 
         // A flipped byte of loaded code is a different program. (The ID
@@ -342,12 +359,37 @@ mod tests {
             (NUCLEUS_VAULT3_GUEST_ELF, third),
             (NUCLEUS_ORDER2_GUEST_ELF, order2),
             (NUCLEUS_BASE2_GUEST_ELF, base2),
+            (NUCLEUS_ORDER2R_GUEST_ELF, order2r),
+            (NUCLEUS_BASE2R_GUEST_ELF, base2r),
         ] {
             let mut other = program.to_vec();
             let middle = other.len() / 2;
             other[middle] ^= 1;
             assert_ne!(id(&other), recorded);
         }
+    }
+
+    /// The order program verifies commitments of one base program, named by a
+    /// constant in its source. `verify-programs` checks each ID on its own, so
+    /// this is what ties the pair: the constant in the order guest's source is
+    /// the published reproducible base program's ID. No guest is built.
+    #[test]
+    fn the_order_guest_source_names_the_published_reproducible_base_program() {
+        let source = include_str!("../../methods/vault3/src/main.rs");
+        let listed: String = source
+            .split("const BASE_IMAGE_ID: [u8; 32] = [")
+            .nth(1)
+            .and_then(|rest| rest.split("];").next())
+            .expect("BASE_IMAGE_ID in the order guest")
+            .split(',')
+            .filter_map(|byte| byte.trim().strip_prefix("0x").map(str::to_owned))
+            .collect();
+        let base2r = include_str!("../../../program/IMAGE_ID_BASE_FMT2R").trim();
+        assert_eq!(listed, base2r);
+        assert_eq!(
+            hex(image_of(NUCLEUS_BASE2R_GUEST_ELF).expect("id").as_bytes()),
+            listed
+        );
     }
 
     /// The second-form program, where this build carries it: the ID a live

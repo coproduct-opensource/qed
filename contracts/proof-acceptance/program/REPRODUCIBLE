@@ -22,6 +22,13 @@ env CC_riscv32im_risc0_zkvm_elf /root/.risc0/cpp/bin/riscv32-unknown-elf-gcc
 env CFLAGS_riscv32im_risc0_zkvm_elf -march=rv32im -nostdlib
 
 # NAME GUEST_DIR BINARY ID_FILE [PUBLISHED_BINARY]. The base program first:
-# the order program's source names the base program's image ID.
-program base contracts/proof-acceptance/zkvm/methods/base nucleus-base-guest IMAGE_ID_BASE_FMT2 nucleus-base-check-fmt2.bin
-program order contracts/proof-acceptance/zkvm/methods/vault3 nucleus-vault3-guest IMAGE_ID_ORDER_FMT2 nucleus-order-fmt2.bin
+# the order program's source names the base program's image ID. Each program
+# matches only if its image ID equals the ID file AND the built binary is
+# byte-identical to the published one.
+#
+# The reproducible pair (owner decision 2026-11-13, the switch): what the
+# testnet deployment of 2026-11-13 names, and what Base mainnet will name after
+# its own switch. The fmt2 pair it replaces is not reproducible by this route
+# and is not rebuilt here.
+program base contracts/proof-acceptance/zkvm/methods/base nucleus-base-guest IMAGE_ID_BASE_FMT2R nucleus-base-check-fmt2r.bin
+program order contracts/proof-acceptance/zkvm/methods/vault3 nucleus-vault3-guest IMAGE_ID_ORDER_FMT2R nucleus-order-fmt2r.bin
