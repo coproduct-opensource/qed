@@ -17,7 +17,9 @@ fn main() -> std::process::ExitCode {
         Some((command, rest)) if command == "bounty-close" => {
             nucleus_commerce_agents::bounty::bounty_close(rest)
         }
-
+        Some((command, rest)) if command == "bounty-ledger" => {
+            nucleus_commerce_agents::bounty::bounty_ledger(rest)
+        }
         _ => nucleus_commerce_agents::buyer::buyer(&args),
     })
 }

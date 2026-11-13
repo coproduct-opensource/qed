@@ -27,6 +27,14 @@ path = "src/bin/nucleus-vault-ops.rs"
 name = "nucleus-fixture-prover"
 path = "src/bin/nucleus-fixture-prover.rs"
 
+[[bin]]
+name = "qed-wrap"
+path = "src/bin/qed-wrap.rs"
+
+[[bin]]
+name = "qed-groth16-data"
+path = "src/bin/qed-groth16-data.rs"
+
 [dependencies]
 p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
 nucleus-proof-acceptance = { path = "../proof-acceptance/core" }
@@ -50,6 +58,9 @@ nucleus-board-reference = { path = "../board/reference" }
 nucleus-a2a-iroh-card = { path = "../a2a-iroh-card" }
 # The bounty's journal: one atomic append and a sync per event (ADR 0007 G-1).
 nucleus-jsonl = { path = "../../crates/nucleus-jsonl" }
+# The circuit-data fetcher (qed-groth16-data): xz and tar in Rust, no C.
+lzma-rs = "=0.3.0"
+tar = { version = "=0.4.46", default-features = false }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }
 
 [dev-dependencies]

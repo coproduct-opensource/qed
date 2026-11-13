@@ -18,6 +18,12 @@ fn main() -> std::process::ExitCode {
         Some((command, rest)) if command == "board-deploy" => ops::board_deploy(rest),
         Some((command, rest)) if command == "registry-deploy" => ops::registry_deploy(rest),
         Some((command, rest)) if command == "registry-register" => ops::registry_register(rest),
+        Some((command, rest)) if command == "contract-read" => ops::contract_read(rest),
+        Some((command, rest)) if command == "code-diff" => ops::code_diff(rest),
+        Some((command, rest)) if command == "receipt-cost" => ops::receipt_cost(rest),
+        Some((command, rest)) if command == "safe-create" => {
+            nucleus_commerce_agents::safe::safe_create(rest)
+        }
         _ => Err(
             "usage: deploy | deploy3 | prepare | preflight | sweep | claim | send-gas | send-token | probe-calldata | swap-native | keys | board-deploy | registry-deploy | registry-register (see src/ops.rs)"
                 .into(),

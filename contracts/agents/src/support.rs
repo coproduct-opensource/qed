@@ -112,6 +112,15 @@ pub enum Groth16 {
     /// RISC Zero's x86 prover image, run by the `docker` found in this
     /// directory.
     Container { docker_dir: String },
+    /// A wrap service at `url` (`crate::wrap`), proving possession of `key`.
+    /// The seller checks what comes back before using it. With `fallback`,
+    /// a refusal or a bad answer is followed by a local native wrap with that
+    /// data directory; without, the settlement proof fails.
+    Remote {
+        url: String,
+        key: crate::wrap::WrapKey,
+        fallback: Option<String>,
+    },
 }
 impl Groth16 {
     /// From a seller's configuration: `groth16` is `native` (the default) or
@@ -127,9 +136,21 @@ impl Groth16 {
             Some("container") => Ok(Groth16::Container {
                 docker_dir: docker_dir.ok_or("groth16 is `container` but dockerDir is missing")?,
             }),
-            Some(other) => {
-                Err(format!("groth16 must be `native` or `container`, not `{other}`").into())
+            Some(remote) if remote.starts_with("remote:") => {
+                let url = &remote["remote:".len()..];
+                if !(url.starts_with("https://") || url.starts_with("http://127.0.0.1")) {
+                    return Err("a remote wrap service must be https:// (or http://127.0.0.1 for a local test)".into());
+                }
+                Ok(Groth16::Remote {
+                    url: url.to_owned(),
+                    key: crate::wrap::WrapKey::fresh()?,
+                    fallback: data,
+                })
             }
+            Some(other) => Err(format!(
+                "groth16 must be `native`, `container` or `remote:<url>`, not `{other}`"
+            )
+            .into()),
         }
     }
     /// The environment the prover host reads the choice from.
@@ -146,6 +167,13 @@ impl Groth16 {
                     "PATH",
                     format!("{docker_dir}:{}", std::env::var("PATH").unwrap_or_default()),
                 );
+            }
+            // The host is asked to wrap only on the fallback path.
+            Groth16::Remote { fallback, .. } => {
+                command.env("NUCLEUS_GROTH16", "native");
+                if let Some(data) = fallback {
+                    command.env("NUCLEUS_GROTH16_DATA", data);
+                }
             }
         }
     }
@@ -279,19 +307,79 @@ impl RealProofs {
                 base.as_os_str(),
             ])?,
         }
-        run(&[
-            wrap.as_ref(),
-            receipt.as_os_str(),
-            wrapped.as_os_str(),
-            seal.as_os_str(),
-        ])?;
-        let seal = unhex(fs::read_to_string(seal)?.trim())?;
+        let local = || -> Res<Vec<u8>> {
+            run(&[
+                wrap.as_ref(),
+                receipt.as_os_str(),
+                wrapped.as_os_str(),
+                seal.as_os_str(),
+            ])?;
+            unhex(fs::read_to_string(&seal)?.trim())
+        };
+        let seal = match &self.groth16 {
+            Groth16::Remote { url, key, fallback } => {
+                match self.remote_wrap(form, url, key, &receipt, name) {
+                    Ok(seal) => seal,
+                    Err(why) if fallback.is_some() => {
+                        println!(
+                            "  wrap service refused or answered badly ({why}); wrapping locally"
+                        );
+                        local()?
+                    }
+                    Err(why) => {
+                        return Err(format!(
+                            "{name}: the wrap service did not give a usable seal ({why}) and no groth16Data is configured for a local wrap"
+                        )
+                        .into());
+                    }
+                }
+            }
+            _ => local()?,
+        };
         println!(
             "  ok   proved {name}: {} byte seal in {:.0} s",
             seal.len(),
             started.elapsed().as_secs_f64()
         );
         Ok(seal)
+    }
+
+    /// Have the wrap service wrap the succinct receipt at `receipt`, and
+    /// return the seal only after checking the answer locally
+    /// (`crate::wrap::accept_answer`).
+    fn remote_wrap(
+        &self,
+        form: nucleus_proof_commerce::vault::Form,
+        url: &str,
+        key: &crate::wrap::WrapKey,
+        receipt: &Path,
+        name: &str,
+    ) -> Res<Vec<u8>> {
+        let prefix = self.prefix(form).trim_end_matches('-');
+        let own = Command::new(&self.host)
+            .arg(format!("{prefix}-verify"))
+            .arg(receipt)
+            .output()?;
+        if !own.status.success() {
+            return Err("own receipt does not verify".into());
+        }
+        let own_journal = unhex(
+            String::from_utf8(own.stdout)?
+                .lines()
+                .find_map(|l| l.strip_prefix("journal "))
+                .ok_or("host printed no journal")?,
+        )?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+        let answer = crate::wrap::request(url, prefix, &fs::read(receipt)?, key, now)?;
+        crate::wrap::accept_answer(
+            &self.host,
+            prefix,
+            &own_journal,
+            &answer,
+            &self.out.join(format!("{name}.remote")),
+        )
     }
 }
 
@@ -329,6 +417,23 @@ mod tests {
         );
         assert!(Groth16::from_config(Some("container"), None, None).is_err());
         assert!(Groth16::from_config(Some("contaner"), None, Some("/d".into())).is_err());
+    }
+
+    #[test]
+    fn a_remote_wrap_service_must_be_https_and_falls_back_only_with_data() {
+        match Groth16::from_config(Some("remote:https://wrap.example"), None, None).unwrap() {
+            Groth16::Remote { url, fallback, .. } => {
+                assert_eq!(url, "https://wrap.example");
+                assert_eq!(fallback, None);
+            }
+            other => panic!("{other:?}"),
+        }
+        match Groth16::from_config(Some("remote:https://w"), Some("/data".into()), None).unwrap() {
+            Groth16::Remote { fallback, .. } => assert_eq!(fallback.as_deref(), Some("/data")),
+            other => panic!("{other:?}"),
+        }
+        assert!(Groth16::from_config(Some("remote:http://wrap.example"), None, None).is_err());
+        assert!(Groth16::from_config(Some("remote:http://127.0.0.1:4460"), None, None).is_ok());
     }
 
     /// The third-form program defaults to statement format v2; the earlier

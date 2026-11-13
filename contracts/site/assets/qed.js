@@ -113,7 +113,9 @@
   if (!dataNode || !document.getElementById("live")) return;
   var site = JSON.parse(dataNode.textContent);
   var POSTED = site.topics.posted, WITHDRAWN = site.topics.withdrawn;
-  var CHUNK = 5000000; // the default endpoint allows 10,000,000 blocks per query
+  // Blocks per eth_getLogs: what the page's default endpoint allows, or
+  // 5,000,000 (the Arbitrum Sepolia endpoint allows 10,000,000).
+  var CHUNK = site.network.logRange || 5000000;
 
   function word(data, index) { return data.substr(2 + 64 * index, 64); }
   function addressOf(w) { return "0x" + w.substr(24); }

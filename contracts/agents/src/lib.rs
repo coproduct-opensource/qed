@@ -26,12 +26,15 @@ pub mod job;
 pub mod message;
 pub mod ops;
 pub mod post;
+pub mod relay;
+pub mod safe;
 pub mod seller;
 pub mod support;
 pub mod tasks;
 pub mod watch;
 pub mod worker;
 pub mod world;
+pub mod wrap;
 
 /// What every module here uses.
 pub(crate) mod prelude {

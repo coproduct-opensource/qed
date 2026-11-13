@@ -11,6 +11,11 @@ publish = false
 # public release (its build embeds local build paths), and a tree without it
 # must still build.
 second-form = []
+# Prove in this process instead of through an installed r0vm. For Linux, where
+# it needs no Metal toolchain and where RISC Zero publishes no r0vm for arm64
+# (the v3.1.0 release carries macOS arm64 and Linux x86-64 only). The seller
+# image is built with it.
+in-process-prover = ["risc0-zkvm/prove"]
 
 [dependencies]
 

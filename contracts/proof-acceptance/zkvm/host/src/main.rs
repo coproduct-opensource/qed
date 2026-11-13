@@ -94,7 +94,7 @@ fn second_form() -> Result<&'static [u8], Box<dyn Error>> {
 }
 
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2-... and base2-... for the statement-format-v2 pair; vault-... for the second form, in a build with the `second-form` feature)";
+    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-seal GROTH16_RECEIPT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2-... and base2-... for the statement-format-v2 pair; vault-... for the second form, in a build with the `second-form` feature)";
     let Some((command, rest)) = args.split_first() else {
         return Err(usage.into());
     };
@@ -259,6 +259,24 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             println!("selector {}", hex(selector));
             println!("seal_bytes {}", seal.len());
             println!("seconds {:.1}", started.elapsed().as_secs_f64());
+        }
+        // The 260-byte seal of an existing Groth16 receipt (4-byte selector,
+        // then the proof), after verifying the receipt for this program. A
+        // seller that had another party do the wrap derives the seal itself
+        // from the receipt it got back, so it never takes the seal on trust.
+        // Verifying a Groth16 receipt uses RISC Zero's built-in verifying key;
+        // it needs none of the circuit data the wrap needs.
+        ("seal", [wrapped, seal_out]) => {
+            let wrapped = read_receipt(wrapped)?;
+            wrapped.verify(image)?;
+            let inner = wrapped.inner.groth16()?;
+            let selector = &inner.verifier_parameters.as_bytes()[..4];
+            let seal = [selector, inner.seal.as_slice()].concat();
+            fs::write(seal_out, hex(&seal))?;
+            println!("image_id {}", hex(image.as_bytes()));
+            println!("journal {}", hex(&wrapped.journal.bytes));
+            println!("selector {}", hex(selector));
+            println!("seal_bytes {}", seal.len());
         }
         _ => return Err(usage.into()),
     }

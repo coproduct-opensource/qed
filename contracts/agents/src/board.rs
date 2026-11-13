@@ -11,9 +11,6 @@ use nucleus_board_reference as reference;
 pub use nucleus_board_reference::{Notice, PostedTask, Task};
 use nucleus_proof_commerce::{Hash, vault::wire as vault_wire};
 
-/// Blocks asked for in one `eth_getLogs` call.
-const LOG_RANGE: u64 = 5_000;
-
 #[derive(Clone)]
 pub struct Board {
     pub chain: Chain,
@@ -76,24 +73,11 @@ impl Board {
     /// bounded ranges. Logs that are not the board's two events are an error:
     /// the address filter means there should be none.
     pub fn notices(&self, from: u64, to: u64) -> Res<Vec<Notice>> {
-        let mut notices = vec![];
-        let mut start = from;
-        while start <= to {
-            let end = to.min(start.saturating_add(LOG_RANGE - 1));
-            let logs = self.chain.rpc(
-                "eth_getLogs",
-                json!([{
-                    "address": hex(&self.address),
-                    "fromBlock": format!("{start:#x}"),
-                    "toBlock": format!("{end:#x}"),
-                }]),
-            )?;
-            for log in logs.as_array().ok_or("logs expected")? {
-                notices.push(notice_from_log(&self.address, log)?);
-            }
-            start = end + 1;
-        }
-        Ok(notices)
+        self.chain
+            .logs(&json!({"address": hex(&self.address)}), from, to)?
+            .iter()
+            .map(|log| notice_from_log(&self.address, log))
+            .collect()
     }
 }
 

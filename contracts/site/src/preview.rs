@@ -100,7 +100,16 @@ fn answer(root: &Path, mut stream: std::net::TcpStream) -> Res<()> {
             head.push_str("connection: close\r\n\r\n");
             [head.into_bytes(), body].concat()
         }
-        None => b"HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nvary: Accept\r\nconnection: close\r\n\r\n".to_vec(),
+        // The built not-found page, as the host's `handle_errors` sends it.
+        None => {
+            let body = fs::read(root.join(crate::NOT_FOUND_PATH)).unwrap_or_default();
+            let head = format!(
+                "HTTP/1.1 404 Not Found\r\ncontent-type: text/html; charset=utf-8\r\ncontent-length: {}\r\ncache-control: no-cache\r\nvary: {}\r\nconnection: close\r\n\r\n",
+                body.len(),
+                serving::VARY,
+            );
+            [head.into_bytes(), body].concat()
+        }
     };
     // A browser that hangs up early is not an error worth stopping for.
     let _ = stream.write_all(&reply);
