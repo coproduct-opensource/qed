@@ -1136,6 +1136,48 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
 const BOUNTY_STATEMENT: &str = "contracts/site/input/statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2";
 const BOUNTY_PROOF: &str = "contracts/site/input/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin";
 
+/// Endpoints a seller on Base asks, in order: receipts and sends go to the
+/// first, and a refused range of logs falls to the next. The bounty buyer's
+/// list, each tested from its host (standing-bounty record, 2026-11-13).
+const BASE_RPCS: [&str; 3] = [
+    "https://mainnet.base.org",
+    "https://base-rpc.publicnode.com",
+    "https://base.gateway.tenderly.co",
+];
+
+/// A seller's deployment file for the main-network vault.
+fn deployment_json(m: &Mainnet) -> String {
+    let rpcs = match m.network.chain_id {
+        8453 => format!(
+            " \"rpcs\": [{}],\n",
+            BASE_RPCS.map(|url| format!("\"{url}\"")).join(", ")
+        ),
+        _ => String::new(),
+    };
+    format!(
+        "{{\"chainId\": {}, \"kind\": \"vault3\",\n{rpcs} \"rpc\": \"{}\",\n \"vault\": \"{}\",\n \"token\": \"{}\",\n \"verifier\": \"{}\"}}",
+        m.network.chain_id, m.network.rpc, m.vault.address, m.token.address, m.verifier.address
+    )
+}
+
+/// The seller release the site points to: its tag and the digest of its
+/// multi-architecture image index, read from the release workflow's run.
+pub struct SellerRelease {
+    pub tag: &'static str,
+    pub image: &'static str,
+    pub digest: &'static str,
+    /// Whether the registry serves the image without an account. A new
+    /// package on ghcr.io is private until its owner changes that.
+    pub image_public: bool,
+}
+pub const SELLER_RELEASE: SellerRelease = SellerRelease {
+    tag: "v0.1.1",
+    image: "ghcr.io/coproduct-opensource/qed-seller",
+    digest: "sha256:f7c2701d1cea6d32ce2710689c1763c2a3e35f28d27a9cd331b8dbe9603946ac",
+    // 2026-11-13: an anonymous pull of the digest answered 401.
+    image_public: false,
+};
+
 /// The standing bounty on the main network: the offer, how to take part,
 /// what it costs in time, what can go wrong, and the board read live. Its
 /// steps build from `repo`, so there is no page until the source is public.
@@ -1253,9 +1295,14 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
     blocks.extend([
         h2("steps", "Take part"),
         p(vec![
-            t("No prebuilt image or binaries are published yet, so the seller is built from the source at "),
+            t(format!(
+                "A seller image and release binaries ({}) are published; the steps for them, and the commands that check them, are on ",
+                SELLER_RELEASE.tag
+            )),
+            link("/sellers/run", "Run a seller"),
+            t(". The steps below build the seller from the source at "),
             code_link(repo, repo),
-            t(". Every command runs from the root of a checkout."),
+            t(" instead. Every command runs from the root of a checkout."),
         ]),
         h3("install", "1. Install Rust and RISC Zero"),
         p(vec![
@@ -1293,10 +1340,7 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
         p(vec![code("base.json"), t(", where the vault is:")]),
         pre(
             "base-json",
-            format!(
-                "{{\"chainId\": {}, \"kind\": \"vault3\",\n \"rpc\": \"{}\",\n \"vault\": \"{}\",\n \"token\": \"{}\",\n \"verifier\": \"{}\"}}",
-                m.network.chain_id, m.network.rpc, m.vault.address, m.token.address, m.verifier.address
-            ),
+            deployment_json(m),
         ),
         p(vec![
             code("seller.json"),
@@ -1950,120 +1994,258 @@ const SELLER_MEASURED: [(&str, &str, &str); 8] = [
     ),
 ];
 
-/// "Run a seller in 15 minutes": the prebuilt image, how to check it, and
-/// what the first run costs. Says plainly that nothing is published yet.
-pub fn run_a_seller() -> Doc {
-    const IMAGE: &str = "ghcr.io/coproduct-opensource/qed-seller";
+/// "Run a seller": the released image and archives, how to check them, the
+/// steps that take the main-network bounty with them, the planned relayer,
+/// and what a first run costs.
+pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
+    let r = &SELLER_RELEASE;
+    let image = format!("{}@{}", r.image, r.digest);
+    let release = format!(
+        "https://github.com/coproduct-opensource/qed/releases/tag/{}",
+        r.tag
+    );
     let run = |args: &str| format!("docker run --rm -v qed:/data {args}");
     let rows = SELLER_MEASURED
         .iter()
         .map(|(step, place, measured)| vec![vec![t(*step)], vec![t(*place)], vec![t(*measured)]])
         .collect();
+    let mut blocks = vec![
+        p(vec![
+            t(format!(
+                "Release {} of the seller is published: an image for Linux on x86-64 and arm64, and archives for ",
+                r.tag
+            )),
+            code("x86_64-unknown-linux-gnu"),
+            t(", "),
+            code("aarch64-unknown-linux-gnu"),
+            t(" and "),
+            code("aarch64-apple-darwin"),
+            t(" ("),
+            code_link(release.clone(), "release page"),
+            t(
+                "). The release workflow built and signed them from the tag; the commands below check that.",
+            ),
+        ]),
+        p(if r.image_public {
+            vec![t("The registry serves the image without a login.")]
+        } else {
+            vec![
+                strong("The image cannot be pulled yet."),
+                t(
+                    " The registry still asks for an account to fetch it. Until that changes, use an archive: the same steps work with the binaries, as in the repository README.",
+                ),
+            ]
+        }),
+        p(vec![
+            strong("The seller pays its own gas."),
+            t(
+                " A gas relayer is planned but not available (below), so the seller's wallet needs a little ETH to send fund, settle and claim.",
+            ),
+        ]),
+        h2("check", "1. Check the image"),
+        para(
+            "The image is signed keyless by the release workflow and carries a build-provenance attestation. Check both against the digest you will run, not a tag:",
+        ),
+        verification_command(
+            "seller-cosign",
+            format!(
+                "cosign verify {image} \\\n  --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\\.github/workflows/release\\.yml@refs/tags/v' \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com\ngh attestation verify oci://{image} --repo coproduct-opensource/qed"
+            ),
+        ),
+        p(vec![
+            t("For an archive instead, with "),
+            code("TARGET"),
+            t(
+                " one of the three above. The Linux archives need glibc 2.39 or newer (Ubuntu 24.04 or later); on Debian 12 they stop with ",
+            ),
+            code("GLIBC_2.39 not found"),
+            t("."),
+        ]),
+        verification_command(
+            "seller-archive",
+            format!(
+                "gh release download {} -R coproduct-opensource/qed -p 'qed-TARGET.tar.gz' -p SHA256SUMS\nsha256sum -c --ignore-missing SHA256SUMS     # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS\ngh attestation verify qed-TARGET.tar.gz --repo coproduct-opensource/qed\ntar xzf qed-TARGET.tar.gz",
+                r.tag
+            ),
+        ),
+        p(vec![
+            t(
+                "This shows who built the artifact and from which commit. It does not show the source is correct. The program the vault pays for is checked separately: ",
+            ),
+            code("nucleus-acceptance-host order2-image"),
+            t(" must print the program ID the order names:"),
+        ]),
+        verification_command(
+            "seller-program",
+            format!("docker run --rm --entrypoint nucleus-acceptance-host {image} order2-image"),
+        ),
+        h2("key", "2. Make a wallet"),
+        p(vec![
+            t("With Apple "),
+            code("container"),
+            t(" (use "),
+            code("container"),
+            t(" where this page says "),
+            code("docker"),
+            t("), a new named volume belongs to root, so make it the image user's first: "),
+            code(format!(
+                "container run --rm --user 0 -v qed:/data --entrypoint /bin/chown {image} 10001:999 /data"
+            )),
+            t(". Docker gives a new volume the image's ownership, so it needs nothing."),
+        ]),
+        verification_command(
+            "seller-keys",
+            run(&format!(
+                "--entrypoint nucleus-vault-ops {image} keys /data/seller.keys"
+            )),
+        ),
+        para(
+            "It prints the wallet address. The key file stays in the volume, readable only by the image's user.",
+        ),
+    ];
+    let Some(m) = mainnet else {
+        blocks.push(para(
+            "Configure the seller for a deployment as in the repository README's seller section, with the paths of the image.",
+        ));
+        blocks.extend(seller_tail(&image, rows));
+        return seller_doc(blocks);
+    };
+    blocks.extend([
+        p(vec![t(format!(
+            "Send the wallet about 0.0002 ETH on {}. The three transactions of one trade cost about 0.000004 ETH at the gas price of 2026-11-13, read from the receipts of an earlier trade there.",
+            m.network.name
+        ))]),
+        h2("files", "3. Fetch the task's files and the Groth16 data"),
+        p(vec![
+            t("The "),
+            link("/bounty", "bounty"),
+            t(" posts one fixed statement whose proof is public; "),
+            code("nucleus-fixture-prover"),
+            t(" answers it with that proof. Fetch both, then RISC Zero's Groth16 data into the volume (a 2.4 GB download checked against a pinned SHA-256; 4.2 GB kept):"),
+        ]),
+        verification_command(
+            "seller-fetch",
+            format!(
+                "curl -fsSO https://qed.coproduct.dev/{STATEMENT_FILE}\ncurl -fsSO https://qed.coproduct.dev/{PROOF_FILE}\n{}",
+                run(&format!("--entrypoint qed-groth16-data {image} /data/groth16"))
+            ),
+        ),
+        h2("config", "4. Write two files"),
+        p(vec![code("base.json"), t(":")]),
+        verification_command("seller-base-json", deployment_json(m)),
+        p(vec![code("seller.json"), t(":")]),
+        verification_command(
+            "seller-json",
+            format!(
+                "{{\n  \"deployment\": \"/data/base.json\",\n  \"keys\": \"/data/seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"/usr/local/bin/nucleus-fixture-prover\",\n             \"/data/{}\",\n             \"/data/{}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"groth16Data\": \"/data/groth16\",\n  \"expectedProvingSeconds\": 3600,\n  \"workDir\": \"/data/seller-work\"\n}}",
+                m.board.address,
+                m.board.deploy_block.unwrap_or(0),
+                file_name(STATEMENT_FILE),
+                file_name(PROOF_FILE),
+                m.bounty.price,
+            ),
+        ),
+        p(vec![
+            code("startBlock"),
+            t(" is the board's deployment block, so a post already open is seen. "),
+            code("price"),
+            t(format!(
+                " is the bounty's cap in the token's smallest unit; the seller receives {} {} after the fee. Copy the four files into the volume:",
+                amount(m.seller_receives(), m.token.decimals),
+                m.token.name
+            )),
+        ]),
+        verification_command(
+            "seller-copy",
+            format!(
+                "for f in base.json seller.json {} {}; do\n  cat \"$f\" | docker run --rm -i -v qed:/data --entrypoint tee {image} \"/data/$f\" > /dev/null\ndone",
+                file_name(STATEMENT_FILE),
+                file_name(PROOF_FILE)
+            ),
+        ),
+    ]);
+    blocks.extend(seller_tail(&image, rows));
+    seller_doc(blocks)
+}
+
+/// The bounty's statement and proof, as the site serves them.
+const STATEMENT_FILE: &str =
+    "statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2";
+const PROOF_FILE: &str =
+    "artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin";
+
+fn file_name(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Run, the planned relayer, a wrap service, and the measured times.
+fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
+    vec![
+        h2("run", "5. Run"),
+        verification_command(
+            "seller-run",
+            format!(
+                "docker run -d --name qed-seller --read-only --tmpfs /tmp -v qed:/data {image}\ndocker logs -f qed-seller"
+            ),
+        ),
+        para(
+            "The seller watches the board, offers on tasks its prover can answer, and settles. It needs outbound network only. Setup takes minutes; a trade then takes 13 to 18 minutes on the machines below, nearly all of it proving.",
+        ),
+        h2("relayer", "Gas relayer (planned)"),
+        p(vec![
+            strong("Gas relayer (planned)."),
+            t(" No relayer is available yet. A relayer sends "),
+            code("fund"),
+            t(", "),
+            code("settle"),
+            t(" and "),
+            code("claim"),
+            t(" for you and pays the gas, so a seller needs no ETH. Set "),
+            code("\"relayer\": \"https://…\""),
+            t(" in "),
+            code("seller.json"),
+            t(". "),
+            strong(
+                "A seller with no ETH depends on the relayer's honesty for timeliness only, never for payment:",
+            ),
+            t(
+                " the contract pays the order's named seller whoever sends the transaction, and your seller checks every relayed transaction on chain against the call it built. A relayer can refuse or delay a call, and it sees a ",
+            ),
+            code("settle"),
+            t(
+                "'s artifact before it is on chain. If nothing lands in time, your seller sends the call itself, which needs a little ETH.",
+            ),
+        ]),
+        para(
+            "Measured on Arbitrum Sepolia: one trade relayed in full cost the relayer 545,391 gas (10,940,673,088,000 wei); the seller's balance stayed 0.",
+        ),
+        h2("wrap", "Wrapping without the Groth16 data"),
+        p(vec![
+            t("Instead of the local data, "),
+            code("\"groth16\": \"remote:https://WRAP-SERVICE\""),
+            t(" asks a wrap service. None is deployed by the authors; "),
+            code("qed-wrap"),
+            t(
+                " runs one. The service sees the order's succinct proof, whose public output is hashes, not your artifact; it cannot redirect payment, and the seller checks its answer and derives the seal itself. With ",
+            ),
+            code("groth16Data"),
+            t(" also set, a refusal or a wrong answer falls back to the local wrap."),
+        ]),
+        h2("measured", "Measured"),
+        Block::Table {
+            caption: "One settlement each, Arbitrum Sepolia, from the distribution record".into(),
+            head: vec!["Step".into(), "Where".into(), "Measured".into()],
+            rows,
+        },
+    ]
+}
+
+fn seller_doc(blocks: Vec<Block>) -> Doc {
     doc(
         "sellers/run",
-        "Run a seller in 15 minutes",
-        "A prebuilt seller image for Linux on x86-64 and arm64, how to check it before running it, and measured times for a first and a repeat settlement.",
-        vec![
-            p(vec![
-                strong("Not published yet."),
-                t(
-                    " The image, the release binaries and any wrap service on this page are built and tested but not released. Until they are, build the image from the source with ",
-                ),
-                code("docker build -f Containerfile -t qed-seller ."),
-                t(" (or Apple "),
-                code("container build"),
-                t(") and use "),
-                code("qed-seller"),
-                t(" where this page says "),
-                code(IMAGE),
-                t("."),
-            ]),
-            h2("check", "1. Check the image"),
-            para(
-                "Every release image is signed keyless by the release workflow and carries a build-provenance attestation. Check both against the digest you will run, not a tag:",
-            ),
-            verification_command(
-                "seller-cosign",
-                format!(
-                    "cosign verify {IMAGE}@sha256:DIGEST \\\n  --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\\.github/workflows/release\\.yml@refs/tags/v' \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com\ngh attestation verify oci://{IMAGE}@sha256:DIGEST --repo coproduct-opensource/qed"
-                ),
-            ),
-            p(vec![
-                t(
-                    "This shows who built the image and from which commit. It does not show the source is correct. The program the vault pays for is checked separately: ",
-                ),
-                code("nucleus-acceptance-host order2-image"),
-                t(" inside the image must print the program ID the order names."),
-            ]),
-            h2("key", "2. Make a wallet"),
-            verification_command(
-                "seller-keys",
-                run(&format!(
-                    "--entrypoint nucleus-vault-ops {IMAGE} keys /data/seller.keys"
-                )),
-            ),
-            para(
-                "It prints the wallet address. Send it about 0.0005 Arbitrum Sepolia ETH: one trade (fund, settle, claim) cost about 0.000012 ETH in gas at the 0.021 gwei of 2026-11-13. The key file stays in the volume, readable only by the image's user.",
-            ),
-            p(vec![
-                t("With Apple "),
-                code("container"),
-                t(", a new named volume belongs to root, so make it the image user's once: "),
-                code(
-                    "container run --rm --user 0 -v qed:/data --entrypoint /bin/chown IMAGE 10001:999 /data",
-                ),
-                t(". Docker gives a new volume the image's ownership, so it needs nothing."),
-            ]),
-            h2("config", "3. Configure"),
-            p(vec![
-                t("Put "),
-                code("deployment.json"),
-                t(" and "),
-                code("seller.json"),
-                t(" in the volume, as in the repository README's seller section, with "),
-                code("\"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\""),
-                t(". Then choose how the final proof is wrapped."),
-            ]),
-            Block::Ul(vec![
-                vec![
-                    strong("Remote wrap"),
-                    t(": "),
-                    code("\"groth16\": \"remote:https://WRAP-SERVICE\""),
-                    t(
-                        ". Nothing to download. The service sees the order's succinct proof, whose public output is hashes, not your artifact; it cannot redirect payment, and the seller checks its answer and derives the seal itself. A refusal or a wrong answer fails the settlement unless local data is also configured.",
-                    ),
-                ],
-                vec![
-                    strong("Local wrap"),
-                    t(": fetch RISC Zero's Groth16 data once ("),
-                    code("qed-groth16-data /data/groth16"),
-                    t(
-                        ", a 2.4 GB download checked against a pinned SHA-256, 4.2 GB kept) and set ",
-                    ),
-                    code("\"groth16\": \"native\""),
-                    t(" and "),
-                    code("\"groth16Data\": \"/data/groth16\""),
-                    t("."),
-                ],
-            ]),
-            h2("run", "4. Run"),
-            verification_command(
-                "seller-run",
-                format!(
-                    "docker run -d --name qed-seller --read-only --tmpfs /tmp -v qed:/data {IMAGE}"
-                ),
-            ),
-            para(
-                "The seller watches the board, offers on tasks its prover can answer, and settles. It needs outbound network only. Setup takes minutes; a trade then takes 13 to 18 minutes on the machines below, nearly all of it proving.",
-            ),
-            h2("measured", "Measured"),
-            Block::Table {
-                caption: "One settlement each, Arbitrum Sepolia, from the distribution record"
-                    .into(),
-                head: vec!["Step".into(), "Where".into(), "Measured".into()],
-                rows,
-            },
-        ],
+        "Run a seller",
+        "The released seller image and binaries, how to check them before running them, the steps that take the bounty, and measured times for a first and a repeat settlement.",
+        blocks,
     )
 }
 
