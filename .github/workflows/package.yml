@@ -1,7 +1,9 @@
-# Pull requests: build the seller image for both architectures, publishing
-# nothing, and run the amd64 image's prover host once. Catches a broken
-# Containerfile before a tag does; the release binaries are first built by
-# release.yml itself.
+# Pull requests: build the seller image for both architectures and the
+# release binaries for the three release targets, publishing nothing, and
+# run the amd64 image's prover host once. Catches a broken Containerfile,
+# release build or runner label before a tag does (the v0.1.0 tag found a
+# withdrawn macOS runner only after it was pushed). The binaries matrix must
+# match release.yml's.
 name: package
 
 on:
@@ -10,6 +12,43 @@ on:
 permissions: {}
 
 jobs:
+  binaries:
+    name: binaries (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            host_features: ""
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host_features: "--features in-process-prover"
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            host_features: "--features in-process-prover"
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TARGET_DIR: target
+      RISC0_SKIP_BUILD: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal && rustup default 1.96.1
+      - name: build agents
+        run: cargo build --locked --release --manifest-path contracts/agents/Cargo.toml --bins
+      - name: build prover host
+        run: cargo build --locked --release --manifest-path contracts/proof-acceptance/zkvm/Cargo.toml -p nucleus-acceptance-host ${{ matrix.host_features }}
+      - name: the prover host names the published programs
+        run: |
+          target/release/nucleus-acceptance-host order2-image
+          target/release/nucleus-acceptance-host base2-image
+
+
   image:
     name: image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
