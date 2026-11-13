@@ -1,0 +1,21 @@
+[package]
+name = "nucleus-groth16-native"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Groth16 proof of RISC Zero's stark_verify circuit in Rust, from the published witness graph and proving key. Replaces the x86 prover container for the last step of a settlement proof."
+
+[dependencies]
+# The arkworks versions risc0-groth16 3.0.6 already brings into this workspace.
+ark-bn254 = { version = "=0.5.0" }
+ark-ec = { version = "=0.5.0", features = ["parallel"] }
+ark-ff = { version = "=0.5.0", features = ["parallel"] }
+ark-poly = { version = "=0.5.0", features = ["parallel"] }
+ark-std = { version = "=0.5.0", features = ["parallel"] }
+rayon = "1"
+# 254-bit integers with the truncating shifts circom's witness semantics need.
+ruint = { version = "=1.20.0", default-features = false, features = ["std"] }
+serde_json = "1"
+# Operating-system randomness for the proof's two blinding scalars.
+rand = { version = "0.8", default-features = false, features = ["getrandom"] }

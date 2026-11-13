@@ -1,0 +1,28 @@
+[package]
+name = "nucleus-acceptance-host"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[features]
+# Embed the second-form program (program/nucleus-vault-acceptance.bin) and
+# serve the `vault-` commands. Off by default: that file is not part of a
+# public release (its build embeds local build paths), and a tree without it
+# must still build.
+second-form = []
+
+[dependencies]
+
+# The host carries the published program binary and does not build the guest:
+# a seller needs no RISC-V toolchain. `methods` rebuilds it from source and
+# its test compares the result with the published file.
+# No `prove` feature: proving and execution go to the installed r0vm 3.1.0
+# binary over IPC. In-process proving needs the Xcode Metal toolchain to build.
+risc0-zkvm = { version = "=3.1.0" }
+# The Groth16 step in Rust, in place of the x86 prover container.
+nucleus-groth16-native = { path = "../groth16-native" }
+
+[dev-dependencies]
+# To split a published program binary into the user program and the kernel.
+risc0-binfmt = { version = "=3.0.6" }

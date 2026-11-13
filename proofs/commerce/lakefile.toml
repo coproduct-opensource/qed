@@ -1,0 +1,7 @@
+name = "nucleusCommerce"
+version = "0.1.0"
+defaultTargets = ["Commerce"]
+
+[[lean_lib]]
+name = "Commerce"
+roots = ["Amounts", "Vault", "Vault3", "Board", "Registry"]

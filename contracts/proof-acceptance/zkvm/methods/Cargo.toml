@@ -1,0 +1,12 @@
+[package]
+name = "nucleus-acceptance-methods"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[build-dependencies]
+risc0-build = { version = "=3.0.7" }
+
+[package.metadata.risc0]
+methods = ["base", "vault3"]

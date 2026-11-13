@@ -1,0 +1,13 @@
+[package]
+name = "nucleus-board-reference"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Rust reference for the task board contract: the task, its ID, its calls and its events. Not linked by the proof program."
+
+[workspace]
+
+[dependencies]
+alloy-sol-types = { version = "=1.7.3", default-features = false }
+alloy-primitives = { version = "=1.7.3", default-features = false }

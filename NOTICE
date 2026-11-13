@@ -1,0 +1,54 @@
+QED
+Copyright (c) 2025-2026 Coproduct
+
+First-party code in this repository is licensed under MIT OR Apache-2.0, at
+your option (LICENSE-MIT, LICENSE-APACHE). This repository also contains the
+third-party code and bytecode listed below, which keep their own licences.
+Each licence was read from the project's repository on 2026-11-13.
+
+
+1. nanoda_lib 0.4.32, an external type checker for Lean 4
+   Path:    contracts/proof-acceptance/vendor/nanoda_lib
+   Source:  https://github.com/ammkrn/nanoda_lib
+   Licence: Apache-2.0 (its LICENSE file is included at that path)
+   Changes: listed in contracts/proof-acceptance/vendor/nanoda_lib/VENDOR.md
+
+2. RISC Zero Groth16 verifier, version 3.1.0: deployed runtime bytecode
+   Path:    contracts/agents/fixtures/risc0-groth16-verifier-3.1.0.runtime.hex
+   Source:  https://github.com/risc0/risc0-ethereum (RiscZeroGroth16Verifier),
+            read from Arbitrum Sepolia and Base at
+            0x8c915b5071206c6e328bc18529586c513408ab3b
+   Licence: the source repository is Apache-2.0
+
+3. Circle FiatToken implementation and SignatureChecker library: deployed
+   runtime bytecode
+   Paths:   contracts/token-conformance/fixtures/fiat-token-impl.runtime.hex
+            contracts/token-conformance/fixtures/signature-checker.runtime.hex
+   Source:  https://github.com/circlefin/stablecoin-evm, read with
+            eth_getCode from the implementation behind Base Sepolia USDC
+            (proxy 0x036CbD53842c5426634e7929541eC2318f3dCF7e) on 2026-11-11
+   Licence: the source repository is Apache-2.0
+   Used only by tests, in a local EVM.
+
+4. Published proof-program binaries
+   Paths:   contracts/proof-acceptance/program/*.bin
+   These are built from the sources in this repository with RISC Zero's
+   toolchain, and each contains RISC Zero's zkVM kernel and guest runtime,
+   which are licensed Apache-2.0 (https://github.com/risc0/risc0).
+
+5. Code whose layout or algorithm was read from other projects and
+   reimplemented here (no files copied):
+   - contracts/proof-acceptance/zkvm/groth16-native/src/seal_layout.rs:
+     derived from risc0-groth16 3.0.6, src/prove/seal_format.rs (Apache-2.0).
+   - contracts/proof-acceptance/zkvm/groth16-native/src/prove.rs: the proving
+     key layout and witness map were read from ark-circom 0.6.0
+     (arkworks-rs/circom-compat, MIT OR Apache-2.0); the algorithm is the one
+     snarkjs's groth16_prove.js implements (iden3/snarkjs, GPL-3.0).
+   - contracts/proof-acceptance/zkvm/groth16-native/src/graph.rs: the file
+     format and arithmetic of iden3's circom-witnesscalc 0.2.1.
+
+6. A2A protocol definitions, version 1.0.1, unmodified
+   Paths:   contracts/site/vendor/a2a-v1.0.1.schema.json
+            contracts/agents/tests/a2a-spec/a2a.proto
+   Source:  https://github.com/a2aproject/A2A (see the README beside each file)
+   Licence: Apache-2.0

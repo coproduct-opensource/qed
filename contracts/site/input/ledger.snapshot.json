@@ -1,0 +1,1263 @@
+{
+  "networks": [
+    {
+      "block": 328693405,
+      "chainId": 421614,
+      "key": "arbitrum-sepolia",
+      "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+    },
+    {
+      "block": 56739681,
+      "chainId": 8453,
+      "key": "base",
+      "rpc": "https://base-rpc.publicnode.com"
+    }
+  ],
+  "receipts": [
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First settlement on a public chain, in a test token deployed by the authors.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
+        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)"
+      },
+      "booked": {
+        "fee": "2500",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "997500"
+      },
+      "funding": {
+        "block": 328411034,
+        "timestamp": 1794460841,
+        "transaction": "0xc17f109def5084b56410091bfb49620f0b8ed1566a1d874ce383d702f35720b3"
+      },
+      "id": "0xfccabbeda302ad30c1fed87b529fcbf714403a0fb020ddc97b7e0d22472cd45b",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "1000000",
+        "asset": "0x8017608229c56c4c39ef4a06498c3ecc315d40f4",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x541cc15bcd7902c744ddeb826150d2b80944feee7b29c563c34cebc4909e0f6e",
+        "deliverBy": 1794471641,
+        "fundBy": 1794461741,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0xcae7f19abb0ee7c2f82fd04904b0ff0e582c8b1c0e5380d4504db2b597b2d213",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xfccabbeda302ad30c1fed87b529fcbf714403a0fb020ddc97b7e0d22472cd45b",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328413878,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 392347,
+        "timestamp": 1794461596,
+        "transaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x8017608229c56c4c39ef4a06498c3ecc315d40f4",
+        "decimals": 6,
+        "name": "USDC",
+        "symbol": "USDC"
+      },
+      "vault": "0xd968d5659b3c63cd74d7b4d09345ff3417711038"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Same vault, paid in Circle's test USDC.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
+        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)"
+      },
+      "booked": {
+        "fee": "2500",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "997500"
+      },
+      "funding": {
+        "block": 328416428,
+        "timestamp": 1794462271,
+        "transaction": "0x89f841e512f24b51292d013c2afaa5609fe3f4014da2d7f0f4ae61d27f5eda9c"
+      },
+      "id": "0xfddbd8eb85267dce23e45b10910770ffc1c561b2914995c9616d9e66af608175",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "1000000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x9b93d36500804dad7085dd1ec3748f2e67f0b185ec25362b6ff2896a9bee9b07",
+        "deliverBy": 1794473071,
+        "fundBy": 1794463171,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0x7a20d86f8a240bff5b44e8ff50de7465a29d86fa5c9a309272f7854af3fceb56",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xfddbd8eb85267dce23e45b10910770ffc1c561b2914995c9616d9e66af608175",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328419249,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 405799,
+        "timestamp": 1794463025,
+        "transaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0xd968d5659b3c63cd74d7b4d09345ff3417711038"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Second form: the fee booked in settle and swept to the treasury afterwards.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
+        "vaultName": "Second form: fee booked, then swept"
+      },
+      "booked": {
+        "fee": "2500",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "997500"
+      },
+      "funding": {
+        "block": 328421604,
+        "timestamp": 1794463649,
+        "transaction": "0x85a1102f96604a7aa5c6ada0d8dba0ca7eba3802018b2765ec4ecc237488e7b6"
+      },
+      "id": "0xe4364fa02bb81aca292cd14e39bf0ea4d509e88cbae231f74e03fa9668966305",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "1000000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0xdc28a576d3c69b8ed6a87c05c77cf8d5cf57cc3ff9aa6fe257916295b3f0cc57",
+        "deliverBy": 1794474449,
+        "fundBy": 1794464549,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0xb1951edbf5522f067b373734bdf84d6006b195fb192c01893e3c8be6af478f51",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xe4364fa02bb81aca292cd14e39bf0ea4d509e88cbae231f74e03fa9668966305",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328424364,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 380867,
+        "timestamp": 1794464400,
+        "transaction": "0x00528f833084175726816eb3b8da3fcbb47e1bbe9fefd1262617bc42443d993e"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0xce8d925b542b4c4b1c2d34a81abe21e4c5da4681"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Settlement in USDC on Base (mainnet): 0.40 USDC, fee 0.001 USDC.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
+        "vaultName": "Second form on Base (mainnet)"
+      },
+      "booked": {
+        "fee": "1000",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "399000"
+      },
+      "funding": {
+        "block": 56375986,
+        "timestamp": 1794465572,
+        "transaction": "0xac615806781743df113048c2e6f619fe06bdb69bae66420df5cb476c370f204d"
+      },
+      "id": "0x60a3ef1db6b9c9cf462165fe43bae6f52de3ca8cbc51bd124ff517b6b1a85611",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "400000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0xdcd49ff2b2a30e44a06a8bfcdb34eba7343346786b445addbdd8413ecdbb53aa",
+        "deliverBy": 1794476372,
+        "fundBy": 1794466472,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0x1a9472bb8ebc35ebd303d98aaa23616a7a2f2369684afe56a8bb6a25927a7553",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x60a3ef1db6b9c9cf462165fe43bae6f52de3ca8cbc51bd124ff517b6b1a85611",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 56379738,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 397967,
+        "timestamp": 1794466323,
+        "transaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf"
+      },
+      "snapshot": {
+        "block": 56739681,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x30f522bc30d46b3a4089931d698f04656fa23b8d"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Buyer and seller as two processes talking over iroh.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-harness-and-iroh-2026-11-12.md",
+        "vaultName": "Second form: fee booked, then swept"
+      },
+      "booked": {
+        "fee": "625",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328440252,
+        "timestamp": 1794468663,
+        "transaction": "0xa6b204e4d556ad224f352e1544333b012d109e3fac1847c04a646e5e3804cc86"
+      },
+      "id": "0xdf60e0901b5ceba4d5a88f71173f17add020fd9aaf0fdfe6e4772611ad80e5c3",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x3202cd0aca794ecab772faec6cea7d3e3fdff5d2e76c3060b5a43d8695d5752e",
+        "deliverBy": 1794479461,
+        "fundBy": 1794469561,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0xf7745a6ad6f921864d2ba359abe756a53abf63e991dfc90065fa1d60a8ea3759",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xdf60e0901b5ceba4d5a88f71173f17add020fd9aaf0fdfe6e4772611ad80e5c3",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328443109,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 380843,
+        "timestamp": 1794469418,
+        "transaction": "0x0459ba1e98d495ddf25dc996b93cd9d89311c271220aa3d055a810419337ef66"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0xce8d925b542b4c4b1c2d34a81abe21e4c5da4681"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First trade found through the task board.",
+        "program": {
+          "name": "second-form order program",
+          "status": "not-distributed"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-task-board-2026-11-12.md",
+        "vaultName": "Second form: fee booked, then swept"
+      },
+      "booked": {
+        "fee": "625",
+        "kind": "seller paid in the settlement; fee booked",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328448426,
+        "timestamp": 1794470811,
+        "transaction": "0x59e7ad372c8b9a6b7997b433329f9a65fe42db63e90c673b0d96ec0beb40527f"
+      },
+      "id": "0xd547a3fd2de5d98dc03b4e1b659e45583c1d6bfd4028fbc6c6085e56b8debaba",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x199ae67f6e95263f1fea4609de9ad0c9440831b6ca482dedf3b4cb7de51a1421",
+        "deliverBy": 1794481611,
+        "fundBy": 1794471711,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xf0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca",
+        "salt": "0xe09d27ef5259bf8b0edb1c2037eec8ccd87a18aa07f33fb92a869cc2701e45c6",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xd547a3fd2de5d98dc03b4e1b659e45583c1d6bfd4028fbc6c6085e56b8debaba",
+      "orderLayout": "eleven-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328451296,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 380867,
+        "timestamp": 1794471568,
+        "transaction": "0xfe7e8855170f71532e6200feef0d5685868565d05216dd0426d6cb7d7cc4825c"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0xce8d925b542b4c4b1c2d34a81abe21e4c5da4681"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Third form: everything booked and claimed.",
+        "program": {
+          "name": "third-form order program, no bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-third-vault-2026-11-12.md",
+        "vaultName": "Third form, with a registry that has no entries"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328458248,
+        "timestamp": 1794473419,
+        "transaction": "0xf724aabee0cf219837336ad10be677de50101a7d3acdc7da0f9731bbb6312b31"
+      },
+      "id": "0xf036f51ef7aaf2ebb22ac3276f6812cc73287f433ea7ca23d0017b9a21431f15",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x3d2589dbb1760e0220dea84f5dbe54053a4090115f17db9e6f752330e60add46",
+        "deliverBy": 1794484218,
+        "fundBy": 1794474318,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0x52fcab1102b1b0d7ab75010f3c3836b8cc7397dc9238f6523f931d58d1c55439",
+        "salt": "0x5bd582e3da46aa86b0f46c07a59441a323594ee6573aaba2187d7080c8a2c00b",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xf036f51ef7aaf2ebb22ac3276f6812cc73287f433ea7ca23d0017b9a21431f15",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328461107,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 375274,
+        "timestamp": 1794474177,
+        "transaction": "0x91bd2e1c4a9391314e04fea4abb069bf8e1f15cb8bc24df576345ee499eeb7c7"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Groth16 seal produced by the native Rust wrap, with no container on the seller.",
+        "program": {
+          "name": "third-form order program, no bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-native-groth16-2026-11-12.md",
+        "vaultName": "Third form, with a registry that has no entries"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328465361,
+        "timestamp": 1794475344,
+        "transaction": "0x29328ef6abe59f9120bc78a4b8367f6cb8cc7267b1eb98da8fea03ed385764de"
+      },
+      "id": "0x978cbd2f519323f0178a573e2803a487932cad36626ce5eafff81de34e14d202",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x00c3725f4d8ed2ebcbe59015f0999e1ae0ec3b3c8035bca6c9d5d65884e1e369",
+        "deliverBy": 1794486144,
+        "fundBy": 1794476244,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0x52fcab1102b1b0d7ab75010f3c3836b8cc7397dc9238f6523f931d58d1c55439",
+        "salt": "0xda3ed541da979f49bdacfb8c4e9da2deff466c677617eb8dbe0fbefa0e053774",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x978cbd2f519323f0178a573e2803a487932cad36626ce5eafff81de34e14d202",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328468007,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 375262,
+        "timestamp": 1794476084,
+        "transaction": "0x14c95288fd99780b54f176a7cfdf5d025861a4779346d83073ec14603b5bb44d"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b"
+    },
+    {
+      "artifact": {
+        "bytes": 1893,
+        "inSettledLog": "0x498e1c4eceb77c7fdca0ac010b7408d033cf773b4ec07121d990332f85e3cfeb",
+        "keccak256": "0x498e1c4eceb77c7fdca0ac010b7408d033cf773b4ec07121d990332f85e3cfeb",
+        "recordedByVault": "0x498e1c4eceb77c7fdca0ac010b7408d033cf773b4ec07121d990332f85e3cfeb",
+        "url": "/artifacts/498e1c4eceb77c7fdca0ac010b7408d033cf773b4ec07121d990332f85e3cfeb.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Order on a registered base: seller, treasury and the base's payee each owed a share.",
+        "program": {
+          "name": "third-form order program with bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-checked-bases-2026-11-12.md",
+        "vaultName": "Third form, first base registry"
+      },
+      "booked": {
+        "basePayee": "0x9c19e21a4f082630290515bf65d3490138802341",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "250",
+        "seller": "249125"
+      },
+      "funding": {
+        "block": 328478851,
+        "timestamp": 1794479109,
+        "transaction": "0x1c2d49788e8c37f4336f6a6b3c336ae7289ec21c2866a684f011064cacc81582"
+      },
+      "id": "0xbfddf02c3c90df683a7398b37a11b118c85d89bcf7e96a2cc871ff06eb8a83da",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0xe3c693ac72e3051a3e3091c86e0dc3375bea6e22d9f9eeb68fca0d77cfd57b60",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x0a5433a7c22366fcfab2d34b81f7425d270e6a10bf8dc1a249bc5af4e8e53a69",
+        "deliverBy": 1794489907,
+        "fundBy": 1794480007,
+        "policyHash": "0x3024faf0348f0f480f0ab3c6df3b2a0b0ce8fd8ffc2361429d9f63b77aef3bee",
+        "program": "0xc24fc74fcab6075694d7fef64d056b96d8ff982af1de794d6681f3274081c0df",
+        "salt": "0xb13942b035ba81463bd6f7fe71efa8dc48aa200abfbb76ab6e3e93e93955dfbb",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xbfddf02c3c90df683a7398b37a11b118c85d89bcf7e96a2cc871ff06eb8a83da",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328480004,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 398626,
+        "timestamp": 1794479427,
+        "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x26f78b53af75ef5c4df2a786325e398c37b919ad"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Seller behind home NAT, buyer on a cloud machine, reached by node ID through a relay.",
+        "program": {
+          "name": "third-form order program with bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-cross-machine-2026-11-13.md",
+        "vaultName": "Third form, with a registry that has no entries"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328483879,
+        "timestamp": 1794480500,
+        "transaction": "0xa854b23e9de286af4d0cba04b17a0daf303c6598398abc2e8c2f394f40268208"
+      },
+      "id": "0xddf9fa1a0de2ef21a12e9c81840d3ce78b0b09f583fccbbb2808a09e526e9590",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xd5d7795bfc1f506e444344249e3f0164fc7a1587",
+        "context": "0x941fab0aefbdfffcc594ce2b704c1001c4376db14eaca2360d3ac2be3faa9449",
+        "deliverBy": 1794491300,
+        "fundBy": 1794481400,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xc24fc74fcab6075694d7fef64d056b96d8ff982af1de794d6681f3274081c0df",
+        "salt": "0x0f3c3f0846c3d177792e3606572b4f50bd1320debcdabb590bfb4860b16860d2",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xddf9fa1a0de2ef21a12e9c81840d3ce78b0b09f583fccbbb2808a09e526e9590",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328486256,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 375262,
+        "timestamp": 1794481156,
+        "transaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Seller on a CPU-only Linux cloud machine.",
+        "program": {
+          "name": "third-form order program with bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-linux-seller-2026-11-13.md",
+        "vaultName": "Third form, with a registry that has no entries"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "249375"
+      },
+      "funding": {
+        "block": 328488875,
+        "timestamp": 1794481865,
+        "transaction": "0xec942efd02dd2613cfe427bda23d606a364aca222cc1366a183f003b9e551387"
+      },
+      "id": "0x8f41dfda7243557839cf2ae56febe9aad33027ff7b5afeb50d7936e2064e364a",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x84519ae31884f08585eaf05465b7fd0eacc13d7c481f97965e2e119fc461c8f8",
+        "deliverBy": 1794492664,
+        "fundBy": 1794482764,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xc24fc74fcab6075694d7fef64d056b96d8ff982af1de794d6681f3274081c0df",
+        "salt": "0x8116fe826cf67494dd6e7a9e303cc422fb1af7d1427f30a15f9a8a3edd583b0c",
+        "seller": "0xc407c890099e06213a6a99f7fa2ef2f98ff472e6",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x8f41dfda7243557839cf2ae56febe9aad33027ff7b5afeb50d7936e2064e364a",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328501072,
+        "from": "0xc407c890099e06213a6a99f7fa2ef2f98ff472e6",
+        "gasUsed": 358162,
+        "timestamp": 1794485199,
+        "transaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First task of the standing bounty.",
+        "program": {
+          "name": "third-form order program with bases",
+          "status": "retired"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-standing-bounty-2026-11-13.md",
+        "vaultName": "Third form, with a registry that has no entries"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "250",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "99750"
+      },
+      "funding": {
+        "block": 328541390,
+        "timestamp": 1794496209,
+        "transaction": "0x8675d41db3bc407b5410524ab436023b376960c844a9f11a109c2a693210a848"
+      },
+      "id": "0xec54a66c3c2f902f6b7723749e0a413161f8bad92db2edfdd49e41d8329a438e",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "100000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x1fa1460b7b2e5625a7bd7145acae3a92adc54d944d7774cc29a6ffbe284a9438",
+        "deliverBy": 1794507009,
+        "fundBy": 1794497109,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xc24fc74fcab6075694d7fef64d056b96d8ff982af1de794d6681f3274081c0df",
+        "salt": "0xb7d4b0596c1f2c8523fdc5c302290c83d4110aa1cf91def846841cd4a7e9b10d",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xec54a66c3c2f902f6b7723749e0a413161f8bad92db2edfdd49e41d8329a438e",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328543810,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 358150,
+        "timestamp": 1794496866,
+        "transaction": "0xb90258b2ccbc4fb76dbc4653a222252cbfca05918f6f8868360e76861df38549"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x8c39e81d642719bb1f1c61a6eb71305f6fa39a6b"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Standing bounty on the rebuilt programs.",
+        "program": {
+          "name": "third-form order program (nucleus-vault3-acceptance.bin)",
+          "status": "published"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-program-rebuild-2026-11-13.md",
+        "vaultName": "Third form, programs rebuilt without build paths"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "250",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "99750"
+      },
+      "funding": {
+        "block": 328553037,
+        "timestamp": 1794499426,
+        "transaction": "0x177755029e46f990440d3bccb2521a4e0b27b69fe766012e11056443cce821cd"
+      },
+      "id": "0x67fcd087f6fc05a82d18595a5494306f58026795246f62233b0dd92756756dbd",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "100000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x3b04b62bc20f2bf585da14dcabeb9123a0eee045ca5db256fd6ed4609acc507d",
+        "deliverBy": 1794510225,
+        "fundBy": 1794500325,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xfc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb",
+        "salt": "0xd98525fb75c786a4f216e72eec0c0cd14eadb655421e3b87362d951cae672659",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x67fcd087f6fc05a82d18595a5494306f58026795246f62233b0dd92756756dbd",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328555719,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 375274,
+        "timestamp": 1794500161,
+        "transaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x4188c7683fc4976f1aa2498897249ab68c424bfe"
+    },
+    {
+      "artifact": {
+        "bytes": 1876,
+        "inSettledLog": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "keccak256": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "recordedByVault": "0xa9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6",
+        "url": "/artifacts/a9d5c089295876bef733081c236922d90f46cfa11928666f25f971b4873c1cb6.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Buyer speaking only A2A over iroh.",
+        "program": {
+          "name": "third-form order program (nucleus-vault3-acceptance.bin)",
+          "status": "published"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/a2a-over-iroh-binding-2026-11-13.md",
+        "vaultName": "Third form, programs rebuilt without build paths"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "250",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "99750"
+      },
+      "funding": {
+        "block": 328623167,
+        "timestamp": 1794518723,
+        "transaction": "0x880ac6245f45422d462a8e73d4f640a28f993207345d2819e784b83d5a027d3d"
+      },
+      "id": "0x64733645748b150caf176c3ece016e4cf5b8b7adeb423405284890fa647e6de0",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "100000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x85a4350406245a454aec2c42c0ae838ce5ef6764",
+        "context": "0x469d2aa2779c5e0bbba5a96ad85aeb11e22b302548cf4efdc4637d7751288009",
+        "deliverBy": 1794529521,
+        "fundBy": 1794519621,
+        "policyHash": "0x0060fed712da8f3f4a6e0aa5b9dcfdee9049c88898b96c481f496f27fc5da8d5",
+        "program": "0xfc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb",
+        "salt": "0xa53a82f18278110cc7c2e264609a1c11800d528b24eee87b55f581db691cb7d5",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x64733645748b150caf176c3ece016e4cf5b8b7adeb423405284890fa647e6de0",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328625580,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 358162,
+        "timestamp": 1794519379,
+        "transaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x4188c7683fc4976f1aa2498897249ab68c424bfe"
+    },
+    {
+      "artifact": {
+        "bytes": 853,
+        "inSettledLog": "0x66cbab0f4c5a504c669751316b96359236104a35bc07239ed78742c88cc157fa",
+        "keccak256": "0x66cbab0f4c5a504c669751316b96359236104a35bc07239ed78742c88cc157fa",
+        "recordedByVault": "0x66cbab0f4c5a504c669751316b96359236104a35bc07239ed78742c88cc157fa",
+        "url": "/artifacts/66cbab0f4c5a504c669751316b96359236104a35bc07239ed78742c88cc157fa.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First task about Nucleus's own code: should_gate on the extracted pure core of Kernel::decide (gate completeness).",
+        "program": {
+          "name": "third-form order program (nucleus-vault3-acceptance.bin)",
+          "status": "published"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-nucleus-open-obligations-2026-11-13.md",
+        "vaultName": "Third form, programs rebuilt without build paths"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "2500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "997500"
+      },
+      "funding": {
+        "block": 328638996,
+        "timestamp": 1794523145,
+        "transaction": "0x2e3a5c36856c6e36c8cc39e52c094305d8dbb4b5292c4c5fee139b61b4213aad"
+      },
+      "id": "0x375a8287ebc3b4e47d84e03a2e95db324beb5c257df597a4fef8db9974981f0f",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "1000000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x7fd13a592aac3922f73cf987e761fe0bc684e795",
+        "context": "0x0866c7ca4cbb82a17dd104bb2d9f18187da0d6a4f3d3ed4c9bff74b8df2ad292",
+        "deliverBy": 1794533944,
+        "fundBy": 1794524044,
+        "policyHash": "0xc7c595f0524c2ebdc70f602747756657651120777c54c432ff946baff8a66608",
+        "program": "0xfc879ae401564b093abb0dbe9a1d9f0d883020ec2a09b58791efcf73360440bb",
+        "salt": "0x11fb1535cfda6f225792fb07412285f0b3a32c5c5d4ef89b6ab77946cf4b7abb",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x375a8287ebc3b4e47d84e03a2e95db324beb5c257df597a4fef8db9974981f0f",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328646542,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 341361,
+        "timestamp": 1794525372,
+        "transaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x4188c7683fc4976f1aa2498897249ab68c424bfe"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "Standing bounty on the statement format v2 programs.",
+        "program": {
+          "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)",
+          "status": "published"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md",
+        "vaultName": "Third form, statement format v2 programs"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "250",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "99750"
+      },
+      "funding": {
+        "block": 328656046,
+        "timestamp": 1794528226,
+        "transaction": "0xd368813bf0b1794cdcf9501440ed9023296b93b445615ee7142919a6980a48a4"
+      },
+      "id": "0x088812156c68b0fc7368046fdf88cdaa035f5f53fb018b1ce496e7c7f5ed0d71",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "100000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0xe6287e444a3df0df2038597ffaa26f0572e4ecd6",
+        "context": "0x7db899530b6a97415da9c4bd48bb1ca11fa5685f301d58074d004615407b4be0",
+        "deliverBy": 1794539026,
+        "fundBy": 1794529126,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0xfbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081",
+        "salt": "0x64d8b0f1fe723fbf1c1e88c3549a948611b589c113e065acdefe515a15847b08",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x088812156c68b0fc7368046fdf88cdaa035f5f53fb018b1ce496e7c7f5ed0d71",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328657165,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 348965,
+        "timestamp": 1794528559,
+        "transaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426"
+    },
+    {
+      "artifact": {
+        "bytes": 3238,
+        "inSettledLog": "0x73973f93fa64bcbc5b970993a06be94b5acfb29e18f7923f9ddc5ed0430ad51a",
+        "keccak256": "0x73973f93fa64bcbc5b970993a06be94b5acfb29e18f7923f9ddc5ed0430ad51a",
+        "recordedByVault": "0x73973f93fa64bcbc5b970993a06be94b5acfb29e18f7923f9ddc5ed0430ad51a",
+        "url": "/artifacts/73973f93fa64bcbc5b970993a06be94b5acfb29e18f7923f9ddc5ed0430ad51a.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.",
+        "program": {
+          "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)",
+          "status": "published"
+        },
+        "realMoney": null,
+        "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md",
+        "vaultName": "Third form, statement format v2 programs"
+      },
+      "booked": {
+        "basePayee": "0xf5a6d7e2be1d5bf79a57270c3bde8713a85f675b",
+        "fee": "625",
+        "kind": "owed, paid out by claim",
+        "royalty": "250",
+        "seller": "249125"
+      },
+      "funding": {
+        "block": 328682212,
+        "timestamp": 1794535350,
+        "transaction": "0xe701e67cc2740ba330766993eee3ccb7ffea8860d65403abe6f196abf1c232a7"
+      },
+      "id": "0xf8fc277fbb3cffc5f16e5a16f4a2e8278831e0df6c83232da4f48fc8c03131cb",
+      "network": {
+        "chainId": 421614,
+        "name": "Arbitrum Sepolia",
+        "testnet": true
+      },
+      "order": {
+        "amount": "250000",
+        "asset": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "base": "0x1c99a2373a83e5e03130d8d0ef2cebab9349c37b48924ea08df9479bbb17952d",
+        "buyer": "0xd6bec3920de97f4f00d776ff79218dca3e2a701f",
+        "context": "0xd0b94f854bd402384a220b4a59b071fcfd12edb907f8935c6e39a937dfb77c8b",
+        "deliverBy": 1794546150,
+        "fundBy": 1794536250,
+        "policyHash": "0x751aeca43878ed52cc0e45739827d3b590c4b0eb59c088ace232950728920ca2",
+        "program": "0xfbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081",
+        "salt": "0xb5d92b50bb030924263ab42c1f716c0b5a571388a5f2de513ed62d7543590eab",
+        "seller": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xf8fc277fbb3cffc5f16e5a16f4a2e8278831e0df6c83232da4f48fc8c03131cb",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 328684010,
+        "from": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "gasUsed": 402856,
+        "timestamp": 1794535821,
+        "transaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3"
+      },
+      "snapshot": {
+        "block": 328693405,
+        "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
+      },
+      "token": {
+        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426"
+    }
+  ],
+  "schema": "qed-ledger-snapshot/1",
+  "takenAt": 1794538311
+}

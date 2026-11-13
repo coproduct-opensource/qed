@@ -1,0 +1,7 @@
+# Separate from the repository workspace: the vendored checker is Apache-2.0,
+# edition 2021 and carries its own lint settings. The zkVM host and guest have
+# their own workspaces under zkvm/.
+[workspace]
+resolver = "2"
+members = ["core", "vendor/nanoda_lib"]
+exclude = ["zkvm"]

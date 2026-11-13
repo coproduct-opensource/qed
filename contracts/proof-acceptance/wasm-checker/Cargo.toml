@@ -1,0 +1,30 @@
+[package]
+name = "qed-wasm-checker"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "The QED acceptance rule (nucleus_proof_acceptance::accept_aborting, with the vendored Lean checker) compiled to wasm32-unknown-unknown for a browser, behind a small raw C ABI."
+
+# Own workspace and lockfile: nothing here is linked into a proof guest.
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nucleus-proof-acceptance = { path = "../core" }
+serde_json = "1"
+sha3 = { version = "0.10.9", default-features = false }
+
+[dev-dependencies]
+wasmi = "1"
+serde_json = "1"
+sha2 = "0.10.9"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+overflow-checks = true

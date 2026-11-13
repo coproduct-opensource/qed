@@ -1,0 +1,95 @@
+/* QED: a document, not an application. No web fonts, no images, no
+   animation. Modern CSS for robustness, not effects. */
+@layer reset, base, components;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { margin: 0; }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+    --paper: #fbf8f1; --ink: #1d1b17; --muted: #6a645a; --rule: #d8d1c2;
+    --code-bg: #f1ece1; --link: #2c4f7c; --note: #fff4d0; --note-rule: #c9a83a;
+    accent-color: #365d8c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16150f; --ink: #e9e4d8; --muted: #a39d90; --rule: #3a372e;
+      --code-bg: #22201a; --link: #9ec1ea; --note: #2b2611; --note-rule: #8a7426;
+    }
+  }
+  html { background: var(--paper); color: var(--ink); }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    max-width: 72ch;
+    margin-inline: auto;
+    padding: clamp(1rem, 4vw, 3rem);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  h1, h2, h3 { line-height: 1.2; text-wrap: balance; font-weight: normal; }
+  h1 { font-size: 2rem; margin-block: 0.5rem 0.75rem; letter-spacing: 0.02em; }
+  h2 { font-size: 1.35rem; margin-block: 2.25rem 0.5rem; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
+  h3 { font-size: 1.1rem; margin-block: 1.5rem 0.25rem; }
+  p, ul, ol, dl { margin-block: 0.6rem; }
+  li { margin-block: 0.25rem; }
+  a { color: var(--link); text-underline-offset: 0.15em; }
+  code, pre, kbd { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; }
+  code { overflow-wrap: anywhere; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); padding: 0.75rem;
+    overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  caption { text-align: left; color: var(--muted); padding-block: 0.25rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--rule); }
+  thead th { color: var(--muted); font-weight: normal; }
+  tbody th { font-weight: normal; }
+  dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.35rem 1rem; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  details { margin-block: 0.75rem; }
+  summary { cursor: pointer; }
+  footer { margin-top: 3rem; padding-top: 0.75rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+  button, input { font: inherit; color: inherit; }
+}
+
+@layer components {
+  .skip { position: absolute; left: -999rem; }
+  .skip:focus { left: 1rem; top: 1rem; background: var(--paper); padding: 0.25rem 0.5rem; }
+  .masthead { margin: 0; letter-spacing: 0.08em; font-size: 0.9rem; color: var(--muted); }
+  .masthead a { color: inherit; text-decoration: none; font-weight: bold; }
+  .index { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; padding-left: 0; margin-block: 0.25rem 1rem; font-size: 0.95rem; counter-reset: entry; }
+  .index li { list-style: none; counter-increment: entry; margin: 0; }
+  .index li::before { content: counter(entry, decimal-leading-zero) "\00a0"; color: var(--muted); }
+  .index a[aria-current="page"] { font-weight: bold; }
+  .scroll { overflow-x: auto; }
+  .note { border: 1px solid var(--note-rule); background: var(--note); padding: 0.25rem 1rem; margin-block: 1.5rem; }
+  .note-title { font-weight: bold; margin-bottom: 0; }
+  .copyable button { margin-top: -0.25rem; padding: 0.2rem 0.6rem; border: 1px solid var(--rule); background: var(--code-bg); cursor: pointer; }
+  .ok { color: #1d6b3a; }
+  .bad { color: #9b2c1f; }
+  form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  #checker select { display: block; width: 100%; max-width: 100%; margin-block: 0.25rem 0.5rem; font: inherit; font-size: 0.9rem; }
+  #checker-verdict dd { overflow-wrap: anywhere; }
+  input[type=url] { flex: 1 1 16rem; min-width: 0; padding: 0.3rem 0.5rem; border: 1px solid var(--rule); background: var(--paper); }
+
+  @scope (.note) {
+    ul { padding-left: 1.25rem; }
+  }
+  main { container-type: inline-size; }
+  @container (max-width: 34rem) {
+    dl { grid-template-columns: 1fr; }
+    dt { margin-top: 0.5rem; }
+  }
+  @media (max-width: 34rem) {
+    dl { grid-template-columns: 1fr; }
+    dt { margin-top: 0.5rem; }
+  }
+}

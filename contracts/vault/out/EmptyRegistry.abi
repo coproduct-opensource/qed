@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"name":"entryOf","outputs":[{"internalType":"address","name":"payee","type":"address"},{"internalType":"uint16","name":"bps","type":"uint16"}],"stateMutability":"pure","type":"function"}]

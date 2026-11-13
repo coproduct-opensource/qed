@@ -1,0 +1,17 @@
+[package]
+name = "nucleus-x402-interop"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Reads the nucleus-vault x402 headers with an independent x402 implementation's types. Test-only; separate workspace."
+
+[workspace]
+
+[dev-dependencies]
+nucleus-proof-commerce = { path = "../../crates/nucleus-proof-commerce", features = ["x402-wire"] }
+x402-types = "=2.0.2"
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+sha3 = "0.10.9"
+serde_json = "1"
+base64 = "0.23"

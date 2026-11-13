@@ -1,0 +1,12 @@
+# Keeps the pinned action SHA in ci.yml current. Pull requests only; nothing
+# merges on its own. Cargo dependencies are not covered: each directory under
+# contracts/ is its own workspace, and a dependency change in a crate the
+# proof programs link changes their image IDs, so those updates are made by
+# hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2

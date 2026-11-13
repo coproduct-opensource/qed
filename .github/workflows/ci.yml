@@ -1,0 +1,124 @@
+# Build and test. No secrets, no deploy, read-only token.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  rust:
+    name: rust (${{ matrix.dir }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: .
+            packages: -p nucleus-proof-commerce -p nucleus-jsonl
+            test: cargo test --locked -p nucleus-proof-commerce --features x402-wire && cargo test --locked -p nucleus-jsonl
+          - dir: contracts/agents
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/a2a-iroh-card
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/proof-acceptance
+            fmt: -p nucleus-proof-acceptance
+            packages: -p nucleus-proof-acceptance --no-deps
+            test: cargo test --locked -p nucleus-proof-acceptance
+          - dir: contracts/proof-acceptance/zkvm
+            packages: -p nucleus-acceptance-host -p nucleus-groth16-native
+            test: cargo test --locked --release -p nucleus-acceptance-host -p nucleus-groth16-native
+          - dir: contracts/board/reference
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/vault-conformance
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/token-conformance
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/x402-interop
+            packages: ""
+            test: cargo test --locked
+          - dir: contracts/site
+            packages: ""
+            test: cargo test --locked
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    env:
+      # The guest programs are published binaries; CI does not rebuild them.
+      RISC0_SKIP_BUILD: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Pinned: a newer clippy adds lints, and `-D warnings` would turn each
+      # into a failure unrelated to the change under test. Moving the pin is
+      # its own pull request.
+      - name: toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal --component clippy,rustfmt && rustup default 1.96.1
+      # Not `--all`: that also formats path dependencies, including the
+      # vendored Lean checker, which keeps its upstream formatting.
+      - name: fmt
+        run: cargo fmt --check ${{ matrix.fmt }}
+      - name: clippy
+        run: cargo clippy --locked --all-targets ${{ matrix.packages }} -- -D warnings
+      - name: test
+        run: ${{ matrix.test }}
+
+  # The acceptance rule built for a browser, and its verdicts compared with
+  # the native rule on every fixture and every settled order's proof.
+  wasm-checker:
+    name: wasm-checker (parity with the native rule)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: contracts/proof-acceptance/wasm-checker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal --component clippy,rustfmt --target wasm32-unknown-unknown && rustup default 1.96.1
+      - name: fmt
+        run: cargo fmt --check
+      - name: clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: build the module
+        run: cargo build --locked --release --target wasm32-unknown-unknown
+      - name: parity
+        run: cargo test --locked
+
+  lean:
+    name: lean (proofs/commerce)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: proofs/commerce
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: elan
+        run: curl --proto =https --tlsv1.2 -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh -o "$RUNNER_TEMP/elan-init.sh" && sh "$RUNNER_TEMP/elan-init.sh" -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: lake build
+        run: lake build

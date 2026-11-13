@@ -1,0 +1,40 @@
+[package]
+name = "nucleus-proof-commerce"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Reference semantics and x402 wire forms of the proof-gated thin vault"
+
+[lints]
+workspace = true
+
+# NOTE 2026-11-12: the non-wire code of this crate is linked into the proof
+# program published at contracts/proof-acceptance/program/nucleus-vault3-acceptance.bin.
+# Changing it changes that program's image ID; rebuild and republish
+# deliberately (docs/rfcs/proof-commerce-third-vault-2026-11-12.md). The
+# second-form program's binary was built from this crate at commit c4f020370
+# and is no longer reproducible from HEAD.
+[features]
+default = ["software"]
+# Keccak-256 and key recovery from the sha3 and k256 crates.
+software = ["dep:k256", "dep:sha3"]
+# Strict x402 v2 header parsing. Off for the proof guest, which never parses JSON.
+x402-wire = ["software", "dep:serde", "dep:serde_json", "dep:base64", "dep:ruint", "ruint/alloc"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"], optional = true }
+sha3 = { version = "0.10.9", default-features = false, optional = true }
+thiserror.workspace = true
+ruint = { version = "=1.20.0", default-features = false, optional = true }
+
+[dev-dependencies]
+ruint = { version = "=1.20.0", default-features = false, features = ["alloc"] }
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+sha3 = { version = "0.10.9", default-features = false }
+serde_json.workspace = true
+hex.workspace = true

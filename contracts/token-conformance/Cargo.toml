@@ -1,0 +1,17 @@
+[package]
+name = "nucleus-token-conformance"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Runs the vault's x402 funding authorization against real EIP-3009 token bytecode in a local EVM. Test-only; separate workspace so the EVM tree stays out of the main build."
+
+[workspace]
+
+[dependencies]
+
+[dev-dependencies]
+revm = { version = "=43.0.3", default-features = false, features = ["std"] }
+alloy-sol-types = { version = "=1.7.3", default-features = false }
+k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+nucleus-proof-commerce = { path = "../../crates/nucleus-proof-commerce" }
