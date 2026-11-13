@@ -188,9 +188,17 @@ fn logs_are_asked_for_in_ranges_the_endpoint_serves_and_paced() {
     let logs = chain.logs(&json!({"address": "0x00"}), 0, 2_499).unwrap();
     // 2,500 blocks in ranges of 1,000: three answers.
     assert_eq!(logs.len(), 3);
+    // The client spaces the moments it sends; the server records when it
+    // has read a request, which a busy machine can delay for one request
+    // and not the next. On a GitHub runner (2026-11-13, public CI run
+    // 43442844200) a gap measured here fell short of the 50 ms spacing, so
+    // the check allows 20 ms of that delay. Without spacing the gaps are
+    // about a millisecond, so it still fails if the spacing is removed.
+    let slack = Duration::from_millis(20);
     let times = endpoint.times("eth_getLogs");
     for pair in times.windows(2) {
-        assert!(pair[1] - pair[0] >= QUICK.log_spacing);
+        let gap = pair[1] - pair[0];
+        assert!(gap + slack >= QUICK.log_spacing, "{gap:?}");
     }
 }
 
