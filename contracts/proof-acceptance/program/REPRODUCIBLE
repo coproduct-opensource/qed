@@ -1,0 +1,27 @@
+# The recipe `nucleus-acceptance-host verify-programs` rebuilds the published
+# programs with. Statement and measurements:
+# docs/rfcs/qed-reproducible-programs-2026-11-13.md.
+#
+# It mirrors risc0-build 3.0.7's Docker route (`docker.rs` there): RISC Zero's
+# guest builder image, named by digest; the source tree at /src; this
+# environment; then `cargo +risc0 fetch` and `cargo +risc0 build --release`,
+# both `--locked --target riscv32im-risc0-zkvm-elf --manifest-path GUEST`.
+# Paths of ID and binary files are relative to this file's directory.
+
+# risczero/risc0-guest-builder:r0.1.97.0 (RISC Zero Rust 1.97.0), the OCI index
+# digest. Its linux/amd64 manifest is
+# sha256:6f6c300e4af57ea3efe62b7f04a17629efe0f0caa6ad3699d6766bf19e0e62fb.
+image docker.io/risczero/risc0-guest-builder@sha256:7ae0a27fa72b10fb5c1066005bd949ae43dc4ead8a284f2d6572b99c82ab4468
+platform linux/amd64
+
+# risc0-build 3.0.7 `encode_rust_flags` for a guest with no rustc-flags of its own.
+rustflags -C passes=lower-atomic -C link-arg=-Ttext=0x00200800 -C link-arg=--fatal-warnings -C panic=abort --cfg getrandom_backend="custom"
+env CARGO_TARGET_DIR target
+env RISC0_FEATURE_bigint2
+env CC_riscv32im_risc0_zkvm_elf /root/.risc0/cpp/bin/riscv32-unknown-elf-gcc
+env CFLAGS_riscv32im_risc0_zkvm_elf -march=rv32im -nostdlib
+
+# NAME GUEST_DIR BINARY ID_FILE [PUBLISHED_BINARY]. The base program first:
+# the order program's source names the base program's image ID.
+program base contracts/proof-acceptance/zkvm/methods/base nucleus-base-guest IMAGE_ID_BASE_FMT2 nucleus-base-check-fmt2.bin
+program order contracts/proof-acceptance/zkvm/methods/vault3 nucleus-vault3-guest IMAGE_ID_ORDER_FMT2 nucleus-order-fmt2.bin

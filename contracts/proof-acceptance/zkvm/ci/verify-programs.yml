@@ -1,0 +1,42 @@
+# PREPARED, NOT ENABLED. A GitHub Actions job that rebuilds the published
+# proof programs with the pinned recipe (program/REPRODUCIBLE) and fails when
+# an image ID differs. It is kept here, outside .github/workflows, until the
+# owner decides which program pair the recipe pins: at the commit this file was
+# added the recipe names the deployed fmt2 pair, which this route does not
+# reproduce (docs/rfcs/qed-reproducible-programs-2026-11-13.md), so enabling it
+# now would be red by construction.
+#
+# Before enabling: pin `actions/checkout` to a full commit SHA, and copy the
+# file to `.github/workflows/` (or the public overlay's workflows).
+#
+# Runs on GitHub's x86-64 Ubuntu runner, natively: the builder image is
+# linux/amd64 only. Measured cost on an 8-vCPU x86 VM: see the RFC.
+name: verify-programs
+
+on:
+  pull_request:
+    paths:
+      - "contracts/proof-acceptance/**"
+      - "crates/nucleus-proof-commerce/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-programs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain for the verifier (the guests use the image's)
+        run: rustup toolchain install stable --profile minimal
+      - name: Build the verifier
+        working-directory: contracts/proof-acceptance/zkvm
+        run: cargo build --release --locked -p nucleus-acceptance-host
+      - name: Rebuild the guests in the pinned image and compare image IDs
+        run: contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD --work "$RUNNER_TEMP/reproduce"
