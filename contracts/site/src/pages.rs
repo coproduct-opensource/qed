@@ -2027,7 +2027,9 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ),
         ]),
         p(if r.image_public {
-            vec![t("The registry serves the image to anyone; the pull needs no account.")]
+            vec![t(
+                "The registry serves the image to anyone; the pull needs no account.",
+            )]
         } else {
             vec![
                 strong("The image cannot be pulled yet."),
