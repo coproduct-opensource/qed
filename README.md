@@ -20,8 +20,11 @@ Read this before anything else.
   model, not by a person.
 - **Every settlement so far was between the authors' own keys.** Nobody else
   has bought or sold through these contracts yet.
-- **The task board runs on a test network** (Arbitrum Sepolia) with test
-  tokens.
+- **Two deployments.** One on a test network (Arbitrum Sepolia) with test
+  tokens. One on Base mainnet with Circle's USDC, whose board carries a
+  standing bounty: 25 USDC a task, at most four tasks, paid to the first
+  seller whose proof settles. The bounty's statement has a public proof, so
+  it tests running a seller, not proving. See "Run a seller" below.
 - **One settlement used real money:** 0.40 USDC on Base mainnet, through an
   earlier vault (`NucleusVault2`, `0x30f522bc30d46b3a4089931d698f04656fa23b8d`).
 - **The program builds do not reproduce across machines.** See
@@ -49,6 +52,21 @@ Do not put funds you care about through this code.
 
 `PROTOCOL.md` says what each piece commits to. The Lean models under
 `proofs/commerce` state the rules the contracts implement, with proofs.
+
+## Deployed contracts (Base mainnet, chain 8453)
+
+| | address |
+|---|---|
+| vault (`NucleusVault3`, fee 25 basis points) | `0x8917c501755f966a5b5f20d6608e297e7066f13b` |
+| task board (`NucleusBoard`, names that vault; deployed in block 56773051) | `0xde0b91b747898ae296c14d6703c05a15845f49c0` |
+| base registry (`BaseRegistry`) | `0x843f6c3ff6c68e027ae3bd2cb13001f6075da75f` |
+| proof verifier (RISC Zero Groth16 3.1.0, deployed by RISC Zero) | `0x8c915b5071206c6e328bc18529586c513408ab3b` |
+| Circle USDC | `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913` |
+
+The vault's treasury is a Safe controlled by the authors; read it from the
+vault's `treasury()`. The same proof programs as below. The vault, registry
+and board run the same bytecode as the Arbitrum Sepolia deployment except
+for the addresses fixed at construction.
 
 ## Deployed contracts (Arbitrum Sepolia, chain 421614)
 
@@ -120,38 +138,137 @@ Measured time for one small order's proof, with the final wrapping step: about
 
 ## Run a seller
 
-    (cd contracts/agents && cargo build --release --locked)
-    contracts/agents/target/release/nucleus-vault-ops keys seller.keys
+These steps take the Base mainnet bounty. A seller watches the board, fetches
+each task's statement from the buyer's node, runs its prover, checks the
+result with the Lean checker, and offers. If the buyer signs, the seller sends
+`fund`, `settle` and `claim` itself.
+
+**The seller pays its own gas.** A gas relayer is planned but not deployed
+(see "Gas relayer (planned)" below), so the wallet needs a little ETH on Base.
+The three transactions of one trade cost about 0.000004 ETH at the Base gas
+price of 2026-11-13, read from the receipts of an earlier Base trade.
+0.0002 ETH leaves room.
+
+Three ways to get the seller, from least setup to most:
+
+- the image `ghcr.io/coproduct-opensource/qed-seller`, for Linux on x86-64
+  and arm64;
+- a release archive, `qed-TARGET.tar.gz`, for `x86_64-unknown-linux-gnu`,
+  `aarch64-unknown-linux-gnu` or `aarch64-apple-darwin`. The Linux prover
+  hosts prove in their own process. The macOS one proves through RISC Zero's
+  `r0vm` 3.1.0 (`curl -sSL https://risczero.com/install | bash`, then
+  `rzup install r0vm 3.1.0`);
+- a build from this repository: `(cd contracts/agents && cargo build
+  --release --locked)` and `(cd contracts/proof-acceptance/zkvm && cargo
+  build --release --locked -p nucleus-acceptance-host)`.
+
+### 1. Check what you downloaded
+
+Each release's notes give the image digest. Check the image by that digest,
+not by a tag:
+
+    cosign verify ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST \
+      --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\.github/workflows/release\.yml@refs/tags/v' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    gh attestation verify oci://ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST \
+      --repo coproduct-opensource/qed
+
+For an archive:
+
+    gh release download v0.1.0 -R coproduct-opensource/qed -p 'qed-TARGET.tar.gz' -p SHA256SUMS
+    sha256sum -c --ignore-missing SHA256SUMS     # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+    gh attestation verify qed-TARGET.tar.gz --repo coproduct-opensource/qed
+    tar xzf qed-TARGET.tar.gz
+
+These show which workflow built the artifact and from which commit. They do
+not show the source is correct. The program the vault pays for is checked
+separately: `nucleus-acceptance-host order2-image` must print
+`fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081`, the
+program the bounty's posts name.
+
+### 2. Make a wallet
+
+    qed-TARGET/nucleus-vault-ops keys seller.keys
 
 `seller.keys` holds three hex keys, one per line, readable only by you: a
 secp256k1 wallet, a P-256 key for proof of possession, and an Ed25519 key that
-is your network node identity. Send about 0.0005 Arbitrum Sepolia ETH to the
-wallet address it prints.
+is your network node identity. Send about 0.0002 ETH on Base to the wallet
+address it prints.
 
-`vault-deployment.json`:
+### 3. Fetch the task's files and the Groth16 data
 
-    {"chainId": 421614, "kind": "vault3",
-     "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
-     "vault": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426",
-     "token": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+The bounty posts one fixed statement. Its proof is public, and
+`nucleus-fixture-prover` answers that statement with it. Both files are in
+this repository under `contracts/site/input/`, and on the site:
+
+    curl -fsSO https://qed.coproduct.dev/statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2
+    curl -fsSO https://qed.coproduct.dev/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin
+
+Their SHA-256 values are `9480265e…dc1c` (the statement's file name) and
+`bc8685ff3da87db6b6c9cdbe340d64a718628058f03e022bb0c86be3a4924010`.
+
+The final Groth16 wrap needs RISC Zero's circuit data. Fetch it once:
+
+    qed-TARGET/qed-groth16-data groth16
+
+That downloads 2.4 GB, refuses the archive unless its SHA-256 matches a
+pinned value, and keeps 4.2 GB.
+
+### 4. Write two files
+
+`base.json`, where the vault is. Receipts and sends go to the first
+endpoint; when one refuses a range of logs, the next is asked:
+
+    {"chainId": 8453, "kind": "vault3",
+     "rpcs": ["https://mainnet.base.org", "https://base-rpc.publicnode.com",
+              "https://base.gateway.tenderly.co"],
+     "rpc": "https://base-rpc.publicnode.com",
+     "vault": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+     "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
      "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"}
 
-`seller.json` (paths are yours):
+`seller.json`:
 
     {
-      "deployment": "vault-deployment.json",
+      "deployment": "base.json",
       "keys": "seller.keys",
-      "board": "0x3c96abe5be0e37ec9651ca9728dc48418f5b0151",
+      "board": "0xde0b91b747898ae296c14d6703c05a15845f49c0",
+      "startBlock": 56773051,
       "relay": "default",
-      "prover": ["/path/to/your-prover"],
-      "proverTimeoutSeconds": 600,
-      "price": "100000",
-      "proofHost": "/path/to/nucleus-acceptance-host",
+      "prover": ["qed-TARGET/nucleus-fixture-prover",
+                 "9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2",
+                 "ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"],
+      "proverTimeoutSeconds": 60,
+      "price": "25000000",
+      "proofHost": "qed-TARGET/nucleus-acceptance-host",
       "groth16": "native",
+      "groth16Data": "groth16",
+      "expectedProvingSeconds": 3600,
       "workDir": "seller-work"
     }
 
-    contracts/agents/target/release/nucleus-seller watch seller.json
+`startBlock` is the board's deployment block. Without it the seller sees only
+posts made after it starts, and misses a post that is already open. `price`
+is in USDC's smallest unit: 25 USDC, the bounty's cap; the seller receives
+24.9375 after the fee. `expectedProvingSeconds`: the seller does not start a
+proof it expects to finish after the order's delivery deadline (four hours
+after the post's funding deadline).
+
+### 5. Run
+
+    qed-TARGET/nucleus-seller watch seller.json
+
+It prints each step: the post it read, the statement it fetched over iroh, the
+Lean checker's verdict, its offer, and, if the buyer signs, the fund, settle
+and claim transactions. If the claim fails, the share stays booked to the
+seller's address in the vault, and anyone can claim it later:
+
+    qed-TARGET/nucleus-vault-ops claim base.json seller.keys YOUR_WALLET_ADDRESS
+
+To try the same steps first with test tokens: the Arbitrum Sepolia vault and
+board above, `"rpc": "https://sepolia-rollup.arbitrum.io/rpc"`, token
+`0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d`, `"startBlock": 328652134`, a
+price at or under the post's cap, and Arbitrum Sepolia ETH for gas.
 
 `prover` is any command. For each task the seller runs it, without a shell,
 as `COMMAND ARGS... STATEMENT_PATH ARTIFACT_PATH`; it must write the proof's
@@ -164,6 +281,85 @@ Before spending proving time the seller reads the royalty the vault booked for
 the order and the time left before the delivery deadline, and stops if either
 is worse than it quoted on. A post carries an unauthenticated address hint;
 the seller dials it only if it is a public socket address.
+
+### With the image
+
+The image holds `nucleus-seller`, `nucleus-buyer`, `nucleus-vault-ops`,
+`nucleus-fixture-prover`, `qed-wrap`, `qed-groth16-data` and the prover host
+`nucleus-acceptance-host` (built to prove in-process, so no `r0vm`). It runs
+as an unprivileged user, keeps everything in `/data`, and works with a
+read-only root filesystem. The same steps, with `IMAGE` the checked
+`ghcr.io/coproduct-opensource/qed-seller@sha256:DIGEST`:
+
+    docker run --rm --entrypoint nucleus-acceptance-host IMAGE order2-image
+    docker run --rm -v qed:/data --entrypoint nucleus-vault-ops IMAGE keys /data/seller.keys
+    docker run --rm -v qed:/data --entrypoint qed-groth16-data IMAGE /data/groth16
+
+Write `base.json` as above, and `seller.json` as above with these paths:
+
+    "deployment": "/data/base.json", "keys": "/data/seller.keys",
+    "prover": ["/usr/local/bin/nucleus-fixture-prover",
+               "/data/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2",
+               "/data/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"],
+    "proofHost": "/usr/local/bin/nucleus-acceptance-host",
+    "groth16Data": "/data/groth16", "workDir": "/data/seller-work"
+
+Copy the four files into the volume, then start the seller:
+
+    for f in base.json seller.json 9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2 \
+             ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin; do
+      docker run --rm -i -v qed:/data --entrypoint tee IMAGE "/data/$f" < "$f" > /dev/null
+    done
+    docker run -d --name qed-seller --read-only --tmpfs /tmp -v qed:/data IMAGE
+    docker logs -f qed-seller
+
+With Apple `container` on a Mac, a new named volume belongs to root; make it
+the image user's once with
+`container run --rm --user 0 -v qed:/data --entrypoint /bin/chown IMAGE 10001:999 /data`.
+Docker gives a new volume the image's ownership.
+
+To build the image yourself: `docker build -f Containerfile -t qed-seller .`
+from this directory, or `container build -c 8 -m 20g -f Containerfile -t
+qed-seller .` with Apple `container`, whose default 2 GB builder runs out of
+memory on RISC Zero's C++.
+
+### Wrapping without the circuit data
+
+Instead of the local data, the final Groth16 wrap can be asked of a wrap
+service. None is deployed by the authors; `qed-wrap CONFIG.json` runs one,
+and its header documents the configuration.
+
+`"groth16": "remote:https://WRAP-SERVICE"` needs nothing downloaded. The
+service receives the order's succinct receipt (its public output is hashes,
+not the artifact), every request carries a fresh DPoP proof from a key the
+seller makes at start, and the seller verifies the returned Groth16 receipt
+against its own journal and derives the seal itself. A service can refuse or
+delay; it cannot redirect payment. Keep `groth16Data` too and a refusal falls
+back to the local wrap. Measured times are on the site's "Run a seller" page,
+https://qed.coproduct.dev/sellers/run.
+
+### Gas relayer (planned)
+
+**Planned: no relayer is deployed yet.** A relayer sends `fund`, `settle` and
+`claim` for you and pays the gas, so a seller with no ETH can still trade. To
+use one, add `"relayer": "https://RELAYER"` to `seller.json`, and optionally
+`"relayerWaitSeconds"` (default 120).
+
+- **What you depend on it for.** A seller with no ETH depends on the relayer
+  for timeliness only, never for payment. Each call pays whom the contract
+  names: `settle` books the order's seller, and `claim` pays the payee.
+- **What it can do to you.** It can refuse or delay a call. For `settle`, it
+  sees the artifact before it is on chain.
+- **What your seller checks.** Every relayed transaction is read from the
+  chain: it must go to the vault, with value 0 and exactly the calldata your
+  seller built, and it must be mined successfully. Anything else is refused.
+- **Fallback.** If nothing lands within the wait, or near the order's
+  deadline, your seller checks whether the call's effect is already on chain.
+  If it is not, the seller sends the call itself, which needs gas. Keep a
+  little ETH if you want to defend your deadlines against a slow relayer.
+
+`qed-wrap relay CONFIG.json` runs one; its header documents the
+configuration, and `contracts/agents/src/relay.rs` lists its rules.
 
 ## Run a buyer
 

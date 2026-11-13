@@ -164,8 +164,51 @@ pub struct OnChain {
     pub token: Address,
     pub base: Option<BaseOffer>,
     pub limits: Limits,
+    /// A gas relayer for `fund`, `settle` and `claim`, if configured
+    /// (docs/rfcs/qed-relayer-2026-11-13.md, R-1 to R-4).
+    pub relayer: Option<Arc<dyn crate::relay::RelayApi>>,
+    /// R-2: how long to wait for a relayed transaction.
+    pub relayer_wait: Duration,
 }
 impl OnChain {
+    /// One call to the vault: through the relayer when there is one, checked
+    /// on chain; otherwise, or when the relayer does not deliver, with this
+    /// seller's own gas.
+    fn deliver(
+        &self,
+        label: &str,
+        data: &[u8],
+        until: Option<u64>,
+        done: &dyn Fn() -> Res<bool>,
+    ) -> Res<crate::relay::Delivered> {
+        crate::relay::Submission {
+            chain: &self.chain,
+            relayer: self.relayer.as_deref(),
+            vault: self.deployment.vault,
+            data,
+            wait: self.relayer_wait,
+            until,
+            poll: Duration::from_secs(3),
+            label,
+        }
+        .run(done, &|| {
+            self.chain
+                .send(&self.wallet, Some(self.deployment.vault), 0, data)
+        })
+    }
+    /// The vault's phase for an order: 0 empty, 1 funded, 2 settled.
+    fn phase(&self, order: &vault::Order) -> Res<u8> {
+        let digest = vault::digest(&self.deployment, order);
+        self.chain
+            .call(
+                [0; 20],
+                self.deployment.vault,
+                &crate::world::phaseCall { d: digest.into() }.abi_encode(),
+            )?
+            .last()
+            .copied()
+            .ok_or_else(|| "phase reply".into())
+    }
     /// The royalty this seller priced an order on: its configured base's
     /// rate when the order names that base, and nothing otherwise.
     pub fn quoted_royalty(&self, order: &vault::Order) -> U256 {
@@ -221,17 +264,13 @@ impl OnChain {
 impl Venue for OnChain {
     fn fund(&self, order: &vault::Order, signature: &[u8]) -> Res<String> {
         let data = fund_data(self.deployment.rules.form(), order, signature);
-        let funded = self
-            .chain
-            .send(&self.wallet, Some(self.deployment.vault), 0, &data)?;
-        if !funded.success {
-            return Err("fund reverted".into());
-        }
-        println!(
-            "seller: funded in tx {} (gas {})",
-            funded.transaction, funded.gas_used
-        );
-        Ok(funded.transaction)
+        let until = order.fund_by.saturating_sub(self.limits.settle_margin / 2);
+        let funded = self.deliver("fund", &data, Some(until), &|| Ok(self.phase(order)? >= 1))?;
+        println!("seller: funded: {funded:?}");
+        Ok(funded
+            .transaction()
+            .unwrap_or("(funded by another transaction)")
+            .to_owned())
     }
     fn booked_royalty(&self, digest: nucleus_proof_commerce::Hash) -> Res<U256> {
         match self.deployment.rules.form() {
@@ -260,17 +299,20 @@ impl Venue for OnChain {
         seal: Vec<u8>,
     ) -> Res<String> {
         let data = settle_data(self.deployment.rules.form(), order, artifact, seal);
-        let settled = self
-            .chain
-            .send(&self.wallet, Some(self.deployment.vault), 0, &data)?;
-        if !settled.success {
-            return Err("settle reverted".into());
-        }
-        println!(
-            "seller: settled in tx {} (gas {})",
-            settled.transaction, settled.gas_used
-        );
-        Ok(settled.transaction)
+        let until = order
+            .deliver_by
+            .saturating_sub(self.limits.settle_margin / 2);
+        let settled = self.deliver(
+            "settle",
+            &data,
+            Some(until),
+            &|| Ok(self.phase(order)? == 2),
+        )?;
+        println!("seller: settled: {settled:?}");
+        Ok(settled
+            .transaction()
+            .unwrap_or("(settled by another transaction)")
+            .to_owned())
     }
     /// The third form books the seller's share; it is paid by a claim, which
     /// the seller makes for itself here. If the claim fails the share stays
@@ -279,25 +321,27 @@ impl Venue for OnChain {
         if self.deployment.rules.form() != vault::Form::Third {
             return;
         }
+        let me = address_of(&self.wallet);
         let claim = third::claimCall {
-            payee: A::from(address_of(&self.wallet)),
+            payee: A::from(me),
             asset: A::from(self.token),
         }
         .abi_encode();
-        match self
-            .chain
-            .send(&self.wallet, Some(self.deployment.vault), 0, &claim)
-        {
-            Ok(claimed) => println!(
-                "seller: {} its share in tx {} (gas {})",
-                if claimed.success {
-                    "claimed"
-                } else {
-                    "COULD NOT CLAIM"
-                },
-                claimed.transaction,
-                claimed.gas_used
-            ),
+        let owed = || -> Res<U256> {
+            Ok(U256::from_be_slice(
+                &self.chain.call(
+                    [0; 20],
+                    self.deployment.vault,
+                    &third::owedCall {
+                        payee: A::from(me),
+                        asset: A::from(self.token),
+                    }
+                    .abi_encode(),
+                )?,
+            ))
+        };
+        match self.deliver("claim", &claim, None, &|| Ok(owed()?.is_zero())) {
+            Ok(claimed) => println!("seller: claimed its share: {claimed:?}"),
             Err(error) => println!("seller: COULD NOT CLAIM its share: {error}"),
         }
     }
@@ -350,6 +394,8 @@ impl Settler for OnChain {
             token: self.token,
             base: self.base.clone(),
             limits: self.limits,
+            relayer: self.relayer.clone(),
+            relayer_wait: self.relayer_wait,
         };
         std::thread::spawn(move || {
             let at = |step: Step| {
@@ -644,6 +690,11 @@ pub struct Config {
     /// `"settleMarginSeconds"` (default 120) and `"expectedProvingSeconds"`
     /// (default 900): see `worker.rs`.
     pub limits: Limits,
+    /// `"relayer"`: the URL of a gas relayer (`relay.rs`). Absent: this
+    /// seller pays its own gas.
+    pub relayer: Option<String>,
+    /// `"relayerWaitSeconds"` (default 120): R-2.
+    pub relayer_wait: Duration,
 }
 impl Config {
     pub fn read(path: &str) -> Res<Self> {
@@ -687,6 +738,17 @@ impl Config {
             },
             work: PathBuf::from(text("workDir")?).join("jobs"),
             stop_after: value["stopAfter"].as_u64().map(|n| n as usize),
+            relayer: match optional("relayer") {
+                Some(url)
+                    if !(url.starts_with("https://") || url.starts_with("http://127.0.0.1")) =>
+                {
+                    return Err(
+                        "a relayer must be https:// (or http://127.0.0.1 for a local test)".into(),
+                    );
+                }
+                other => other,
+            },
+            relayer_wait: Duration::from_secs(value["relayerWaitSeconds"].as_u64().unwrap_or(120)),
             limits: Limits {
                 settle_margin: value["settleMarginSeconds"]
                     .as_u64()
@@ -750,6 +812,11 @@ pub fn parts(config: &Config) -> Res<(Terms, Prover, OnChain, Keys)> {
         token: world.token,
         base: config.base.clone(),
         limits: config.limits,
+        relayer: config.relayer.as_ref().map(|url| {
+            Arc::new(crate::relay::RelayClient::new(url, keys.possession.clone()))
+                as Arc<dyn crate::relay::RelayApi>
+        }),
+        relayer_wait: config.relayer_wait,
     };
     let prover = Prover {
         command: config.prover.clone(),

@@ -26,6 +26,8 @@ fn reason(status: u16) -> &'static str {
         410 => "Gone",
         413 => "Content Too Large",
         422 => "Unprocessable Content",
+        429 => "Too Many Requests",
+        500 => "Internal Server Error",
         503 => "Service Unavailable",
         _ => "Error",
     }
@@ -91,6 +93,22 @@ fn respond(stream: &mut TcpStream, reply: &Reply) -> Res<()> {
     stream.write_all(head.as_bytes())?;
     stream.write_all(&reply.body)?;
     Ok(())
+}
+
+/// Read one request from `stream`, answer it with `handle`, and close.
+/// `handle` is given the peer's address. The size limits of `read_request`
+/// apply.
+pub fn answer(
+    mut stream: TcpStream,
+    handle: impl FnOnce(std::net::IpAddr, &Request) -> Reply,
+) -> Res<()> {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+    let peer = stream.peer_addr()?.ip();
+    let reply = match read_request(&mut stream) {
+        Err(reply) => reply,
+        Ok(request) => handle(peer, &request),
+    };
+    respond(&mut stream, &reply)
 }
 
 /// Serve the seller over HTTP until the process ends. One request per

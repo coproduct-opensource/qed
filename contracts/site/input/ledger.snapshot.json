@@ -1,13 +1,13 @@
 {
   "networks": [
     {
-      "block": 328693405,
+      "block": 328745786,
       "chainId": 421614,
       "key": "arbitrum-sepolia",
       "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
     },
     {
-      "block": 56739681,
+      "block": 56810565,
       "chainId": 8453,
       "key": "base",
       "rpc": "https://base-rpc.publicnode.com"
@@ -74,7 +74,7 @@
         "transaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -145,7 +145,7 @@
         "transaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -216,7 +216,7 @@
         "transaction": "0x00528f833084175726816eb3b8da3fcbb47e1bbe9fefd1262617bc42443d993e"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -290,7 +290,7 @@
         "transaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf"
       },
       "snapshot": {
-        "block": 56739681,
+        "block": 56810565,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -361,7 +361,7 @@
         "transaction": "0x0459ba1e98d495ddf25dc996b93cd9d89311c271220aa3d055a810419337ef66"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -432,7 +432,7 @@
         "transaction": "0xfe7e8855170f71532e6200feef0d5685868565d05216dd0426d6cb7d7cc4825c"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -506,7 +506,7 @@
         "transaction": "0x91bd2e1c4a9391314e04fea4abb069bf8e1f15cb8bc24df576345ee499eeb7c7"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -580,7 +580,7 @@
         "transaction": "0x14c95288fd99780b54f176a7cfdf5d025861a4779346d83073ec14603b5bb44d"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -654,7 +654,7 @@
         "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -728,7 +728,7 @@
         "transaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -802,7 +802,7 @@
         "transaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -876,7 +876,7 @@
         "transaction": "0xb90258b2ccbc4fb76dbc4653a222252cbfca05918f6f8868360e76861df38549"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -950,7 +950,7 @@
         "transaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1024,7 +1024,7 @@
         "transaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1098,7 +1098,7 @@
         "transaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1172,7 +1172,7 @@
         "transaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1246,7 +1246,7 @@
         "transaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3"
       },
       "snapshot": {
-        "block": 328693405,
+        "block": 328745786,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1259,5 +1259,5 @@
     }
   ],
   "schema": "qed-ledger-snapshot/1",
-  "takenAt": 1794538311
+  "takenAt": 1794552488
 }

@@ -410,7 +410,8 @@ fn system_clock() -> u64 {
 /// hint is a loopback or private address is passed over) and `quoteOnly`
 /// (default false; when true the seller goes as far as a checked artifact
 /// and the buyer's review of its offer, takes no authorization, and sends
-/// nothing to the chain; `stopAfter` then counts reviewed offers).
+/// nothing to the chain; `stopAfter` then counts reviewed offers), and
+/// `onlyPoster` (an address: answer only that poster's tasks).
 pub fn watch(args: &[String]) -> Res<()> {
     let [path] = args else {
         return Err("usage: nucleus-seller watch CONFIG.json".into());
@@ -428,6 +429,12 @@ pub fn watch(args: &[String]) -> Res<()> {
     let poll = std::time::Duration::from_secs(extra["pollSeconds"].as_u64().unwrap_or(5));
     let allow_private = extra["allowPrivatePeers"].as_bool().unwrap_or(false);
     let quote_only = extra["quoteOnly"].as_bool().unwrap_or(false);
+    // `onlyPoster`: answer only tasks posted by this address (a dedicated
+    // test, leaving every other buyer's tasks alone).
+    let only_poster = match extra["onlyPoster"].as_str() {
+        Some(text) => Some(crate::world::address_arg(text)?),
+        None => None,
+    };
 
     let mut cursor = match extra["startBlock"].as_u64() {
         Some(block) => block,
@@ -459,6 +466,10 @@ pub fn watch(args: &[String]) -> Res<()> {
                 continue;
             }
             let id = hex(&posted.id);
+            if only_poster.is_some_and(|only| only != posted.poster) {
+                println!("seller: task {id} is another poster's; left alone");
+                continue;
+            }
             if board.withdrawn(posted.id)? {
                 println!("seller: task {id} was withdrawn");
                 continue;
