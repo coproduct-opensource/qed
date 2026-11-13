@@ -905,7 +905,7 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         pages::verify(input, &programs, &build),
         pages::test_vectors(),
         pages::source(input),
-        pages::run_a_seller(),
+        pages::run_a_seller(input.mainnet.as_ref()),
         pages::a2a_binding(&spec),
     ];
     // The bounty's steps build from the public source, so the page exists
