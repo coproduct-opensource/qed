@@ -271,6 +271,142 @@ pub fn threat_model_distinguishes(base: &str) -> Res<Vec<String>> {
         .collect())
 }
 
+/// 7b. Every review finding on the threat model has a state (open, fixed in
+///     the current deployment, or applies only to historical deployments)
+///     and the date it took it.
+pub fn threat_findings_have_states(base: &str) -> Res<Vec<String>> {
+    let html = text(&get(base, "/protocol/threat-model", None)?);
+    let caption = format!(
+        "<caption>{}</caption>",
+        crate::html::esc(crate::pages::FINDINGS_CAPTION)
+    );
+    let Some(table) = html
+        .split(&caption)
+        .nth(1)
+        .and_then(|rest| rest.split("</table>").next())
+    else {
+        return Ok(vec!["threat model has no findings table".into()]);
+    };
+    let labels: Vec<&str> = crate::pages::FindingState::ALL
+        .iter()
+        .map(|s| s.label())
+        .collect();
+    let body = table.split("<tbody>").nth(1).unwrap_or("");
+    let mut out = Vec::new();
+    let mut rows = 0;
+    for row in body.split("<tr>").skip(1) {
+        rows += 1;
+        let cells: Vec<String> = row
+            .split("</th>")
+            .flat_map(|part| part.split("</td>"))
+            .map(|cell| visible_text(cell).trim().to_owned())
+            .collect();
+        let what = cells.first().cloned().unwrap_or_default();
+        let state = cells.get(1).cloned().unwrap_or_default();
+        let since = cells.get(2).cloned().unwrap_or_default();
+        if !labels.contains(&state.as_str()) {
+            out.push(format!("finding {what:?} has no state ({state:?})"));
+        }
+        let dated = since.len() == 10
+            && since.chars().enumerate().all(|(i, c)| {
+                if i == 4 || i == 7 {
+                    c == '-'
+                } else {
+                    c.is_ascii_digit()
+                }
+            });
+        if !dated {
+            out.push(format!("finding {what:?} has no date ({since:?})"));
+        }
+    }
+    if rows == 0 {
+        out.push("the findings table has no rows".into());
+    }
+    Ok(out)
+}
+
+/// 13. The card links a protocol manifest and a seller's instructions; both
+///     are served, the manifest names the same contracts as
+///     `deployment.json`, the instructions carry the steps, and the card
+///     itself no longer carries them.
+pub fn card_documents(base: &str) -> Res<Vec<String>> {
+    let mut out = Vec::new();
+    let card_text = text(&get(base, &format!("/{CARD_PATH}"), None)?);
+    let card: Value = serde_json::from_str(&card_text)?;
+    // The card's links are absolute on the site it names; the path is what
+    // this host serves.
+    let path_of = |url: &str| -> String {
+        match url.split_once("://") {
+            Some((_, rest)) => rest.find('/').map_or("/".into(), |i| rest[i..].to_owned()),
+            None => url.to_owned(),
+        }
+    };
+    let params = &card["capabilities"]["extensions"][0]["params"];
+    let (Some(manifest_url), Some(skill_url)) =
+        (params["manifest"].as_str(), params["sellerSkill"].as_str())
+    else {
+        return Ok(vec![
+            "the card's extension names no manifest or seller skill".into(),
+        ]);
+    };
+    if !card["description"]
+        .as_str()
+        .is_some_and(|d| d.contains(manifest_url))
+    {
+        out.push("the card's description does not name the manifest".into());
+    }
+    let sell = card["skills"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|s| s["id"] == "sell-proof");
+    if !sell
+        .and_then(|s| s["description"].as_str())
+        .is_some_and(|d| d.contains(skill_url))
+    {
+        out.push("the card's sell-proof skill does not link the seller skill".into());
+    }
+    if card_text.contains("container system start") {
+        out.push("the card still carries the seller's shell steps".into());
+    }
+    let manifest = get(base, &path_of(manifest_url), None)?;
+    if manifest.status != 200 || !manifest.content_type.starts_with("application/json") {
+        out.push(format!(
+            "{manifest_url}: status {} type {}",
+            manifest.status, manifest.content_type
+        ));
+    } else {
+        let m: Value = serde_json::from_slice(&manifest.body)?;
+        let deployment: Value = serde_json::from_slice(&get(base, "/deployment.json", None)?.body)?;
+        if m["deployment"] != deployment {
+            out.push("the manifest's deployment is not deployment.json".into());
+        }
+        for abi in m["interfaces"]["contracts"]["abis"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter_map(|(_, url)| url.as_str())
+        {
+            if get(base, &path_of(abi), None)?.status != 200 {
+                out.push(format!("the manifest names {abi}, which is not served"));
+            }
+        }
+        if m["interfaces"]["iroh"]["alpn"].as_str().is_none() {
+            out.push("the manifest names no iroh ALPN".into());
+        }
+    }
+    let skill = get(base, &path_of(skill_url), None)?;
+    if skill.status != 200 || !skill.content_type.starts_with("text/markdown") {
+        out.push(format!(
+            "{skill_url}: status {} type {}",
+            skill.status, skill.content_type
+        ));
+    } else if !text(&skill).contains("container system start") {
+        out.push(format!("{skill_url} carries no steps"));
+    }
+    Ok(out)
+}
+
 /// 8. No page asks for an account, a wallet or a login, and every page's
 ///    heading is in its visible text.
 pub fn no_account_or_script_needed(base: &str, paths: &[String]) -> Res<Vec<String>> {

@@ -90,7 +90,18 @@ pub struct Recorded {
     pub what: String,
     /// Where the authors recorded it.
     pub record: String,
+    /// Who held the keys, when it was not the authors alone: one sentence
+    /// naming the party that was not the authors. Absent: both keys were the
+    /// authors' ([`AUTHORS_HELD`]), the statement that claims less. Recording
+    /// an outside settlement here, then taking a snapshot, is what moves the
+    /// site off "authors only" ([`Snapshot::counterparties`]).
+    #[serde(default)]
+    pub outside_party: Option<String>,
 }
+
+/// The receipt note for a settlement whose buyer and seller keys were both
+/// the authors'.
+pub const AUTHORS_HELD: &str = "Buyer and seller keys were both held by the authors.";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -100,6 +111,10 @@ pub struct LedgerInput {
     pub vaults: Vec<NamedVault>,
     pub programs: Vec<KnownProgram>,
     pub settlements: Vec<Recorded>,
+    /// The settlement the home page explains in plain words (its order
+    /// digest). Every number shown for it is read from its receipt.
+    #[serde(default)]
+    pub featured: Option<String>,
 }
 
 impl LedgerInput {
@@ -157,6 +172,36 @@ impl Snapshot {
 impl Snapshot {
     pub fn receipts(&self) -> &[Value] {
         self.value["receipts"].as_array().map_or(&[], Vec::as_slice)
+    }
+    /// Who has traded, from the receipts' own counterparty notes. A note
+    /// other than [`AUTHORS_HELD`] names an outside party: the earliest such
+    /// receipt moves every page off "authors only". Every note
+    /// [`AUTHORS_HELD`]: authors only. Some note absent and none outside:
+    /// `None`, the ledger cannot say, and the caller keeps the input's
+    /// statement. The public copy of the snapshot has no notes (the release
+    /// tool removes them), and an absent note is not an outside trade.
+    pub fn counterparties(&self) -> Option<crate::Counterparties> {
+        let note = |r: &Value| r["asserted"]["counterparties"].as_str().map(str::to_owned);
+        if let Some(r) = self
+            .receipts()
+            .iter()
+            .find(|r| note(r).is_some_and(|n| n != AUTHORS_HELD))
+        {
+            return Some(crate::Counterparties::Outside {
+                first_outside_settlement: r["id"].as_str().unwrap_or_default().to_owned(),
+            });
+        }
+        self.receipts()
+            .iter()
+            .all(|r| note(r).as_deref() == Some(AUTHORS_HELD))
+            .then_some(crate::Counterparties::AuthorsOnly)
+    }
+    /// Receipts paid in a token the ledger names as real money.
+    pub fn real_money(&self) -> Vec<&Value> {
+        self.receipts()
+            .iter()
+            .filter(|r| !r["asserted"]["realMoney"].is_null())
+            .collect()
     }
     /// Read `ledger.snapshot.json` and the artifacts beside it.
     pub fn read(path: &Path) -> Res<Self> {
@@ -482,7 +527,7 @@ fn receipt_for(input: &LedgerInput, record: &Recorded, head: u64) -> Res<(Value,
         "asserted": {
             "assertedBy": "authors",
             "what": record.what,
-            "counterparties": "Buyer and seller keys were both held by the authors.",
+            "counterparties": record.outside_party.as_deref().unwrap_or(AUTHORS_HELD),
             "record": record.record,
             "vaultName": vault_name,
             "program": program_name,

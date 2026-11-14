@@ -30,6 +30,7 @@
     { "imageId": "704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed", "name": "third-form order program, statement format v2, rebuilds from source (nucleus-order-fmt2r.bin)", "status": "published" },
     { "imageId": "4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440", "name": "base program, statement format v2, rebuilds from source (nucleus-base-check-fmt2r.bin)", "status": "published" }
   ],
+  "featured": "0xa2f139e12b7aaee29d7c800754b4f4db2007e69b112274d26c417e3d701f07a6",
   "settlements": [
     { "network": "arbitrum-sepolia", "settleTransaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218", "what": "First settlement on a public chain, in a test token deployed by the authors.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },
     { "network": "arbitrum-sepolia", "settleTransaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780", "what": "Same vault, paid in Circle's test USDC.", "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md" },

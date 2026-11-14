@@ -31,6 +31,9 @@
     padding: clamp(1rem, 4vw, 3rem);
     background: var(--paper);
     color: var(--ink);
+    /* A 42-character address in running text is one word; at 390 px it
+       pushed /status 20 px past the screen (2026-11-14). */
+    overflow-wrap: break-word;
   }
   h1, h2, h3 { line-height: 1.2; text-wrap: balance; font-weight: normal; }
   h1 { font-size: 2rem; margin-block: 0.5rem 0.75rem; letter-spacing: 0.02em; }

@@ -445,6 +445,32 @@ fn curl(rpc: &str, read: &Value, st: &StatusInput) -> String {
     format!("curl -s {rpc} -H 'content-type: application/json' \\\n  -d '{text}'")
 }
 
+/// A query as the page offers it: with a copy control when it runs as it
+/// is, and otherwise as a template under a line saying what to replace,
+/// without one (`crate::commands`).
+fn query(id: &str, text: String) -> Vec<Block> {
+    let missing = crate::commands::placeholders(&text);
+    if missing.is_empty() {
+        vec![Block::Pre {
+            id: id.into(),
+            text,
+            copy: Some("Copy".into()),
+        }]
+    } else {
+        vec![
+            para(&format!(
+                "Template, not runnable as it is: replace {}.",
+                missing.join(", ")
+            )),
+            Block::Pre {
+                id: id.into(),
+                text,
+                copy: None,
+            },
+        ]
+    }
+}
+
 fn wallet(address: &str, st: &StatusInput, role: &str) -> Vec<crate::doc::Inline> {
     if st.publish_wallets {
         vec![code(address.to_owned())]
@@ -497,11 +523,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             .cloned()
             .unwrap_or(Value::Null)
     };
-    let pre = |id: &str, text: String| Block::Pre {
-        id: format!("q-{id}"),
-        text,
-        copy: Some("Copy".into()),
-    };
+    let pre = |id: &str, text: String| query(&format!("q-{id}"), text);
     let log_reads = |prefix: &str| -> Vec<Value> {
         reads
             .iter()
@@ -560,7 +582,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             ),
         ],
     );
-    blocks.push(h2("source", "What you are looking at"));
+    blocks.push(h2("source", "Snapshot"));
     blocks.push(Block::Rendered {
         html: Html::join([
             html::tx(
@@ -595,7 +617,15 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
                 .collect::<String>()
         ),
     });
-    blocks.push(pre("block", curl(rpc_url, &read("block"), st)));
+    // The compact summary goes here, under the balances; the sections
+    // below fill it, and keep their raw queries in disclosures.
+    let summary_at = blocks.len();
+    let mut summary: Vec<Line> = Vec::new();
+    let queries = |blocks: Vec<Block>| Block::Details {
+        summary: "Queries".into(),
+        blocks,
+    };
+    blocks.push(queries(pre("block", curl(rpc_url, &read("block"), st))));
 
     // The bounty.
     let b = &m.bounty;
@@ -656,10 +686,10 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         .iter()
         .filter(|p| !p["withdrawnIn"].is_string() && p["fundBy"].as_u64().unwrap_or(0) >= now)
         .count();
-    blocks.push(p(vec![strong(format!(
+    summary.push(vec![strong(format!(
         "{} posts on the board, {open} open at block {block}.",
         posts.len()
-    ))]));
+    ))]);
     blocks.push(Block::Table {
         caption: "Posts on the board, from its Posted and Withdrawn events".into(),
         head: [
@@ -675,13 +705,14 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         .to_vec(),
         rows,
     });
+    let mut bounty_queries = Vec::new();
     for r in log_reads("board-logs") {
-        blocks.push(pre(
+        bounty_queries.extend(pre(
             r["id"].as_str().unwrap_or("board"),
             curl(rpc_url, &r, st),
         ));
     }
-    blocks.push(p(vec![
+    summary.push(vec![
         strong(format!(
             "Remaining: {remaining_tasks} of {} tasks, {} of {}.",
             b.tasks,
@@ -689,11 +720,11 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             usdc(u128::from(b.budget))
         )),
         t(format!(
-            " Derived from the buyer's Funded less Refunded events on the vault ({} and {}).",
+            " From the buyer's Funded less Refunded events ({} and {}).",
             buyer_funded.len(),
             buyer_refunded.len(),
         )),
-    ]));
+    ]);
     let mut fund = vec![
         strong(format!("Funding: {}", usdc(n(&s["buyerUsdc"])))),
         t(" held by the bounty buyer."),
@@ -703,8 +734,9 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             " Less than one task's price: the buyer cannot fund an order.",
         ));
     }
-    blocks.push(p(fund));
-    blocks.push(pre("buyer-usdc", curl(rpc_url, &read("buyer-usdc"), st)));
+    summary.push(fund);
+    bounty_queries.extend(pre("buyer-usdc", curl(rpc_url, &read("buyer-usdc"), st)));
+    blocks.push(queries(bounty_queries));
 
     // Payouts and the vault's books.
     blocks.push(h2("payouts", "Payouts and what the vault owes"));
@@ -743,22 +775,31 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         .saturating_sub(books0.settled_deposits + books0.refunded);
     let owed = books0.booked.saturating_sub(books0.claimed);
     let holds = n(&vault0["usdcHeld"]);
-    blocks.push(Block::Ul(vec![
-        vec![t(format!("Deposits of open orders: {}.", usdc(held_deposits)))],
-        vec![t(format!("Booked, not yet claimed: {}.", usdc(owed)))],
-        vec![t(format!(
-            "USDC the vault holds: {}. {}",
-            usdc(holds),
-            if holds == held_deposits + owed { "It equals the two lines above." } else { "It does not equal the two lines above: a transfer outside fund, or an event this page does not read." }
-        ))],
-    ]));
+    summary.push(vec![
+        strong(format!("The vault holds {}:", usdc(holds))),
+        t(if holds == held_deposits + owed {
+            format!(
+                " open deposits {} plus booked, unclaimed {}.",
+                usdc(held_deposits),
+                usdc(owed)
+            )
+        } else {
+            format!(
+                " not open deposits {} plus booked, unclaimed {}: a transfer outside fund, or an event this page does not read.",
+                usdc(held_deposits),
+                usdc(owed)
+            )
+        }),
+    ]);
+    let mut vault_queries = Vec::new();
     for r in log_reads("vault0-logs") {
-        blocks.push(pre(
+        vault_queries.extend(pre(
             r["id"].as_str().unwrap_or("vault"),
             curl(rpc_url, &r, st),
         ));
     }
-    blocks.push(pre("vault0-usdc", curl(rpc_url, &read("vault0-usdc"), st)));
+    vault_queries.extend(pre("vault0-usdc", curl(rpc_url, &read("vault0-usdc"), st)));
+    blocks.push(queries(vault_queries));
 
     // The relayer.
     blocks.push(h2("relayer", "The gas relayer"));
@@ -771,8 +812,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     ];
     line.extend(wallet(&st.relayer, st, "relayer's wallet"));
     line.push(t(format!(
-        ". It holds {} at block {block}; its floor is {}, set as {}. {}",
-        eth(wei),
+        ". Its floor is {}, set as {}. {}",
         eth(floor),
         st.relayer_floor_source,
         if wei > floor {
@@ -782,17 +822,24 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         }
     )));
     blocks.push(p(line));
-    blocks.push(pre("relayer-eth", curl(rpc_url, &read("relayer-eth"), st)));
+    let mut relayer_queries = pre("relayer-eth", curl(rpc_url, &read("relayer-eth"), st));
     let reach = &s["relayerReach"];
-    blocks.push(p(vec![
-        strong(match reach["answer"]["status"].as_u64() {
-            Some(401) => "Up: a request without a proof was refused with 401.".to_string(),
-            Some(code) => format!("Answered {code} to a request without a proof (401 is what a running relayer answers)."),
-            None => "No answer to a request without a proof.".to_string(),
-        }),
-        t(format!(" Checked {} by the build; 401 means up:", date(reach["checkedAt"].as_u64().unwrap_or(0)))),
-    ]));
-    blocks.push(pre(
+    let up = match reach["answer"]["status"].as_u64() {
+        Some(401) => "Up: a request without a proof was refused with 401.".to_string(),
+        Some(code) => format!(
+            "Answered {code} to a request without a proof (401 is what a running relayer answers)."
+        ),
+        None => "No answer to a request without a proof.".to_string(),
+    };
+    summary.push(vec![
+        strong("Relayer."),
+        t(format!(
+            " {up} Checked {} by the build. It holds {}.",
+            date(reach["checkedAt"].as_u64().unwrap_or(0)),
+            eth(wei)
+        )),
+    ]);
+    relayer_queries.extend(pre(
         "relay-reach",
         format!("curl -s -o /dev/null -w '%{{http_code}}\\n' -X POST {} -H 'content-type: application/json' -d '{{}}'", reach["url"].as_str().unwrap_or("")),
     ));
@@ -850,15 +897,36 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             format!("; {} are not identified here", (sent as usize).saturating_sub(found.len()))
         }
     ))]));
-    blocks.push(pre(
+    relayer_queries.extend(pre(
         "relayer-nonce",
         curl(rpc_url, &read("relayer-nonce"), st),
     ));
-    for r in log_reads("sweeps") {
-        blocks.push(pre(
-            r["id"].as_str().unwrap_or("sweeps"),
-            curl(rpc_url, &r, st),
+    // Each sweep found, by its own transaction: the receipt's Transfer log
+    // names the payee and its sender is the relayer. Runs as it is.
+    for (k, e) in sweeps.iter().enumerate() {
+        let tx = e["transaction"].as_str().unwrap_or("");
+        relayer_queries.extend(pre(
+            &format!("sweep{k}-receipt"),
+            format!(
+                "curl -s {rpc_url} -H 'content-type: application/json' \\\n  -d '{}'",
+                json!({"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionReceipt", "params": [tx]})
+            ),
         ));
+    }
+    // The search that found them names a payee the page does not publish, so
+    // it is shown as a template, without a copy control.
+    let sweep_reads = log_reads("sweeps");
+    if !sweep_reads.is_empty() {
+        relayer_queries.push(para(
+            "Templates of the search that found them (PAYEE: a payee's address, topic 1 of a Claimed event, padded to 64 hex digits):",
+        ));
+        for r in sweep_reads {
+            relayer_queries.push(Block::Pre {
+                id: format!("q-{}", r["id"].as_str().unwrap_or("sweeps")),
+                text: curl(rpc_url, &r, st),
+                copy: None,
+            });
+        }
     }
     if !relayed_rows.is_empty() {
         blocks.push(Block::Table {
@@ -869,6 +937,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             rows: relayed_rows,
         });
     }
+    blocks.push(queries(relayer_queries));
     for (index, v) in s["vaults"]
         .as_array()
         .cloned()
@@ -884,12 +953,12 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             m.network.log_range.unwrap_or(10_000)
         ))];
         for r in log_reads(&format!("vault{index}-logs")) {
-            queries.push(pre(
+            queries.extend(pre(
                 r["id"].as_str().unwrap_or("vault"),
                 curl(rpc_url, &r, st),
             ));
         }
-        queries.push(pre(
+        queries.extend(pre(
             &format!("vault{index}-usdc"),
             curl(rpc_url, &read(&format!("vault{index}-usdc")), st),
         ));
@@ -901,6 +970,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     blocks.push(para(
         "Not shown: the relayer's per-restart gas budget, which lives in its memory and is not on chain.",
     ));
+    blocks.insert(summary_at, Block::Ul(summary));
     let data = json!({
         "status": {
             "rpc": m.network.rpc,

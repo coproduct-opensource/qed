@@ -109,9 +109,8 @@ fn leaks(text: &str, forbidden: &[String]) -> Vec<String> {
 #[test]
 fn the_card_fits_the_schema_and_the_protos_required_fields() {
     let input = input();
-    let programs = published(&input, repository()).unwrap();
     let bundle = schema::Bundle::vendored();
-    let good = card(&input, &programs, Some(SITE));
+    let good = card(&input, Some(SITE));
     assert_eq!(bundle.check("AgentCard", &good), vec![]);
     assert_eq!(card_violations(&good), Vec::<String>::new());
     let mut broken = good.clone();
@@ -239,8 +238,8 @@ fn every_document_has_html_and_markdown_and_the_markdown_says_the_same_facts() {
     let home = file(&files, "index.md");
     for fact in [
         AUTHORS_ONLY,
-        "unaudited",
-        "Don't trust us. Ask your agent.",
+        "Unaudited.",
+        "Don't trust this explanation. Ask your agent.",
         CARD_PATH,
     ] {
         assert!(home.contains(fact), "{fact}");
@@ -489,7 +488,9 @@ fn the_bounty_page_states_the_input_and_names_no_mainnet_treasury() {
     ] {
         assert!(page.contains(&needle), "bounty page lacks {needle}");
     }
-    assert!(file(&files, "index.html").contains("href=\"/bounty\""));
+    // Reachable from every page: the index's Participate, which links it.
+    assert!(file(&files, "index.html").contains("href=\"/participate\""));
+    assert!(file(&files, "participate/index.html").contains("href=\"/bounty\""));
     let deployment: Value = serde_json::from_str(file(&files, "deployment.json")).unwrap();
     assert_eq!(deployment["mainnet"]["board"]["address"], m.board.address);
     assert!(deployment["mainnet"]["vault"].get("treasury").is_none());
@@ -670,8 +671,13 @@ fn the_decoders_test_logs_are_published_and_embedded_for_the_ledger_page() {
     }
 }
 
+/// Who has traded is the ledger's to say: while every receipt's counterparty
+/// note says both keys were the authors', the home page, the ledger and the
+/// card say so; one receipt recorded with an outside party moves every one
+/// of them, with no edit to the site's input. The input may not claim an
+/// outside trade the receipts do not show.
 #[test]
-fn who_has_traded_is_said_until_the_input_says_otherwise_with_evidence() {
+fn who_has_traded_follows_the_ledgers_counterparty_notes() {
     let input = input();
     assert!(matches!(
         input.assurance.counterparties,
@@ -684,12 +690,116 @@ fn who_has_traded_is_said_until_the_input_says_otherwise_with_evidence() {
             "{page}"
         );
     }
-    let mut outside = input.clone();
-    outside.assurance.counterparties = Counterparties::Outside {
+    assert!(file(&files, "index.html").contains("Independent third-party commerce is unproven."));
+    assert!(file(&files, CARD_PATH).contains(AUTHORS_ONLY));
+    // One outside settlement in the ledger, nothing else changed.
+    let (l, mut s) = ledger();
+    let last = s.value["receipts"].as_array().unwrap().len() - 1;
+    s.value["receipts"][last]["asserted"]["counterparties"] =
+        json!("The seller was not the authors: a stranger's wallet.");
+    let outside_id = s.value["receipts"][last]["id"].as_str().unwrap().to_owned();
+    let key = test_key();
+    let options = Options {
+        site_url: Some(SITE),
+        ledger: Some((&l, &s)),
+        card_key: Some(&key),
+        source_commit: Some("0123456789ab"),
+    };
+    let flipped = site(&input, repository(), &options).unwrap();
+    let home = file(&flipped, "index.html");
+    assert!(home.contains("A party other than the authors"));
+    assert!(home.contains(&format!("/transactions/{outside_id}")));
+    for page in ["index.html", "transactions/index.html", CARD_PATH] {
+        assert!(
+            !file(&flipped, page).contains(&nucleus_site::html::esc(AUTHORS_ONLY)),
+            "{page} still says authors only"
+        );
+    }
+    // Every note says the authors: the input claiming an outside trade is
+    // refused.
+    let (l, mut s) = ledger();
+    for r in s.value["receipts"].as_array_mut().unwrap() {
+        r["asserted"]["counterparties"] = json!(nucleus_site::ledger::AUTHORS_HELD);
+    }
+    let mut claims = input.clone();
+    claims.assurance.counterparties = Counterparties::Outside {
         first_outside_settlement: "0x".to_owned() + &"1".repeat(64),
     };
-    let home = built(&outside, Some(SITE));
-    assert!(file(&home, "index.html").contains("A party other than the authors"));
+    let options = Options {
+        site_url: Some(SITE),
+        ledger: Some((&l, &s)),
+        card_key: Some(&key),
+        source_commit: Some("0123456789ab"),
+    };
+    assert!(site(&claims, repository(), &options).is_err());
+    // No notes at all (the public copy of the snapshot, from which the
+    // release tool removes them): the ledger cannot say, and an absent note
+    // is not an outside trade. Found 2026-11-14 when the public tree's tests
+    // ran: the first version read an absent note as an outside party.
+    for r in s.value["receipts"].as_array_mut().unwrap() {
+        r["asserted"]
+            .as_object_mut()
+            .unwrap()
+            .remove("counterparties");
+    }
+    let options = Options {
+        site_url: Some(SITE),
+        ledger: Some((&l, &s)),
+        card_key: Some(&key),
+        source_commit: Some("0123456789ab"),
+    };
+    let noteless = site(&input, repository(), &options).unwrap();
+    let home = file(&noteless, "index.html");
+    assert!(home.contains(&nucleus_site::html::esc(AUTHORS_ONLY)));
+    assert!(!home.contains("A party other than the authors"));
+    assert!(!home.contains("A trade with a party other than the authors"));
+}
+
+/// The home page's numbers come from the data: the fee from the deployed
+/// vault (the verification report's reading of `feeBps_`, which the input
+/// must equal), and the example payment's amounts from its receipt.
+#[test]
+fn the_home_pages_numbers_are_the_chains() {
+    let i = input();
+    let verified: Value = serde_json::from_slice(
+        &std::fs::read(repository().join(nucleus_site::pages::VERIFIED_PATH)).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        nucleus_site::deployed_fee_bps(&i, Some(&verified)).unwrap(),
+        25
+    );
+    let mut wrong = i.clone();
+    wrong.mainnet.as_mut().unwrap().vault.fee_bps = 30;
+    assert!(nucleus_site::deployed_fee_bps(&wrong, Some(&verified)).is_err());
+    let files = built(&i, Some(SITE));
+    let home = file(&files, "index.html");
+    assert!(home.contains("Base mainnet · 0.25% settlement fee · Unaudited."));
+    let (l, s) = ledger();
+    let id = l.featured.as_deref().expect("a featured settlement");
+    let r = s
+        .receipts()
+        .iter()
+        .find(|r| r["id"] == id)
+        .expect("the featured settlement is in the snapshot");
+    for (units, what) in [
+        (&r["order"]["amount"], "funded"),
+        (&r["booked"]["seller"], "seller owed"),
+        (&r["booked"]["fee"], "fee"),
+    ] {
+        let shown = format!(
+            "{} USDC",
+            nucleus_site::amount(units.as_str().unwrap().parse().unwrap(), 6)
+        );
+        assert!(
+            home.contains(&format!("<dd>{shown}</dd>")),
+            "{what}: {shown}"
+        );
+    }
+    assert!(home.contains(&format!("href=\"/transactions/{id}\"")));
+    assert_eq!(nucleus_site::pages::percent(25), "0.25%");
+    assert_eq!(nucleus_site::pages::percent(100), "1%");
+    assert_eq!(nucleus_site::pages::percent(50), "0.5%");
 }
 
 #[test]
@@ -776,9 +886,43 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
         "the bounty page does not point to the seller page"
     );
     assert!(
-        file(&files, "index.html").contains("href=\"/sellers/run\""),
+        file(&files, "index.html").contains("href=\"/participate\"")
+            && file(&files, "participate/index.html").contains("href=\"/sellers/run\""),
         "the seller page is not reachable from the index"
     );
+}
+
+/// Every command a page offers to copy runs as it is (owner review,
+/// 2026-11-14): no copy control sits on a command with a placeholder in it.
+/// A command that needs the reader's own value is a template without a copy
+/// control. Red on the build of 2026-11-14 (`62d83fa69`): the status page's
+/// sweep queries carried `PAYEE` inside an encoded topic.
+#[test]
+fn no_copyable_command_holds_a_placeholder() {
+    use nucleus_site::commands::{copyable, placeholders};
+    let files = built(&input(), Some(SITE));
+    let mut found = Vec::new();
+    let mut commands = 0;
+    for (path, html) in html_files(&files) {
+        for (id, text) in copyable(&html) {
+            commands += 1;
+            if text.is_empty() {
+                found.push(format!("{path} #{id}: copy control names no <pre>"));
+            }
+            for p in placeholders(&text) {
+                found.push(format!("{path} #{id}: {p}"));
+            }
+        }
+    }
+    assert!(commands >= 20, "{commands} copyable commands");
+    assert_eq!(found, Vec::<String>::new());
+    // Red: the status page's sweep query as it was published.
+    let before = "<div class=\"copyable\"><pre id=\"q-sweeps0-0\">curl -s https://base-rpc.publicnode.com -d '{&quot;topics&quot;:[&quot;0x000000000000000000000000000000000000000000000000000000000000PAYEE&quot;]}'</pre><button type=\"button\" data-copy=\"q-sweeps0-0\" hidden>Copy</button></div>";
+    let flagged: Vec<String> = copyable(before)
+        .iter()
+        .flat_map(|(_, t)| placeholders(t))
+        .collect();
+    assert_eq!(flagged.len(), 1, "{flagged:?}");
 }
 
 /// The owner's limit (2026-11-14): the whole site under 3,000 words of prose,

@@ -79,15 +79,23 @@ impl Drop for Served {
     }
 }
 
-const FACTS: [&str; 8] = [
+/// What the home page must show without scripts (owner review, 2026-11-14):
+/// the claim, the prompt to check it, the terms line (fee from the deployed
+/// vault), the maturity caveat (from the ledger's counterparty notes) and
+/// one real payment, with its amounts read from its receipt. The cautions
+/// the page carried until then are on the technical reference.
+const FACTS: [&str; 11] = [
     "Q.E.D.",
-    "Don't trust us. Ask your agent.",
+    "COPRODUCT / NUCLEUS",
+    "When the proof checks, the contract pays.",
+    "Don't trust this explanation. Ask your agent.",
+    "Base mainnet · 0.25% settlement fee · Unaudited.",
     AUTHORS_ONLY,
-    "The contracts are unaudited.",
-    "Live on Base mainnet, in USDC.",
-    "Sellers need no ETH.",
-    "The current proof programs rebuild from source, byte for byte.",
-    "Plain HTML. No account required.",
+    "Independent third-party commerce is unproven.",
+    "A payment that actually happened",
+    "1 USDC",
+    "0.9975 USDC",
+    "0.0025 USDC",
 ];
 
 #[test]
@@ -99,9 +107,11 @@ fn the_root_page_is_complete_without_scripts() {
     );
     // Red: a fact moved into an element shown only by the script.
     s.edit("index.html", |t| {
+        let fact = "<strong>Base mainnet · 0.25% settlement fee · Unaudited.</strong>";
+        assert!(t.contains(fact));
         t.replace(
-            "<strong>The contracts are unaudited.</strong>",
-            "<span hidden>The contracts are unaudited.</span>",
+            fact,
+            "<span hidden>Base mainnet · 0.25% settlement fee · Unaudited.</span>",
         )
     });
     assert_eq!(
@@ -221,6 +231,51 @@ fn the_threat_model_distinguishes_proven_tested_and_assumed() {
 }
 
 #[test]
+fn every_review_finding_has_a_dated_state() {
+    let s = Served::new("findings");
+    assert_eq!(
+        harness::threat_findings_have_states(&s.base).unwrap(),
+        Vec::<String>::new()
+    );
+    // Red: one finding's state removed, and another's date.
+    s.edit("protocol/threat-model/index.html", |t| {
+        let t = t.replacen("<strong>Open</strong>", "<strong></strong>", 1);
+        t.replacen("<td>2026-11-13</td>", "<td>later</td>", 1)
+    });
+    assert_eq!(
+        harness::threat_findings_have_states(&s.base).unwrap().len(),
+        2
+    );
+}
+
+/// The card is a discovery document (owner review, 2026-11-14): it links a
+/// protocol manifest and the seller's instructions, both served, and no
+/// longer carries the seller's shell steps itself.
+#[test]
+fn the_card_links_a_served_manifest_and_seller_skill() {
+    let s = Served::new("card-docs");
+    assert_eq!(
+        harness::card_documents(&s.base).unwrap(),
+        Vec::<String>::new()
+    );
+    // Red, three ways: the seller skill missing, the manifest's deployment
+    // changed, and the steps put back into the card.
+    std::fs::remove_file(s.dir.join(nucleus_site::SELLER_SKILL_PATH)).unwrap();
+    s.edit(nucleus_site::MANIFEST_PATH, |t| {
+        t.replacen("\"chainId\": 421614", "\"chainId\": 1", 1)
+    });
+    s.edit(CARD_PATH, |t| {
+        t.replacen(
+            "\"skills\": [",
+            "\"skills\": [{\"id\": \"x\", \"name\": \"x\", \"description\": \"container system start\", \"tags\": []},",
+            1,
+        )
+    });
+    let found = harness::card_documents(&s.base).unwrap();
+    assert_eq!(found.len(), 3, "{found:?}");
+}
+
+#[test]
 fn no_page_asks_for_an_account_a_wallet_or_a_login() {
     let s = Served::new("account");
     let docs = s.documents();
@@ -282,7 +337,8 @@ fn every_internal_link_and_anchor_resolves() {
         Vec::<String>::new()
     );
     // Red: a link to a section that does not exist.
-    s.edit("index.html", |t| {
+    s.edit("protocol/index.html", |t| {
+        assert!(t.contains("href=\"/verify#control\""));
         t.replacen("href=\"/verify#control\"", "href=\"/verify#nowhere\"", 1)
     });
     assert_eq!(
@@ -443,6 +499,11 @@ fn live_site_passes_the_table() {
             "threat model",
             harness::threat_model_distinguishes(&base).unwrap(),
         ),
+        (
+            "review findings dated",
+            harness::threat_findings_have_states(&base).unwrap(),
+        ),
+        ("card documents", harness::card_documents(&base).unwrap()),
         (
             "no account or script",
             harness::no_account_or_script_needed(&base, &docs).unwrap(),

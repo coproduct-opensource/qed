@@ -149,15 +149,14 @@ impl Doc {
     }
 }
 
-/// The numbered index every page carries, as in the brief's mock.
-pub const INDEX: [(&str, &str); 7] = [
-    ("protocol/specification", "Specification"),
-    ("transactions", "Ledger"),
-    ("status", "Status"),
-    ("verify", "Verify"),
-    ("protocol/threat-model", "Threat model"),
-    ("sellers/run", "Run a seller"),
-    ("verification/source", "Source"),
+/// The numbered index every page carries: four destinations by what a
+/// visitor came for (owner review, 2026-11-14). Every deeper page is linked
+/// from one of them, and every earlier address still serves.
+pub const INDEX: [(&str, &str); 4] = [
+    ("transactions", "Evidence"),
+    ("agent-card", "Agent Card"),
+    ("participate", "Participate"),
+    ("protocol", "Technical Reference"),
 ];
 
 fn inline_html(line: &[Inline]) -> Html {
@@ -414,7 +413,7 @@ fn header(current: &str) -> Html {
                 &[("class", "masthead")],
                 [
                     tx("a", &[("href", "/")], "Q.E.D."),
-                    Html::text(" · COPRODUCT / NUCLEUS"),
+                    Html::text(" / COPRODUCT / NUCLEUS"),
                 ],
             ),
             el(
@@ -552,11 +551,8 @@ pub fn page(doc: &Doc, site: Option<&str>, footer: &[Block]) -> String {
         &[("class", "skip"), ("href", "#main")],
         "Skip to content",
     )];
-    // The home page carries its own title, byline and numbered Index, so
-    // the masthead and short navigation appear on the other pages only.
-    if !doc.path.is_empty() {
-        body.push(header(&doc.path));
-    }
+    // The masthead and the four destinations, on every page.
+    body.push(header(&doc.path));
     body.extend([
         el("main", &[("id", "main")], main),
         el("footer", &[], footer.iter().map(block_html)),

@@ -9,19 +9,24 @@
 //! with `protocol/index.md` when the request's `Accept` names
 //! `text/markdown`. Every other path is a file served as its exact bytes,
 //! never converted. Every response carries `Vary: Accept`.
-use crate::{CARD_PATH, JWKS_PATH, NOT_FOUND_PATH, SELLER_CARD_PATH, SPEC_PATH};
+use crate::{
+    CARD_PATH, JWKS_PATH, MANIFEST_PATH, NOT_FOUND_PATH, SELLER_CARD_PATH, SELLER_SKILL_PATH,
+    SPEC_PATH,
+};
 
 /// Files read by agents from other origins. A2A 1.0.1 says nothing about
 /// CORS; browsers enforce it, and a web-based client fetching a card,
 /// receipt or artifact from another origin needs
 /// `Access-Control-Allow-Origin`. Nothing else on the site is given it.
-pub const CROSS_ORIGIN: [&str; 6] = [
+pub const CROSS_ORIGIN: [&str; 8] = [
     CARD_PATH,
     "agent-card.json",
     JWKS_PATH,
     SELLER_CARD_PATH,
     "deployment.json",
     "receipts/index.json",
+    MANIFEST_PATH,
+    SELLER_SKILL_PATH,
 ];
 /// Directories whose every file is read cross-origin too.
 pub const CROSS_ORIGIN_DIRS: [&str; 3] = ["receipts/", "artifacts/", "statements/"];
@@ -259,7 +264,7 @@ pub fn caddy(host: &str, root: &str) -> String {
 /// Paths the post-upload check fetches, with whether each is an Agent Card.
 /// The document paths are fetched as HTML; `check-live` also fetches each
 /// with `Accept: text/markdown`.
-pub fn checked_paths() -> [(&'static str, bool); 10] {
+pub fn checked_paths() -> [(&'static str, bool); 13] {
     [
         (CARD_PATH, true),
         ("agent-card.json", true),
@@ -267,9 +272,12 @@ pub fn checked_paths() -> [(&'static str, bool); 10] {
         (JWKS_PATH, false),
         ("deployment.json", false),
         ("receipts/index.json", false),
+        (MANIFEST_PATH, false),
+        (SELLER_SKILL_PATH, false),
         ("", false),
         ("protocol", false),
         ("transactions", false),
+        (crate::AGENT_PAGE, false),
         (SPEC_PATH, false),
     ]
 }

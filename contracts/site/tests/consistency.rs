@@ -261,11 +261,13 @@ fn author_wallets_appear_only_where_published() {
 }
 
 /// The Mac QuickStart is one script, generated from the release and the
-/// deployment: the seller page and the Agent Card's skill carry it, and the
-/// public README must carry it verbatim, so a new release digest is changed
-/// in one place and the README cannot drift from it.
+/// deployment: the seller page and the seller-skill document carry it (the
+/// Agent Card links that document and, since 2026-11-14, no longer carries
+/// the script itself), and the public README must carry it verbatim, so a
+/// new release digest is changed in one place and the README cannot drift
+/// from it.
 #[test]
-fn the_mac_quickstart_is_the_same_on_the_page_in_the_card_and_in_the_readme() {
+fn the_mac_quickstart_is_the_same_on_the_page_in_the_seller_skill_and_in_the_readme() {
     let i = input();
     let m = i.mainnet.as_ref().unwrap();
     let script = nucleus_site::pages::mac_quickstart_script(m);
@@ -275,14 +277,27 @@ fn the_mac_quickstart_is_the_same_on_the_page_in_the_card_and_in_the_readme() {
     let files = built(&i);
     let page = file(&files, "sellers/run/index.md");
     assert!(page.contains(&script), "the seller page");
-    let card: serde_json::Value = serde_json::from_str(file(&files, "agent-card.json")).unwrap();
+    let seller_skill = file(&files, nucleus_site::SELLER_SKILL_PATH);
+    assert!(seller_skill.contains(&script), "the seller skill");
+    let card_text = file(&files, "agent-card.json");
+    let card: serde_json::Value = serde_json::from_str(card_text).unwrap();
+    let skill_url = format!("{SITE}/{}", nucleus_site::SELLER_SKILL_PATH);
+    assert_eq!(
+        card["capabilities"]["extensions"][0]["params"]["sellerSkill"],
+        skill_url.as_str()
+    );
     let skill = card["skills"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|s| s["id"] == "run-seller-mac")
-        .expect("the card's Mac skill");
-    assert!(skill["description"].as_str().unwrap().contains(&script));
+        .find(|s| s["id"] == "sell-proof")
+        .expect("the card's seller skill");
+    assert!(skill["description"].as_str().unwrap().contains(&skill_url));
+    assert!(
+        !card_text.contains("container system start"),
+        "the card carries the script again"
+    );
+    let skill = serde_json::json!({ "description": seller_skill });
     let readme = public_docs()
         .into_iter()
         .find(|(f, _)| f == "README.md")

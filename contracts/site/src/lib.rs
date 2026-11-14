@@ -7,6 +7,7 @@
 //! (live.rs) do, and only to read.
 #![deny(clippy::unwrap_used, clippy::panic)]
 
+pub mod commands;
 pub mod doc;
 pub mod docs;
 pub mod harness;
@@ -61,6 +62,14 @@ pub const CHECKER_PAGE: &str = "verify";
 /// The page every missing path is answered with, status 404
 /// (`doc::not_found`; the host's `handle_errors`, the local preview).
 pub const NOT_FOUND_PATH: &str = "404.html";
+/// The page that explains the Agent Card and the documents it links.
+pub const AGENT_PAGE: &str = "agent-card";
+/// The seller's instructions for an agent, moved out of the card's skill
+/// (owner review, 2026-11-14): Markdown, linked from the card.
+pub const SELLER_SKILL_PATH: &str = "agent-card/seller-skill.md";
+/// What the protocol offers and where its interfaces are: contracts,
+/// programs, commitments. JSON, linked from the card.
+pub const MANIFEST_PATH: &str = "agent-card/protocol-manifest.json";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -630,34 +639,38 @@ fn deployment_with_treasury(input: &Input, programs: &[Published]) -> Value {
     value
 }
 
-/// The Agent Card, per A2A 1.0.1. `supportedInterfaces` is empty because no
-/// A2A interface is served; see docs/rfcs/proof-commerce-static-page-a2a-2026-11-13.md.
-pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value {
+/// `path` on the site: absolute when the site's address is known.
+pub fn site_url(site: Option<&str>, path: &str) -> String {
+    match site {
+        Some(site) => format!("{}/{path}", site.trim_end_matches('/')),
+        None => format!("/{path}"),
+    }
+}
+
+/// The Agent Card, per A2A 1.0.1: who this is, what it offers and where the
+/// evidence is. `supportedInterfaces` is empty because no A2A interface is
+/// served (docs/rfcs/proof-commerce-static-page-a2a-2026-11-13.md); the
+/// protocol's own interfaces are in the manifest the card links
+/// ([`MANIFEST_PATH`]), and the seller's steps in [`SELLER_SKILL_PATH`].
+pub fn card(input: &Input, site: Option<&str>) -> Value {
     let mut facts = vec![UNAUDITED.to_owned()];
     if input.authors_only() {
         facts.push(AUTHORS_ONLY.to_owned());
     }
-    let how = "This is not an A2A operation: this card lists no A2A interface. It is done by running the agent software against the contracts named in this card's extension.";
+    let at = |path: &str| site_url(site, path);
+    let how = "This is not an A2A operation: this card lists no A2A interface. It is done by running the agent software against the contracts the protocol manifest names.";
+    let (network, token) = match &input.mainnet {
+        Some(m) => (&m.network.name, &m.token.name),
+        None => (&input.network.name, &input.token.name),
+    };
     let mut card = json!({
         "name": input.name,
         "description": format!(
-            "Payment for Lean 4 proofs, released by a contract only when a zero-knowledge proof shows a Lean checker accepted the seller's proof of the buyer's statement. Buyers post tasks on a board contract on {}; sellers answer over iroh with x402 v2 payment objects. {} No A2A interface is served at this address; this card is for discovery. A seller serves its own card from its iroh node, with an interface of protocol binding {BINDING}{}.",
-            match (&input.mainnet, &input.test_buyers_stopped) {
-                (Some(m), Some(day)) => format!(
-                    "{} (earlier test runs on {}, where no buyer runs since {day}, stay in the ledger)",
-                    m.network.name, input.network.name
-                ),
-                (Some(m), None) => format!("{} and {}", m.network.name, input.network.name),
-                (None, _) => input.network.name.clone(),
-            },
+            "Payment for Lean 4 proofs on {network}. A contract releases {token} to the seller only after cryptographic evidence shows the agreed Lean checker accepted the proof; with no valid proof by the deadline, the buyer reclaims the deposit. {} No A2A interface is served here: this card is for discovery. Protocol interfaces, contracts and commitments: {}. Evidence: {} and {}. A seller's own iroh node serves its own card, with protocol binding {BINDING}, a draft custom binding.",
             facts.join(" "),
-            match site {
-                Some(site) => format!(
-                    " (example: {}/{SELLER_CARD_PATH})",
-                    site.trim_end_matches('/')
-                ),
-                None => String::new(),
-            },
+            at(MANIFEST_PATH),
+            at("transactions"),
+            at("receipts/index.json"),
         ),
         "version": input.version,
         "supportedInterfaces": [],
@@ -666,10 +679,15 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
             "pushNotifications": false,
             "extensions": [{
                 "uri": SETTLEMENT_EXTENSION,
-                "description": "Where the contracts are and how the agents talk: chain, board, vault, registry, verifier, token, proof program IDs, the iroh protocol name and the x402 scheme. Parameters are described at the extension's URI.",
+                "description": "Where an agent finds this deployment's protocol manifest, deployment record, receipts and seller instructions. Parameters are described at the extension's URI.",
                 // `required` is a plain proto bool, so `false` is its default
                 // and is left out (A2A 1.0.1 §8.4.1: the signed form omits it).
-                "params": deployment(input, programs),
+                "params": {
+                    "manifest": at(MANIFEST_PATH),
+                    "deployment": at("deployment.json"),
+                    "receipts": at("receipts/index.json"),
+                    "sellerSkill": at(SELLER_SKILL_PATH),
+                },
             }],
         },
         "defaultInputModes": ["application/json"],
@@ -678,46 +696,111 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
             {
                 "id": "post-task",
                 "name": "Post a task for a Lean proof",
-                "description": format!("A buyer posts the hash of a Lean 4 statement, a price cap, deadlines and the proof program it accepts on the board contract, serves the statement by hash over iroh, and signs one token authorization for the first offer that passes its review. {how}"),
+                "description": format!("A buyer posts a Lean 4 statement's hash, a price cap and deadlines on the board contract, and funds the first acceptable offer. {how}"),
                 "tags": ["lean4", "proof", "buyer", "x402", "escrow"],
             },
             {
                 "id": "sell-proof",
                 "name": "Sell a Lean proof",
-                "description": format!("A seller watches the board, fetches a statement, finds a proof, checks it with a Lean checker, offers an order, and after the buyer's deposit is in the vault submits a zero-knowledge proof that releases payment.{} {how}", bounty_sentence(input, site)),
-                "tags": ["lean4", "proof", "seller", "x402", "risc-zero"],
+                "description": format!("A seller answers a post, proves the statement, and settles with the evidence that releases payment.{} Steps an agent can follow: {}. {how}", bounty_sentence(input, site), at(SELLER_SKILL_PATH)),
+                "tags": ["lean4", "proof", "seller", "x402"],
             },
             {
                 "id": "check-settlement",
                 "name": "Check a settlement",
-                "description": format!("Anyone can read from the chain that an order settled, take the delivered artifact from the settlement transaction's calldata, and re-run the Lean checker on it. {how}"),
+                "description": format!("Read a settlement from the chain, take the delivered artifact from its calldata, and re-run the Lean checker on it. Receipts: {}. {how}", at("receipts/index.json")),
                 "tags": ["verification", "lean4", "audit"],
             },
         ],
     });
-    if let Some(m) = &input.mainnet {
-        let page = match site {
-            Some(site) => format!("{}/sellers/run#mac", site.trim_end_matches('/')),
-            None => "/sellers/run#mac".into(),
-        };
-        if let Some(skills) = card["skills"].as_array_mut() {
-            skills.push(json!({
-                "id": "run-seller-mac",
-                "name": "Run a seller on a Mac with Apple container",
-                "description": format!(
-                    "Instructions an agent can follow on a Mac with Apple silicon, using Apple's container CLI (not Docker), to run the released seller against the {} bounty: start the runtime, pull the image by digest, check its signature, make the wallet in a volume, fetch the task's files, write the configuration, run, watch the log, stop. The same steps, explained: {page}. {} {how}\n\n{}",
-                    m.network.name,
-                    pages::questions(),
-                    pages::mac_quickstart_script(m)
-                ),
-                "tags": ["seller", "macos", "apple-container", "quickstart"],
-            }));
-        }
-    }
     if let Some(site) = site {
         card["documentationUrl"] = json!(format!("{}/", site.trim_end_matches('/')));
     }
     card
+}
+
+/// The protocol manifest the card links: what the protocol offers, the
+/// interfaces that do exist (the contracts' ABIs, iroh, x402), the
+/// deployment, the cryptographic commitments, and where the evidence is.
+pub fn manifest(
+    input: &Input,
+    programs: &[Published],
+    site: Option<&str>,
+    card_kid: Option<&str>,
+    with_checker: bool,
+) -> Value {
+    let at = |path: &str| site_url(site, path);
+    let checker = with_checker.then(|| {
+        json!({
+            "path": at(CHECKER_PATH),
+            "sha256": hex(Sha256::digest(CHECKER_WASM).as_slice()),
+            "bytes": CHECKER_WASM.len(),
+            "what": "The proof program's Lean acceptance rule as WebAssembly; /verify runs it in a browser on request.",
+        })
+    });
+    json!({
+        "schema": "qed-protocol-manifest/1",
+        "name": input.name,
+        "card": at(CARD_PATH),
+        "a2a": {
+            "supportedInterfaces": [],
+            "why": "No A2A operation is served by this site. The card is for discovery; the interfaces below are the protocol's own.",
+        },
+        "capabilities": [
+            { "id": "post-task", "what": "A buyer posts a statement's hash, a price cap and deadlines on the board, and funds the first acceptable offer in the vault." },
+            { "id": "sell-proof", "what": "A seller proves the statement and settles; the vault books payment only if the verifier accepts the proof program's evidence.", "steps": at(SELLER_SKILL_PATH) },
+            { "id": "check-settlement", "what": "Anyone reads a settlement, takes the artifact from its calldata and re-runs the Lean checker." },
+            { "id": "refund", "what": "With no accepted proof by the order's deadline, anyone can call refund and the buyer is owed the whole deposit." },
+        ],
+        "interfaces": {
+            "contracts": {
+                "abis": {
+                    "NucleusVault3": at("abi/NucleusVault3.json"),
+                    "NucleusBoard": at("abi/NucleusBoard.json"),
+                    "BaseRegistry": at("abi/BaseRegistry.json"),
+                },
+                "stateChanging": {
+                    "vault": ["fund", "settle", "refund", "claim"],
+                    "board": ["post", "withdraw"],
+                    "registry": ["register"],
+                },
+                "anyoneMayCall": true,
+            },
+            "iroh": {
+                "alpn": ALPN,
+                "binding": BINDING,
+                "status": "draft: a custom binding of A2A to iroh streams, not an official A2A transport",
+                "specification": at(SPEC_PATH),
+                "exampleSellerCard": at(SELLER_CARD_PATH),
+            },
+            "x402": { "version": 2, "scheme": X402_SCHEME },
+            "relayer": input.mainnet.as_ref().and_then(|m| m.status.as_ref()).map(|s| json!({
+                "url": s.relayer_url,
+                "what": "Sends fund, settle and claim for sellers and pays the gas; it cannot change payee or amount.",
+            })),
+        },
+        "deployment": deployment(input, programs),
+        "commitments": {
+            "orderDigest": "EIP-712 hash of the order under the domain name NucleusVault, version 3, the chain ID and the vault's address",
+            "journal": "abi.encode(keccak256(\"NucleusAcceptanceV1\"), chainId, vault, orderDigest, keccak256(artifact)), 160 bytes, checked by verify(seal, program, sha256(journal))",
+            "artifact": "keccak256 of the delivered artifact, recorded by the vault (artifactOf) and in its Settled log",
+            "programs": "each program's image ID, computed from its published binary; the binaries' SHA-256 are under deployment.programs",
+            "contractCode": "keccak256 of each contract's runtime code, under deployment",
+            "receipts": "RFC 8785 canonical JSON and a newline",
+            "checker": checker,
+            "card": { "alg": "ES256", "kid": card_kid, "jwks": at(JWKS_PATH) },
+        },
+        "evidence": {
+            "ledger": at("transactions"),
+            "receipts": at("receipts/index.json"),
+            "verify": at("verify"),
+            "status": at("status"),
+            "source": match &input.software {
+                Software::Public { url } => Some(url.clone()),
+                _ => None,
+            },
+        },
+    })
 }
 
 /// One sentence on the main-network bounty, for the card; empty without one.
@@ -755,18 +838,12 @@ pub fn extension() -> Value {
     json!({
         "uri": SETTLEMENT_EXTENSION,
         "version": 1,
-        "summary": "Parameters an agent needs to trade through one deployment of the vault and task board. It declares no A2A operation.",
+        "summary": "Where an agent finds what it needs to check and trade through one deployment of the vault and task board. It declares no A2A operation.",
         "params": {
-            "network": "name, chainId, CAIP-2 identifier, and whether it is a test network",
-            "board": "address, deployment block and code hash of the task board; posts are its Posted and Withdrawn events",
-            "vault": "address, code hash and the values fixed at deployment: treasury, fee and fee cap in basis points, longest delivery term in seconds, registry",
-            "registry": "address, code hash, the verifier and base program it checks registrations with, and its highest royalty rate in basis points",
-            "verifier": "address and code hash of the proof verifier orders name",
-            "token": "address, name and decimals of the token tasks here are priced in",
-            "programs": "published proof programs: role, image ID, file name, size and SHA-256",
-            "transport": "the iroh ALPN, the x402 version and scheme, and the proof of possession each request carries",
-            "assurance": "whether the contracts are audited, what review there has been, and who has traded through them",
-            "mainnet": "optional: the same contracts on a main network (network, board, vault, registry, verifier, token) and its standing bounty (price, what a seller receives, budget, task count, posting window, program, first post)",
+            "manifest": "URL of the protocol manifest: what the protocol offers, its interfaces (the contracts' ABIs, the iroh ALPN and binding, the x402 scheme), the deployment's contracts and programs, and the cryptographic commitments",
+            "deployment": "URL of the deployment record: chain, contracts with code hashes and fixed values, programs, token, transport and assurance",
+            "receipts": "URL of the receipt index: every recorded settlement, as canonical JSON",
+            "sellerSkill": "URL of step-by-step instructions an agent can follow to run a seller",
         },
     })
 }
@@ -931,8 +1008,26 @@ pub fn security_txt(
 /// Everything the site consists of, as (relative path, bytes).
 pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(String, Vec<u8>)>> {
     let site_url = options.site_url.map(|s| s.trim_end_matches('/'));
+    // Who has traded is the ledger's to say when its receipts carry their
+    // counterparty notes: recording an outside settlement moves every page
+    // off "authors only" with no edit here. The input's value is used when
+    // the ledger cannot say (no ledger, or notes removed, as in the public
+    // copy), and may not claim an outside trade the notes contradict.
+    let mut effective = input.clone();
+    if let Some(from_ledger) = options.ledger.and_then(|(_, s)| s.counterparties()) {
+        if let (Counterparties::Outside { .. }, Counterparties::AuthorsOnly) =
+            (&input.assurance.counterparties, &from_ledger)
+        {
+            return Err(
+                "the input names an outside settlement that the ledger's receipts do not show"
+                    .into(),
+            );
+        }
+        effective.assurance.counterparties = from_ledger;
+    }
+    let input = &effective;
     let programs = published(input, repository)?;
-    let unsigned = card(input, &programs, site_url);
+    let unsigned = card(input, site_url);
     let seller = seller_card();
     for (name, card) in [("service", &unsigned), ("seller", &seller)] {
         let violations = card_violations(card);
@@ -966,6 +1061,7 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         ))
     };
     let vectors = vectors(input)?;
+    let build_kid = signed_by.clone();
     let build = pages::Build {
         site: site_url,
         source_commit: options.source_commit,
@@ -985,9 +1081,12 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     };
     let status_snapshot = read_json(status::SNAPSHOT_PATH)?;
     let verified = read_json(pages::VERIFIED_PATH)?;
+    let fee_bps = deployed_fee_bps(input, verified.as_ref())?;
     let mut docs_list = vec![
-        pages::home(input, &build),
-        pages::protocol(input),
+        pages::home(input, &build, fee_bps)?,
+        pages::protocol(input, &build),
+        pages::agent_card(input, &build),
+        pages::participate(input),
         pages::specification(input, &programs),
         pages::threat_model(input),
         pages::transactions(input, &build, &vectors, &programs),
@@ -1090,6 +1189,16 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         ("qed.js".into(), include_bytes!("../assets/qed.js").to_vec()),
         (CARD_PATH.into(), pretty(&card)?),
         ("agent-card.json".into(), pretty(&card)?),
+        (
+            MANIFEST_PATH.into(),
+            pretty(&manifest(
+                input,
+                &programs,
+                site_url,
+                build_kid.as_deref(),
+                options.ledger.is_some(),
+            ))?,
+        ),
         (SELLER_CARD_PATH.into(), pretty(&seller)?),
         (
             "deployment.json".into(),
@@ -1107,10 +1216,55 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         abi("NucleusVault3", "contracts/vault/out/NucleusVault3.abi")?,
         abi("BaseRegistry", "contracts/vault/out/BaseRegistry.abi")?,
     ]);
+    if let Some(m) = &input.mainnet {
+        files.push((
+            SELLER_SKILL_PATH.into(),
+            pages::seller_skill(m, site_url).into_bytes(),
+        ));
+    }
     if let Some(jwks) = jwks {
         files.push((JWKS_PATH.into(), pretty(&jwks)?));
     }
     Ok(files)
+}
+
+/// The live vault's fee, as the deployed contract holds it: `qed-verify`'s
+/// reading of the constructor argument `feeBps_` at the vault's address
+/// when the build has that report. A build whose input disagrees with the
+/// chain's value is refused, so the home page's fee line cannot drift from
+/// the contract. Without a report: the input's value, which /verify prints
+/// with the call that reads it.
+pub fn deployed_fee_bps(input: &Input, verified: Option<&Value>) -> Res<u16> {
+    let vault = match &input.mainnet {
+        Some(m) => &m.vault,
+        None => &input.vault,
+    };
+    let read = verified
+        .and_then(|r| r["deployments"].as_array())
+        .into_iter()
+        .flatten()
+        .find(|d| d["address"].as_str() == Some(vault.address.as_str()))
+        .and_then(|d| d["constructorArguments"].as_array())
+        .into_iter()
+        .flatten()
+        .find(|a| a["name"] == "feeBps_")
+        .and_then(|a| a["value"].as_str());
+    match read {
+        None => Ok(vault.fee_bps),
+        Some(value) => {
+            let bps: u16 = value
+                .parse()
+                .map_err(|_| format!("feeBps_ {value} is not a number"))?;
+            if bps != vault.fee_bps {
+                return Err(format!(
+                    "the input's fee ({} basis points) is not the deployed vault's ({bps})",
+                    vault.fee_bps
+                )
+                .into());
+            }
+            Ok(bps)
+        }
+    }
 }
 
 /// Everything the A2A schema and the proto's required fields find wrong with a card.
