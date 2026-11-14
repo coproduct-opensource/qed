@@ -235,6 +235,7 @@ struct Outcome {
     name: String,
     expected: String,
     built: String,
+    published_same: bool,
     matches: bool,
 }
 
@@ -364,9 +365,13 @@ pub fn run(args: &[String]) -> Result<bool, Box<dyn Error>> {
         println!("  seconds {seconds:.1}");
         println!("  elf_sha256 {} ({} bytes)", sha256(&elf), elf.len());
         println!("  bin_sha256 {} ({} bytes)", sha256(&binary), binary.len());
+        // A named published binary must be these bytes: the file a prover
+        // host embeds is then the file anyone rebuilds, not only its ID.
+        let mut published_same = true;
         if let Some(published) = &program.published {
             let file = fs::read(repo.join(&recipe.dir).join(published))?;
-            let same = if file == binary {
+            published_same = file == binary;
+            let same = if published_same {
                 "identical"
             } else {
                 "different"
@@ -375,7 +380,7 @@ pub fn run(args: &[String]) -> Result<bool, Box<dyn Error>> {
         }
         println!("  image_id {built}");
         println!("  expected {expected} ({})", program.id_file);
-        let matches = built == expected;
+        let matches = built == expected && published_same;
         println!("  {}", if matches { "MATCH" } else { "MISMATCH" });
         if !keep {
             // Files the container wrote may belong to its root user; let the
@@ -389,6 +394,7 @@ pub fn run(args: &[String]) -> Result<bool, Box<dyn Error>> {
             name: program.name.clone(),
             expected,
             built,
+            published_same,
             matches,
         });
     }
@@ -397,8 +403,15 @@ pub fn run(args: &[String]) -> Result<bool, Box<dyn Error>> {
     let all = outcomes.iter().all(|o| o.matches);
     for o in outcomes.iter().filter(|o| !o.matches) {
         eprintln!(
-            "verify-programs: {} built {} but the recipe records {}",
-            o.name, o.built, o.expected
+            "verify-programs: {} built {} and the recipe records {}; the published binary is {}",
+            o.name,
+            o.built,
+            o.expected,
+            if o.published_same {
+                "identical or not named"
+            } else {
+                "different"
+            }
         );
     }
     Ok(all)
