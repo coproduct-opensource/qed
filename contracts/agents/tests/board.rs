@@ -758,7 +758,7 @@ use alloy_primitives::U256;
 use nucleus_commerce_agents::{
     iroh_net::Relay,
     job::{Accepted, Step},
-    watch::peer_hint,
+    watch::{peer_hint, posted_hint},
     worker::{ClearToProve, ClearToSettle, Limits, Sealer, Venue, work},
 };
 
@@ -1022,6 +1022,39 @@ fn an_address_hint_is_a_public_socket_address_or_the_post_is_passed_over() {
         Err(Skip::UnsafeAddress(_))
     ));
     assert!(IrohBuyer::new_in(&seller.keys, &buyer.posted, &Relay::None, true).is_ok());
+}
+
+/// Base mainnet, 2026-11-13: a bounty run with no relay posted its bind
+/// address `0.0.0.0:0` as the hint, every seller refused it (`port 0`), and
+/// the only remedy was to pay again to withdraw it. A buyer refuses to post
+/// a hint that `peer_hint` would refuse even on one machine.
+#[test]
+fn a_buyer_refuses_to_post_an_address_hint_no_seller_takes() {
+    for bind in [
+        "0.0.0.0:0",
+        "[::]:0",
+        "127.0.0.1:0",
+        "203.0.113.7:0",
+        "0.0.0.0:4450",
+        "[::]:4450",
+        "localhost:4450",
+        "",
+    ] {
+        assert!(posted_hint(bind, &Relay::None).is_err(), "{bind:?}");
+    }
+    // What a seller can dial: a public address, or one on this machine for
+    // the one-machine tests; each passes the seller's own check.
+    for bind in ["203.0.113.7:4450", "127.0.0.1:4450", "[2001:db8::7]:4450"] {
+        let hint = posted_hint(bind, &Relay::None).unwrap();
+        assert_eq!(hint, bind);
+        assert!(peer_hint(&hint, &Relay::None, true).unwrap().is_some());
+    }
+    // With a relay nothing is posted, whatever the bind.
+    let url = Relay::parse("https://relay.example.org").unwrap();
+    for relay in [Relay::Default, url] {
+        assert_eq!(posted_hint("0.0.0.0:0", &relay).unwrap(), "");
+        assert_eq!(peer_hint("", &relay, false).unwrap(), None);
+    }
 }
 
 // ---- Review only: a seller's dry run -------------------------------------

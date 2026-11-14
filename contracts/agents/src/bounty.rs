@@ -1017,10 +1017,7 @@ impl Live {
             buyer_node: board::node_bytes(&self.node)?,
             buyer_key_binding: self.keys.binding(),
             salt,
-            buyer_address: match self.relay {
-                iroh_net::Relay::None => self.bind.clone(),
-                iroh_net::Relay::Default | iroh_net::Relay::Url(_) => String::new(),
-            },
+            buyer_address: crate::watch::posted_hint(&self.bind, &self.relay)?,
         })
     }
     fn id_of(&self, task: &Task) -> Hash {
@@ -1434,6 +1431,9 @@ pub fn bounty(args: &[String]) -> Res<()> {
     if limits.price == 0 || limits.price > limits.budget {
         return Err("the price must be positive and within the budget".into());
     }
+    // The hint is part of each post's ID: one no seller takes would be paid
+    // for and could never be answered (`bounty-close` still withdraws one).
+    crate::watch::posted_hint(bind, &iroh_net::Relay::from_environment()?)?;
     // Starting needs the chain too; an RPC outage at start is waited out
     // like one later (R-2).
     let mut failures: u32 = 0;

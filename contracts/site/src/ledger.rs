@@ -214,7 +214,7 @@ impl Snapshot {
     }
 }
 
-fn rpc(url: &str, method: &str, params: Value) -> Res<Value> {
+pub(crate) fn rpc(url: &str, method: &str, params: Value) -> Res<Value> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(60)))
         .build()

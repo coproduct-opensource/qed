@@ -1,5 +1,6 @@
 {
-  "name": "Proof-gated settlement for Lean proofs (testnet)",
+  "name": "Proof-gated settlement for Lean proofs",
+  "testBuyersStopped": "2026-11-14",
   "version": "0.1.0",
   "network": {
     "name": "Arbitrum Sepolia",
@@ -133,17 +134,17 @@
       "logRange": 49999
     },
     "board": {
-      "address": "0xde0b91b747898ae296c14d6703c05a15845f49c0",
-      "codeKeccak": "0xd6bb846850ab408fd1f9e67e171f7a752f1f13c332d5ffecdda7faccc763a900",
+      "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+      "codeKeccak": "0xe8d6a1f17eb0ae8c30e99c20ee7a951663192df1e3110c56438e0f70e5273a60",
       "codeBytes": 1971,
-      "deployBlock": 56773051,
-      "deployTransaction": "0xc5cdf7f7a5bb1f6839e8cdd8c39cbcae383f1e8cfea0579eb157334b18720c3e"
+      "deployBlock": 57107834,
+      "deployTransaction": "0x3b171a4461623fcc998a8fdcf197b9b7ccf25f03cdeaff949a7d205d1f86f642"
     },
     "vault": {
-      "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
-      "codeKeccak": "0x4e3a737e9b89f5b32e0e0ee8733636dc4ffd1cfe6bd22314d3c941dac7302afa",
+      "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+      "codeKeccak": "0x30207053b041bed3477a76c625a5e5f2dab0ad82a63ecd2f4754cec84bb1c8da",
       "codeBytes": 7521,
-      "deployTransaction": "0x4921032cc8648fe8ffb0064ee1d7958f9ac675a469fef2ccd063ef4f12880348",
+      "deployTransaction": "0x8f15dd81005bde1c95c56d9007ddfccc4c302e3e3ae5adb54b17d47a1f540b10",
       "treasury": "0x0000000000000000000000000000000000000000",
       "feeBps": 25,
       "maximumFeeBps": 100,
@@ -151,10 +152,10 @@
     },
     "treasuryKind": "a Safe controlled by the authors",
     "registry": {
-      "address": "0x843f6c3ff6c68e027ae3bd2cb13001f6075da75f",
-      "codeKeccak": "0x0c227639457300ecd6077d70d3879b51138234d030aa78ebad5a7d0105b5a773",
+      "address": "0x4810022c80777d3ef3951845349ea1e129874c63",
+      "codeKeccak": "0x6216b0a7dba1bc07fe9b4d55db08b7eaffa06b4f8da7e1b64843e7c3012d89de",
       "codeBytes": 1578,
-      "deployTransaction": "0x981b69c7cc11512f2ac554c6758161b545d54b64581951dbd24e4d97a1f9e23e",
+      "deployTransaction": "0x386214f5efaccccf98b2f20de47923e46adda5a478679a0ce632f72d39801f3d",
       "maximumBps": 50
     },
     "verifier": {
@@ -172,9 +173,27 @@
       "budget": 100000000,
       "tasks": 4,
       "postWindowSeconds": 86400,
-      "program": "fbfdc68c5125272b354262386489e9e3bb44bc63f1b89850e244788cfe190081",
-      "firstPostTransaction": "0x475e2b112b13a32c2e0504249a2844efde6c2f58b8bd0b1ccf8f2cad8b32cdf1",
-      "firstTask": "0x73029e8e857ae8f2df1e89aa8c091dc35c730857ccdcbacc5f9ac7ecf2a08ff8"
+      "program": "704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed",
+      "firstPostTransaction": "0xfc3307091908f7ce2252ee5498137370afb61e9da1c61ffe8a27eb87a379fc42",
+      "firstTask": "0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd"
+    },
+    "status": {
+      "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",
+      "relayer": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+      "relayerUrl": "https://relay.qed.coproduct.dev",
+      "relayerFloorWei": "200000000000000",
+      "relayerFloorSource": "floorWei in the relayer's configuration (relay.json on its host, written by the authors' host tooling, which is not in the public repository); the relayer refuses a call that would take its balance below it",
+      "vaults": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "deployBlock": 57107775
+        },
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "deployBlock": 56772992
+        }
+      ],
+      "publishWallets": true
     }
   }
 }

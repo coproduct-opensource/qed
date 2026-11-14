@@ -64,6 +64,26 @@ impl Keys {
             node,
         })
     }
+    /// Read an existing three-line key file and never write it: no key is
+    /// created, no line appended, no mode changed (`load_or_create` does all
+    /// three; RFC qed-relayer §14). A file that is not owner-only is refused.
+    pub fn read(path: &str) -> Res<Self> {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(path)?.permissions().mode();
+        if mode & 0o077 != 0 {
+            return Err(format!("{path} is readable by others (mode {:o})", mode & 0o777).into());
+        }
+        let text = fs::read_to_string(path)?;
+        let lines: Vec<&str> = text.lines().collect();
+        let [wallet, possession, node] = lines.as_slice() else {
+            return Err(format!("{path} must hold exactly three key lines").into());
+        };
+        Ok(Self {
+            wallet: SigningKey::from_slice(&unhex(wallet)?)?,
+            possession: p256::ecdsa::SigningKey::from_slice(&unhex(possession)?)?,
+            node: unhex(node)?.try_into().map_err(|_| "node key length")?,
+        })
+    }
     pub fn address(&self) -> Address {
         address_of(&self.wallet)
     }

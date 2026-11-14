@@ -305,6 +305,9 @@ fn outbound(site: &str) -> Vec<String> {
         "https://iroh.computer",
         // The public source repository, linked from /verification/source.
         "https://github.com/coproduct-opensource/qed",
+        // Source verification of the live contracts, linked from /verify.
+        "https://repo.sourcify.dev/",
+        "https://base.blockscout.com/",
     ]
     .iter()
     .map(|s| (*s).to_owned())

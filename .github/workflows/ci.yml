@@ -59,6 +59,9 @@ jobs:
           - dir: contracts/site
             packages: ""
             test: cargo test --locked
+          - dir: contracts/verify
+            packages: ""
+            test: cargo test --locked
     defaults:
       run:
         working-directory: ${{ matrix.dir }}

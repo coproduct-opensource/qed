@@ -109,6 +109,61 @@
     });
   })();
 
+  // The status page: re-read the balances at the latest block, and say
+  // which values are shown (the build-time snapshot, or a live read).
+  (function status() {
+    var form = document.getElementById("status-form");
+    var node = document.getElementById("site-data");
+    if (!form || !node) return;
+    var s = JSON.parse(node.textContent).status;
+    if (!s) return;
+    var source = document.getElementById("status-source");
+    function call(url, method, params) {
+      return fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params })
+      }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).then(function (b) {
+        if (b.error) throw new Error(b.error.message || "RPC error");
+        return b.result;
+      });
+    }
+    function pad(address) { return address.replace(/^0x/, "").padStart(64, "0"); }
+    function scaled(hex, decimals, symbol) {
+      var s2 = BigInt(hex === "0x" ? "0x0" : hex).toString(10).padStart(decimals + 1, "0");
+      var whole = s2.slice(0, -decimals), frac = s2.slice(-decimals).replace(/0+$/, "");
+      return (frac ? whole + "." + frac : whole) + " " + symbol;
+    }
+    function put(id, text) {
+      var cell = document.querySelector('[data-read="' + id + '"]');
+      if (cell) cell.textContent = text;
+    }
+    form.hidden = false;
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var url = document.getElementById("status-rpc").value.trim();
+      source.textContent = "Reading from " + url + "…";
+      try {
+        var chain = Number(await call(url, "eth_chainId", []));
+        if (chain !== s.chainId) throw new Error("the endpoint is chain " + chain + ", not " + s.chainId);
+        var block = await call(url, "eth_blockNumber", []);
+        var balanceOf = function (who) {
+          return call(url, "eth_call", [{ to: s.token, data: "0x70a08231" + pad(who) }, block]);
+        };
+        put("vault0-usdc", scaled(await balanceOf(s.vault), s.decimals, "USDC"));
+        if (s.buyer) put("buyer-usdc", scaled(await balanceOf(s.buyer), s.decimals, "USDC"));
+        if (s.relayer) put("relayer-eth", scaled(await call(url, "eth_getBalance", [s.relayer, block]), 18, "ETH"));
+        source.textContent = "Showing live values: block " + Number(block) + ", read from " + url + " at " +
+          new Date().toISOString().replace(/\.\d+Z$/, "Z") + ". The sections below are still the build-time snapshot.";
+      } catch (error) {
+        source.textContent = "Live read failed (" + error.message + "); still showing the build-time snapshot.";
+      }
+    });
+  })();
+
   var dataNode = document.getElementById("site-data");
   if (!dataNode || !document.getElementById("live")) return;
   var site = JSON.parse(dataNode.textContent);

@@ -70,7 +70,10 @@ fn request(args: &[String]) -> Res<()> {
 ///  "chains": [{"chainId": 8453, "rpcs": ["https://mainnet.base.org"],
 ///              "vaults": ["0x8917c501755f966a5b5f20d6608e297e7066f13b"],
 ///              "maximumFeePerGasWei": "100000000", "budgetWei": "5000000000000000",
-///              "floorWei": "200000000000000"}],
+///              "floorWei": "200000000000000",
+///              "transfer": {"token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+///                           "name": "USD Coin", "version": "2",
+///                           "perAddressPerDay": 5, "perDay": 100}}],
 ///  "perKeyPerHour": 20, "perAddressPerHour": 60, "perSellerPerDay": 30,
 ///  "maximumGasPerCall": 600000, "replaceAfterSeconds": 60, "maximumReplacements": 3,
 ///  "trustForwardedFor": false}
@@ -78,7 +81,7 @@ fn request(args: &[String]) -> Res<()> {
 /// The key file is created (mode 0600) on first start if absent; only its
 /// address is printed.
 fn relay(args: &[String]) -> Res<()> {
-    use nucleus_commerce_agents::relay::{Lane, LaneConfig, Limits, Relay, serve};
+    use nucleus_commerce_agents::relay::{Lane, LaneConfig, Limits, Relay, serve, transfer};
     let [config] = args else {
         return Err("usage: qed-wrap relay CONFIG.json".into());
     };
@@ -142,11 +145,49 @@ fn relay(args: &[String]) -> Res<()> {
         if vaults.is_empty() {
             return Err("a chain lists no vault".into());
         }
+        // T-1: `"transfer": {"token", "name", "version", "perAddressPerDay",
+        // "perDay"}`. The domain is computed from the name, version, chain and
+        // token, and the relayer refuses to start unless the token reports
+        // the same one.
+        let transfer = match entry.get("transfer") {
+            None | Some(Value::Null) => None,
+            Some(t) => {
+                let token: [u8; 20] = unhex(&text(t, "token")?)?
+                    .try_into()
+                    .map_err(|_| "transfer.token length")?;
+                let domain = transfer::domain_separator(
+                    &text(t, "name")?,
+                    &text(t, "version")?,
+                    chain.id,
+                    token,
+                );
+                if transfer::domain_on_chain(&chain, token)? != domain {
+                    return Err(format!(
+                        "token {} reports another EIP-712 domain than its configured name and version",
+                        nucleus_commerce_agents::chain::hex(&token)
+                    )
+                    .into());
+                }
+                let count = |name: &str| -> Res<usize> {
+                    Ok(t[name]
+                        .as_u64()
+                        .ok_or_else(|| format!("transfer.{name} missing"))?
+                        as usize)
+                };
+                Some(transfer::TransferConfig {
+                    token,
+                    domain,
+                    per_address_per_day: count("perAddressPerDay")?,
+                    per_day: count("perDay")?,
+                })
+            }
+        };
         let config = LaneConfig {
             vaults,
             maximum_fee_per_gas: wei(entry, "maximumFeePerGasWei")?,
             budget: wei(entry, "budgetWei")?,
             floor: wei(entry, "floorWei")?,
+            transfer,
         };
         println!(
             "qed-wrap relay: chain {} with {} vault(s); balance {} wei; floor {} wei; budget {} wei",
@@ -156,6 +197,16 @@ fn relay(args: &[String]) -> Res<()> {
             config.floor,
             config.budget
         );
+        if let Some(t) = &config.transfer {
+            println!(
+                "qed-wrap relay: transfers on chain {}: transferWithAuthorization on token {} (domain {} as the token reports); {} per address and {} in all per day",
+                chain.id,
+                nucleus_commerce_agents::chain::hex(&t.token),
+                nucleus_commerce_agents::chain::hex(&t.domain),
+                t.per_address_per_day,
+                t.per_day
+            );
+        }
         lanes.push(Lane::new(chain, config));
     }
     let relay = Relay::new(&text(&value, "base")?, keys.wallet.clone(), limits, lanes)?;

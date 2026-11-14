@@ -520,11 +520,14 @@ fn no_page_loads_anything_from_another_site() {
         assert!(!html.contains("<style"), "{path}: inline style");
     }
     let js = file(&files, "qed.js");
-    // Two network calls: the live list's, to the endpoint the reader sees
-    // and can edit; and the checker's, only to paths on this site (its
-    // guard refuses anything else, and the /verify CSP admits only 'self').
-    assert_eq!(js.matches("fetch(").count(), 2);
+    // Three network calls: the live list's and the status page's balance
+    // reads, each to the endpoint the reader sees and can edit; and the
+    // checker's, only to paths on this site (its guard refuses anything
+    // else, and the /verify CSP admits only 'self').
+    assert_eq!(js.matches("fetch(").count(), 3);
     assert_eq!(js.matches("await fetch(url, {").count(), 2);
+    assert_eq!(js.matches("return fetch(url, {").count(), 1);
+    assert!(js.contains("var url = document.getElementById(\"status-rpc\").value.trim();"));
     assert!(js.contains(
         "if (!/^\\/[^\\/\\\\]/.test(url)) throw new Error(url + \": not a path on this site\");\n      var response = await fetch(url, { credentials: \"omit\" });"
     ));
@@ -603,15 +606,16 @@ fn the_receipts_are_the_snapshot_and_their_artifacts_hash_to_the_vaults_record()
         let html = file(&files, &format!("transactions/{id}/index.html"));
         assert!(html.contains(id));
     }
-    // Two settlements were in real money, both on Base (the second-form
-    // vault, then the first relayed trade on the third-form vault); the rest
-    // were in test tokens.
+    // Three settlements were in real money, all on Base (the second-form
+    // vault, the first relayed trade on the third-form vault, and the first
+    // trade on the vault of the reproducible programs); the rest were in
+    // test tokens.
     let real: Vec<_> = snap
         .receipts()
         .iter()
         .filter(|r| !r["asserted"]["realMoney"].is_null())
         .collect();
-    assert_eq!(real.len(), 2);
+    assert_eq!(real.len(), 3);
     assert!(real.iter().all(|r| r["network"]["chainId"] == 8453));
 }
 
@@ -742,7 +746,11 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
     let image = format!("{}@{}", release.image, release.digest);
     assert!(page.contains(&format!("cosign verify {image}")), "{page}");
     assert!(page.contains(&format!("gh attestation verify oci://{image}")));
-    assert!(page.contains("nucleus-acceptance-host order2-image"));
+    // Base names the reproducible order program since the switch
+    // (docs/rfcs/qed-reproducible-switch-2026-11-13.md), so the image check
+    // prints that one; `order2-image` prints the earlier build's ID.
+    assert!(page.contains("nucleus-acceptance-host order2r-image"));
+    assert!(!page.contains("order2-image"), "{page}");
     assert!(!page.contains("Not published yet."));
     // The bounty's board, its deployment block and the relayer.
     let m = i

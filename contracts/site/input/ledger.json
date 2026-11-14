@@ -15,7 +15,8 @@
     { "network": "arbitrum-sepolia", "address": "0x4a0d2359f5ba363e7a2d97207b72a91dd41ff426", "name": "Third form, statement format v2 programs" },
     { "network": "arbitrum-sepolia", "address": "0xb1d68c62497384a8d19da1860bb4990c3e83aeac", "name": "Third form, reproducible programs; refuses a registry whose ceiling exceeds its fee room" },
     { "network": "base", "address": "0x30f522bc30d46b3a4089931d698f04656fa23b8d", "name": "Second form on Base (mainnet)" },
-    { "network": "base", "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b", "name": "Third form on Base (mainnet), statement format v2 programs" }
+    { "network": "base", "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b", "name": "Third form on Base (mainnet), statement format v2 programs" },
+    { "network": "base", "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c", "name": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room" }
   ],
   "programs": [
     { "imageId": "f0f882fe7052e1ac22f7fec033e12c6874e1b5f72ae31f31bd8b939576fba1ca", "name": "second-form order program", "status": "not-distributed" },
@@ -48,6 +49,7 @@
     { "network": "arbitrum-sepolia", "settleTransaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4", "what": "Standing bounty on the statement format v2 programs.", "record": "docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md" },
     { "network": "arbitrum-sepolia", "settleTransaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3", "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.", "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md" },
     { "network": "base", "settleTransaction": "0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8", "what": "First trade on the Base third-form vault: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.", "record": "docs/rfcs/qed-relayer-2026-11-13.md" },
-    { "network": "arbitrum-sepolia", "settleTransaction": "0x617c633ffc1990ac62774ac415deb41b1f1e92bd39aea5f205777f8640dc85a8", "what": "First trade on the programs that rebuild from source: a task on the registered toy base, with the vault that checks its registry's ceiling at construction.", "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md" }
+    { "network": "arbitrum-sepolia", "settleTransaction": "0x617c633ffc1990ac62774ac415deb41b1f1e92bd39aea5f205777f8640dc85a8", "what": "First trade on the programs that rebuild from source: a task on the registered toy base, with the vault that checks its registry's ceiling at construction.", "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md" },
+    { "network": "base", "settleTransaction": "0x89c770c44b57f11c2ae1efb5b69628ae8cf5cc3512e023f7d9b66a87dc5bb0d1", "what": "First trade on the Base vault of the reproducible programs: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.", "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md" }
   ]
 }

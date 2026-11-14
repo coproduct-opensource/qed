@@ -18,6 +18,7 @@ pub mod preview;
 pub mod schema;
 pub mod serving;
 pub mod signing;
+pub mod status;
 
 use nucleus_board_reference as board;
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,20 @@ pub struct Input {
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mainnet: Option<Mainnet>,
+    /// The date from which no buyer runs on the test deployment above. Set,
+    /// with a main network present: every page presents the test deployment
+    /// as history (its runs stay in the ledger) and the main network as the
+    /// only live offer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test_buyers_stopped: Option<String>,
+}
+
+impl Input {
+    /// The test deployment is history: its buyers stopped and a main network
+    /// carries the live offer.
+    pub fn test_is_history(&self) -> bool {
+        self.test_buyers_stopped.is_some() && self.mainnet.is_some()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -122,6 +137,39 @@ pub struct Mainnet {
     pub verifier: Deployed,
     pub token: Token,
     pub bounty: Bounty,
+    /// What the status page reads from the chain. Absent: no status page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<StatusInput>,
+}
+
+/// The wallets and limits the status page's queries name.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StatusInput {
+    /// The bounty buyer's wallet: it posts the tasks and funds the orders.
+    pub buyer: String,
+    /// The gas relayer's wallet: it sends relayed fund, settle and claim.
+    pub relayer: String,
+    pub relayer_url: String,
+    /// The balance the relayer keeps, in wei, and where that is configured.
+    pub relayer_floor_wei: String,
+    pub relayer_floor_source: String,
+    /// The vaults the relayer sends to, with the block each was deployed in
+    /// (the first is the bounty's).
+    pub vaults: Vec<StatusVault>,
+    /// The build switch for naming `buyer` and `relayer` on the status page
+    /// and its Markdown twin (owner decision, 2026-11-14: "publish buyer and
+    /// relayer only"). Off: both are shown as "not listed here" and the
+    /// queries that need them carry a placeholder.
+    #[serde(default)]
+    pub publish_wallets: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StatusVault {
+    pub address: String,
+    pub deploy_block: u64,
 }
 
 /// A standing offer on the main-network board. Amounts are in the token's
@@ -571,6 +619,10 @@ fn deployment_with_treasury(input: &Input, programs: &[Published]) -> Value {
             "counterparties": input.assurance.counterparties,
         },
     });
+    if let Some(day) = &input.test_buyers_stopped {
+        // The deployment above is history; `mainnet` is the live offer.
+        value["network"]["buyersStopped"] = json!(day);
+    }
     if let Some(m) = &input.mainnet {
         value["mainnet"] = mainnet_deployment(m);
     }
@@ -589,9 +641,13 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
         "name": input.name,
         "description": format!(
             "Payment for Lean 4 proofs, released by a contract only when a zero-knowledge proof shows a Lean checker accepted the seller's proof of the buyer's statement. Buyers post tasks on a board contract on {}; sellers answer over iroh with x402 v2 payment objects. {} No A2A interface is served at this address; this card is for discovery. A seller serves its own card from its iroh node, with an interface of protocol binding {BINDING}{}.",
-            match &input.mainnet {
-                Some(m) => format!("{} and {}", m.network.name, input.network.name),
-                None => input.network.name.clone(),
+            match (&input.mainnet, &input.test_buyers_stopped) {
+                (Some(m), Some(day)) => format!(
+                    "{} (earlier test runs on {}, where no buyer runs since {day}, stay in the ledger)",
+                    m.network.name, input.network.name
+                ),
+                (Some(m), None) => format!("{} and {}", m.network.name, input.network.name),
+                (None, _) => input.network.name.clone(),
             },
             facts.join(" "),
             match site {
@@ -638,6 +694,24 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
             },
         ],
     });
+    if let Some(m) = &input.mainnet {
+        let page = match site {
+            Some(site) => format!("{}/sellers/run#mac", site.trim_end_matches('/')),
+            None => "/sellers/run#mac".into(),
+        };
+        if let Some(skills) = card["skills"].as_array_mut() {
+            skills.push(json!({
+                "id": "run-seller-mac",
+                "name": "Run a seller on a Mac with Apple container",
+                "description": format!(
+                    "Instructions an agent can follow on a Mac with Apple silicon, using Apple's container CLI (not Docker), to run the released seller against the {} bounty: start the runtime, pull the image by digest, check its signature, make the wallet in a volume, fetch the task's files, write the configuration, run, watch the log, stop. The same steps, explained: {page}. {how}\n\n{}",
+                    m.network.name,
+                    pages::mac_quickstart_script(m)
+                ),
+                "tags": ["seller", "macos", "apple-container", "quickstart"],
+            }));
+        }
+    }
     if let Some(site) = site {
         card["documentationUrl"] = json!(format!("{}/", site.trim_end_matches('/')));
     }
@@ -896,13 +970,26 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         ledger: options.ledger,
         signed_by,
     };
+    // Chain readings made before the build (`snapshot-status`, and
+    // `qed-verify manifest --json`); a build reads them, never the network.
+    let read_json = |path: &str| -> Res<Option<Value>> {
+        match fs::read(repository.join(path)) {
+            Ok(bytes) => Ok(Some(
+                serde_json::from_slice(&bytes).map_err(|e| format!("{path}: {e}"))?,
+            )),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(format!("{path}: {e}").into()),
+        }
+    };
+    let status_snapshot = read_json(status::SNAPSHOT_PATH)?;
+    let verified = read_json(pages::VERIFIED_PATH)?;
     let mut docs_list = vec![
         pages::home(input, &build),
         pages::protocol(input),
         pages::specification(input, &programs),
         pages::threat_model(input),
         pages::transactions(input, &build, &vectors, &programs),
-        pages::verify(input, &programs, &build),
+        pages::verify(input, &programs, &build, verified.as_ref()),
         pages::test_vectors(),
         pages::source(input),
         pages::run_a_seller(input.mainnet.as_ref()),
@@ -912,6 +999,9 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     // only when there is both a main-network bounty and public source.
     if let (Some(m), Software::Public { url }) = (&input.mainnet, &input.software) {
         docs_list.push(pages::bounty(m, url, &vectors, &programs));
+    }
+    if let Some(page) = status::page(input, status_snapshot.as_ref()) {
+        docs_list.push(page);
     }
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     if let Some((ledger_input, snapshot)) = options.ledger {

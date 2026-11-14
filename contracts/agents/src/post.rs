@@ -160,10 +160,7 @@ pub fn post(args: &[String]) -> Res<()> {
         // The hint is for a seller with no other way to find this node. With
         // a relay the node ID is enough, and a bind address such as
         // `0.0.0.0:0` would mislead, so none is posted.
-        buyer_address: match relay {
-            iroh_net::Relay::None => bind.clone(),
-            iroh_net::Relay::Default | iroh_net::Relay::Url(_) => String::new(),
-        },
+        buyer_address: crate::watch::posted_hint(bind, &relay)?,
     };
     if let Some(refusal) = task.refusal(now) {
         return Err(format!("the board would refuse this task: {refusal}").into());

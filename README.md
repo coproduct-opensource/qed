@@ -20,11 +20,15 @@ Read this before anything else.
   model, not by a person.
 - **Every settlement so far was between the authors' own keys.** Nobody else
   has bought or sold through these contracts yet.
-- **Two deployments.** One on a test network (Arbitrum Sepolia) with test
-  tokens. One on Base mainnet with Circle's USDC, whose board carries a
-  standing bounty: 25 USDC a task, at most four tasks, paid to the first
-  seller whose proof settles. The bounty's statement has a public proof, so
-  it tests running a seller, not proving. See "Run a seller" below.
+- **Base mainnet is the only live offer.** Its board, with Circle's USDC,
+  carries a standing bounty: 25 USDC a task, at most four tasks, paid to the
+  first seller whose proof settles. The bounty's statement has a public
+  proof, so it tests running a seller, not proving. See "Run a seller" below.
+  Balances, open tasks, payouts and the relayer, each with the query that
+  reads it from the chain: https://qed.coproduct.dev/status.
+- **The test deployment (Arbitrum Sepolia, test tokens) is history.** No
+  buyer runs there since 2026-11-14; its settlements stay in the ledger at
+  https://qed.coproduct.dev/transactions.
 - **Two settlements used real money**, both between the authors' keys: 0.40
   USDC on Base mainnet through an earlier vault (`NucleusVault2`,
   `0x30f522bc30d46b3a4089931d698f04656fa23b8d`), and 1 USDC through the
@@ -72,7 +76,26 @@ vault's `treasury()`. The same proof programs as below. The vault, registry
 and board run the same bytecode as the Arbitrum Sepolia deployment except
 for the addresses fixed at construction.
 
-## Deployed contracts (Arbitrum Sepolia, chain 421614)
+Each of these contracts rebuilds from this repository's source to the bytes
+on chain. `contracts/verify` compiles it with the official solc release
+pinned by SHA-256 and the settings it was deployed with, compares the runtime
+code (immutables filled in, metadata included) and the deploy transaction's
+creation code and constructor arguments, recomputes the metadata hash, and
+reads the upgrade controls from the chain (proxy slots, `DELEGATECALL`,
+`CALLCODE` and `SELFDESTRUCT` in the code, administrative functions). Plain
+JSON-RPC, no key; exit 0 when every check holds, 1 when one fails:
+
+    cargo run --release --manifest-path contracts/verify/Cargo.toml -- \
+      manifest contracts/verify/deployments/base.json
+
+The verifier is RISC Zero's plain `RiscZeroGroth16Verifier` from their
+v3.1.0 tag, not their router or emergency-stop wrapper (`identify` rebuilds
+all three); its constructor arguments are that tag's `ControlID.sol` values.
+Results, and Sourcify and Blockscout links: https://qed.coproduct.dev/verify#rebuilt.
+
+## Earlier: the test deployment (Arbitrum Sepolia, chain 421614)
+
+No buyer runs here since 2026-11-14. The contracts stay deployed.
 
 | | address |
 |---|---|
@@ -137,6 +160,7 @@ runs is in `.github/workflows/ci.yml`; locally, for example:
     (cd contracts/proof-acceptance/zkvm && cargo test --locked -p nucleus-acceptance-host)
     (cd contracts/vault-conformance && cargo test --locked)
     cargo test -p nucleus-proof-commerce --features x402-wire
+    (cd contracts/verify && cargo test --locked)
 
 The Lean models: install `elan`, then `lake build` in `proofs/commerce`
 (Lean 4.35.0, from `proofs/commerce/lean-toolchain`).
@@ -166,6 +190,127 @@ and `claim` follow, sent through the gas relayer or by the seller itself.
 transactions and pays the gas. A little ETH on Base lets your seller send them
 itself when the relayer is slow or refuses: the first relayed trade's three
 transactions cost 0.0000035 ETH on 2026-11-13, so 0.0002 ETH leaves room.
+
+### Mac QuickStart (Apple container)
+
+On a Mac with Apple silicon, with Apple's `container` CLI (not Docker). It
+runs the image's arm64 build natively, each container in its own small VM.
+Every command was run on 2026-11-14 with `container` 1.4.1 from an empty
+volume, through to the seller watching the Base board (that run added
+`"onlyPoster"` set to an address that never posts, so it could not take the
+bounty). The release is named once, in `IMAGE`.
+
+```sh
+# 1. Apple's container runtime (Apple silicon; https://github.com/apple/container/releases)
+container system start
+
+# 2. The seller release v0.2.1, named by digest
+IMAGE=ghcr.io/coproduct-opensource/qed-seller@sha256:45ecedc5790a7134bd7100a5057b7d1a36766a15f35bb60ce6f932770071b522
+container image pull "$IMAGE"
+
+# 3. Check it. cosign needs no account; gh attestation needs gh signed in to GitHub.
+cosign verify "$IMAGE" \
+  --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify "oci://$IMAGE" --repo coproduct-opensource/qed
+container run --rm --entrypoint nucleus-acceptance-host "$IMAGE" order2r-image
+#    prints: image_id 704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed
+
+# 4. A volume for the key and data. container 1.4.1 gives a new volume to
+#    root, not the image's user, so hand it over once, then make the wallet.
+container volume create qed
+container run --rm --user 0 -v qed:/data --entrypoint /bin/chown "$IMAGE" 10001:999 /data
+container run --rm -v qed:/data --entrypoint nucleus-vault-ops "$IMAGE" keys /data/seller.keys
+#    prints your wallet address; the key stays in the volume
+
+# 5. The bounty's statement and its public proof; the Groth16 data
+#    (2.4 GB download checked against a pinned SHA-256, 4.2 GB kept)
+curl -fsSO https://qed.coproduct.dev/statements/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2
+curl -fsSO https://qed.coproduct.dev/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin
+container run --rm -v qed:/data --entrypoint qed-groth16-data "$IMAGE" /data/groth16
+
+# 6. Two configuration files, copied into the volume with the task's files
+printf '%s\n' '{"chainId": 8453, "kind": "vault3",
+ "rpcs": ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.gateway.tenderly.co"],
+ "rpc": "https://base-rpc.publicnode.com",
+ "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+ "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+ "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"}' > base.json
+printf '%s\n' '{
+  "deployment": "/data/base.json",
+  "keys": "/data/seller.keys",
+  "board": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+  "startBlock": 57107834,
+  "relay": "default",
+  "relayer": "https://relay.qed.coproduct.dev",
+  "prover": ["/usr/local/bin/nucleus-fixture-prover",
+             "/data/9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2",
+             "/data/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"],
+  "proverTimeoutSeconds": 60,
+  "price": "25000000",
+  "proofHost": "/usr/local/bin/nucleus-acceptance-host",
+  "groth16": "native",
+  "groth16Data": "/data/groth16",
+  "expectedProvingSeconds": 3600,
+  "workDir": "/data/seller-work"
+}' > seller.json
+for f in base.json seller.json 9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c.v2 ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin; do
+  cat "$f" | container run --rm -i -v qed:/data --entrypoint tee "$IMAGE" "/data/$f" > /dev/null
+done
+
+# 7. Run. Proving needs memory: the default VM is too small. 8 CPUs and
+#    16 GB took about 13.5 minutes per trade (13 of them proving).
+container run -d --name qed-seller --cpus 8 --memory 16g --read-only --tmpfs /tmp -v qed:/data "$IMAGE"
+container logs -f qed-seller
+#    working: "seller: watching board 0xd968d5659b3c63cd74d7b4d09345ff3417711038 from block ..."
+
+# 8. Stop
+container stop qed-seller && container rm qed-seller
+
+# 9. Move your earnings to your own wallet, with no ETH (see "Moving your earnings")
+#    Needs a seller release with sweep; v0.2.1 has none, so the line stays a comment until then.
+# container run --rm -v qed:/data --entrypoint nucleus-seller "$IMAGE" sweep /data/seller.json 0xYOUR_WALLET
+```
+
+- **Memory.** `container run` gives a container a small VM by default.
+  Proving peaked near 10 GB; the measured trades used 8 CPUs and 16 GB.
+- **Volume ownership.** Without the `chown` step, making the wallet stops
+  with `FAILED: Permission denied (os error 13)`.
+- **Seeing it work.** `container ls` lists it; the log's
+  `seller: watching board` line names the board and the starting block.
+- The same steps, explained, with measured times:
+  https://qed.coproduct.dev/sellers/run#mac. The site's Agent Card carries
+  them as the `run-seller-mac` skill.
+
+### Moving your earnings
+
+**Move your earnings without ETH.** The vault pays your seller key's
+address. To send that USDC to your own wallet, run
+
+    nucleus-seller sweep seller.json 0xYOUR_WALLET
+
+(with the image: step 9 of the Mac QuickStart). It signs one USDC transfer
+authorization (EIP-3009 `transferWithAuthorization`) with your seller key,
+for your whole balance or for `AMOUNT` if you give one, valid for 15
+minutes. The relayer sends it and pays the gas. **It is free:** there is no
+fee. The first sweep on Base cost the relayer 80,920 gas, 0.00000049 ETH
+([transaction](https://basescan.org/tx/0x0c9ab94a7a6286a48dfef36573f3cefb32b18c2717546cf856546950666c209d)).
+Your seller then checks on chain that the transfer landed and prints both
+balances.
+
+The relayer can send your authorization or refuse it, but it cannot change
+where the money goes or how much: your signature binds both, and the token
+checks it. It relays only what the vaults paid you: up to the amounts in
+your claim transactions, less everything that has left your address since
+the earliest of them. It relays one transfer per address at a time, at most
+five per address a day. If it refuses and your seller has a little ETH,
+`sweep` sends the same signed transfer itself; that fallback has not been
+exercised on mainnet. Your seller finds its claims from `startBlock` in
+`seller.json` (or name them with `--claim 0x…`).
+
+**Needs the next seller release.** The seller in the published releases has
+no sweep command: it was added to the source after the latest one and ships
+with the next.
 
 Three ways to get the seller, from least setup to most:
 

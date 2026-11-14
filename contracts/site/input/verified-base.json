@@ -1,0 +1,929 @@
+{
+  "deployments": [
+    {
+      "address": "0x8c915b5071206c6e328bc18529586c513408ab3b",
+      "chainId": 8453,
+      "checkedAt": 1794618387,
+      "checkedAtBlock": 57140061,
+      "checks": [
+        {
+          "check": "chain",
+          "detail": "RPC answers chain 8453, expected 8453",
+          "ok": true
+        },
+        {
+          "check": "runtime code",
+          "detail": "5313 bytes equal to the rebuild, metadata included, immutables filled",
+          "ok": true
+        },
+        {
+          "check": "creation transaction",
+          "detail": "CREATE2 through 0x4e59b44847b379578588920ca78fbf26c0b4956c, salt 0x1215c00000000000000000000000000000000000000000000000000000000000, status 1, derived address 0x8c915b5071206c6e328bc18529586c513408ab3b",
+          "ok": true
+        },
+        {
+          "check": "creation code",
+          "detail": "the transaction's init code is the rebuild's 8620 bytes followed by 64 bytes of arguments",
+          "ok": true
+        },
+        {
+          "check": "argument bn254_control_id",
+          "detail": "chain 0x0ac2eaf9d5ae64ffb75c4747fde32456e9ee6db3b32350cb2a0614ba91d081de, expected 0x0ac2eaf9d5ae64ffb75c4747fde32456e9ee6db3b32350cb2a0614ba91d081de",
+          "ok": true
+        },
+        {
+          "check": "argument control_root",
+          "detail": "chain 0xe6feef13db7aed4a731c7b0852de1f5c89b137726073f625d05333184d3a551d, expected 0xe6feef13db7aed4a731c7b0852de1f5c89b137726073f625d05333184d3a551d",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among BN254_CONTROL_ID, CONTROL_ROOT_0, CONTROL_ROOT_1, SELECTOR, VERSION, verify, verifyIntegrity, verifyProof",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "compiler": "0.8.26+commit.8a97fa7a",
+      "constructorArguments": [
+        {
+          "name": "control_root",
+          "type": "bytes32",
+          "value": "0xe6feef13db7aed4a731c7b0852de1f5c89b137726073f625d05333184d3a551d"
+        },
+        {
+          "name": "bn254_control_id",
+          "type": "bytes32",
+          "value": "0x0ac2eaf9d5ae64ffb75c4747fde32456e9ee6db3b32350cb2a0614ba91d081de"
+        }
+      ],
+      "contract": "RiscZeroGroth16Verifier",
+      "controls": [
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among BN254_CONTROL_ID, CONTROL_ROOT_0, CONTROL_ROOT_1, SELECTOR, VERSION, verify, verifyIntegrity, verifyProof",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "creationPath": "create2",
+      "immutables": {
+        "BN254_CONTROL_ID": "0x0ac2eaf9d5ae64ffb75c4747fde32456e9ee6db3b32350cb2a0614ba91d081de",
+        "CONTROL_ROOT_0": "0x5c1fde52087b1c734aed7adb13effee600000000000000000000000000000000",
+        "CONTROL_ROOT_1": "0x1d553a4d183353d025f673607237b18900000000000000000000000000000000",
+        "SELECTOR": "0xe71e662000000000000000000000000000000000000000000000000000000000"
+      },
+      "label": "base/RiscZeroGroth16Verifier",
+      "metadata": "solc 0.8.26",
+      "metadataIpfs": null,
+      "redacted": [
+        "treasury_"
+      ],
+      "rpc": "https://mainnet.base.org",
+      "runtimeBytes": 5313,
+      "runtimeKeccak256": "0x8639f10cacfaa87a9e4f18db3a357ae496a9c835e74ab43ac0c63143226bc59a",
+      "runtimeMatch": "exact",
+      "settings": {
+        "evmVersion": "cancun",
+        "libraries": {},
+        "metadata": {
+          "bytecodeHash": "none"
+        },
+        "optimizer": {
+          "enabled": true,
+          "runs": 10000
+        },
+        "remappings": [],
+        "viaIR": true
+      },
+      "solcSha256": "0ff016aef2396b12d1fc65429d8ea6cf53c2ee4b041bb8925644615ee1c30ab9",
+      "sourceRev": null,
+      "sources": {
+        "openzeppelin/contracts/utils/math/SafeCast.sol": "0x195533c86d0ef72bcc06456a4f66a9b941f38eb403739b00f21fd7c1abd1ae54",
+        "src/IRiscZeroSelectable.sol": "0x98c6d45d84afb26622529a5e4f7b616d373b726f6e8254c5e1aaa76475fbcce2",
+        "src/IRiscZeroVerifier.sol": "0x3e74a4b2940b88837fb8399a0012b435d1d513a622d3ea3ba58088af9ad7e2fd",
+        "src/StructHash.sol": "0x11d3406ef2b0e323ea9b9f9ecd971a0d84e269748300b22dc8f531c7dd51fcd0",
+        "src/Util.sol": "0x230a9a58bb2b0c68d4921ecc3672783f941890a2fa3a238dbe5188cfb7658b82",
+        "src/groth16/ControlID.sol": "0x229556faae50ecfed3937fe38e287ca55fde81940d01d6306e60ffa01fc78b56",
+        "src/groth16/Groth16Verifier.sol": "0xc80c5535f23db9e0da487976363c0a97e0116ee30069f5d34bde2d0d08124291",
+        "src/groth16/RiscZeroGroth16Verifier.sol": "0x8cb8a742d0683f4dd2390ca32e4fd4e537a105d1ba2d4dcf419afc772e15be94"
+      },
+      "tx": "0x430cd977a1598ce423fa8ceaf8fbc24e94117abf27cc546477c2caff254a210e",
+      "verified": true
+    },
+    {
+      "address": "0x4810022c80777d3ef3951845349ea1e129874c63",
+      "chainId": 8453,
+      "checkedAt": 1794618388,
+      "checkedAtBlock": 57140065,
+      "checks": [
+        {
+          "check": "chain",
+          "detail": "RPC answers chain 8453, expected 8453",
+          "ok": true
+        },
+        {
+          "check": "runtime code",
+          "detail": "1578 bytes equal to the rebuild, metadata included, immutables filled",
+          "ok": true
+        },
+        {
+          "check": "metadata hash",
+          "detail": "the rebuild's metadata JSON hashes to QmR1yC8Mbg43suACP6VBA24zU3VN6dZnh4Hr1UrteHKZtt; the code names QmR1yC8Mbg43suACP6VBA24zU3VN6dZnh4Hr1UrteHKZtt",
+          "ok": true
+        },
+        {
+          "check": "creation transaction",
+          "detail": "contract-creation transaction, status 1, created 0x4810022c80777d3ef3951845349ea1e129874c63",
+          "ok": true
+        },
+        {
+          "check": "creation code",
+          "detail": "the transaction's init code is the rebuild's 1873 bytes followed by 96 bytes of arguments",
+          "ok": true
+        },
+        {
+          "check": "argument baseProgram_",
+          "detail": "chain 0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440, expected 0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440",
+          "ok": true
+        },
+        {
+          "check": "argument maximumBps_",
+          "detail": "chain 50, expected 50",
+          "ok": true
+        },
+        {
+          "check": "argument verifier_",
+          "detail": "chain 0x8c915b5071206c6e328bc18529586c513408ab3b, expected 0x8c915b5071206c6e328bc18529586c513408ab3b",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among axiomsOf, baseProgram, entryOf, maximumBps, register, verifier",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "compiler": "0.8.38+commit.1835d247",
+      "constructorArguments": [
+        {
+          "name": "verifier_",
+          "type": "address",
+          "value": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+        },
+        {
+          "name": "baseProgram_",
+          "type": "bytes32",
+          "value": "0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440"
+        },
+        {
+          "name": "maximumBps_",
+          "type": "uint16",
+          "value": "50"
+        }
+      ],
+      "contract": "BaseRegistry",
+      "controls": [
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among axiomsOf, baseProgram, entryOf, maximumBps, register, verifier",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "creationPath": "create",
+      "immutables": {
+        "baseProgram": "0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440",
+        "maximumBps": "0x0000000000000000000000000000000000000000000000000000000000000032",
+        "verifier": "0x0000000000000000000000008c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "label": "base/BaseRegistry",
+      "metadata": "ipfs QmR1yC8Mbg43suACP6VBA24zU3VN6dZnh4Hr1UrteHKZtt, solc 0.8.38",
+      "metadataIpfs": "QmR1yC8Mbg43suACP6VBA24zU3VN6dZnh4Hr1UrteHKZtt",
+      "redacted": [
+        "treasury_"
+      ],
+      "rpc": "https://mainnet.base.org",
+      "runtimeBytes": 1578,
+      "runtimeKeccak256": "0x6216b0a7dba1bc07fe9b4d55db08b7eaffa06b4f8da7e1b64843e7c3012d89de",
+      "runtimeMatch": "exact",
+      "settings": {
+        "evmVersion": "paris",
+        "libraries": {},
+        "metadata": {
+          "bytecodeHash": "ipfs"
+        },
+        "optimizer": {
+          "enabled": true,
+          "runs": 200
+        },
+        "remappings": []
+      },
+      "solcSha256": "b18ac1d1f48394c71ca9aefbf0fb94fef24c87b358f48578de5941e234e0a2a9",
+      "sourceRev": null,
+      "sources": {
+        "src/BaseRegistry.sol": "0x98bb3327ae58a3ac6e1069d0f976de8da20216cc68afffd7bcfee170cb3fb063"
+      },
+      "tx": "0x386214f5efaccccf98b2f20de47923e46adda5a478679a0ce632f72d39801f3d",
+      "verified": true
+    },
+    {
+      "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+      "chainId": 8453,
+      "checkedAt": 1794618389,
+      "checkedAtBlock": 57140072,
+      "checks": [
+        {
+          "check": "chain",
+          "detail": "RPC answers chain 8453, expected 8453",
+          "ok": true
+        },
+        {
+          "check": "runtime code",
+          "detail": "7521 bytes equal to the rebuild, metadata included, immutables filled",
+          "ok": true
+        },
+        {
+          "check": "metadata hash",
+          "detail": "the rebuild's metadata JSON hashes to QmZwLs5UhCW1DYMSwEZY1tpx4wGXh1suuEbEqiNRFg9KeR; the code names QmZwLs5UhCW1DYMSwEZY1tpx4wGXh1suuEbEqiNRFg9KeR",
+          "ok": true
+        },
+        {
+          "check": "creation transaction",
+          "detail": "contract-creation transaction, status 1, created 0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "ok": true
+        },
+        {
+          "check": "creation code",
+          "detail": "the transaction's init code is the rebuild's 8275 bytes followed by 160 bytes of arguments",
+          "ok": true
+        },
+        {
+          "check": "argument feeBps_",
+          "detail": "chain 25, expected 25",
+          "ok": true
+        },
+        {
+          "check": "argument maximumFeeBps_",
+          "detail": "chain 100, expected 100",
+          "ok": true
+        },
+        {
+          "check": "argument maximumTerm_",
+          "detail": "chain 2592000, expected 2592000",
+          "ok": true
+        },
+        {
+          "check": "argument registry_",
+          "detail": "chain 0x4810022c80777d3ef3951845349ea1e129874c63, expected 0x4810022c80777d3ef3951845349ea1e129874c63",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among artifactOf, claim, digest, feeBps, feeOf, fund, maximumFeeBps, maximumTerm, owed, phase, refund, registry, royaltyOf, settle, treasury",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "compiler": "0.8.38+commit.1835d247",
+      "constructorArguments": [
+        {
+          "name": "treasury_",
+          "type": "address",
+          "value": "0xredacted"
+        },
+        {
+          "name": "feeBps_",
+          "type": "uint16",
+          "value": "25"
+        },
+        {
+          "name": "maximumFeeBps_",
+          "type": "uint16",
+          "value": "100"
+        },
+        {
+          "name": "maximumTerm_",
+          "type": "uint64",
+          "value": "2592000"
+        },
+        {
+          "name": "registry_",
+          "type": "address",
+          "value": "0x4810022c80777d3ef3951845349ea1e129874c63"
+        }
+      ],
+      "contract": "NucleusVault3",
+      "controls": [
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among artifactOf, claim, digest, feeBps, feeOf, fund, maximumFeeBps, maximumTerm, owed, phase, refund, registry, royaltyOf, settle, treasury",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "creationPath": "create",
+      "immutables": {
+        "feeBps": "0x0000000000000000000000000000000000000000000000000000000000000019",
+        "maximumFeeBps": "0x0000000000000000000000000000000000000000000000000000000000000064",
+        "maximumTerm": "0x0000000000000000000000000000000000000000000000000000000000278d00",
+        "registry": "0x0000000000000000000000004810022c80777d3ef3951845349ea1e129874c63",
+        "treasury": "0x000000000000000000000000redacted"
+      },
+      "label": "base/NucleusVault3",
+      "metadata": "ipfs QmZwLs5UhCW1DYMSwEZY1tpx4wGXh1suuEbEqiNRFg9KeR, solc 0.8.38",
+      "metadataIpfs": "QmZwLs5UhCW1DYMSwEZY1tpx4wGXh1suuEbEqiNRFg9KeR",
+      "redacted": [
+        "treasury_"
+      ],
+      "rpc": "https://mainnet.base.org",
+      "runtimeBytes": 7521,
+      "runtimeKeccak256": "0x30207053b041bed3477a76c625a5e5f2dab0ad82a63ecd2f4754cec84bb1c8da",
+      "runtimeMatch": "exact",
+      "settings": {
+        "evmVersion": "paris",
+        "libraries": {},
+        "metadata": {
+          "bytecodeHash": "ipfs"
+        },
+        "optimizer": {
+          "enabled": true,
+          "runs": 200
+        },
+        "remappings": []
+      },
+      "solcSha256": "b18ac1d1f48394c71ca9aefbf0fb94fef24c87b358f48578de5941e234e0a2a9",
+      "sourceRev": null,
+      "sources": {
+        "src/NucleusVault3.sol": "0xa525c0e6b2b036c3665f0d74a54428b760100281e4211d20807acde1c33dfa48"
+      },
+      "tx": "0x8f15dd81005bde1c95c56d9007ddfccc4c302e3e3ae5adb54b17d47a1f540b10",
+      "verified": true
+    },
+    {
+      "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+      "chainId": 8453,
+      "checkedAt": 1794618390,
+      "checkedAtBlock": 57140074,
+      "checks": [
+        {
+          "check": "chain",
+          "detail": "RPC answers chain 8453, expected 8453",
+          "ok": true
+        },
+        {
+          "check": "runtime code",
+          "detail": "1971 bytes equal to the rebuild, metadata included, immutables filled",
+          "ok": true
+        },
+        {
+          "check": "metadata hash",
+          "detail": "the rebuild's metadata JSON hashes to QmXFvKerRq8ch1KzsvcF1rkHUuXWwvse8UnEGp5fPqcauH; the code names QmXFvKerRq8ch1KzsvcF1rkHUuXWwvse8UnEGp5fPqcauH",
+          "ok": true
+        },
+        {
+          "check": "creation transaction",
+          "detail": "contract-creation transaction, status 1, created 0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "ok": true
+        },
+        {
+          "check": "creation code",
+          "detail": "the transaction's init code is the rebuild's 2149 bytes followed by 32 bytes of arguments",
+          "ok": true
+        },
+        {
+          "check": "argument vault_",
+          "detail": "chain 0x952c31aa208dd129059f6065a26b57c930c6ab3c, expected 0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among idOf, post, posterOf, vault, withdraw, withdrawn",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "compiler": "0.8.38+commit.1835d247",
+      "constructorArguments": [
+        {
+          "name": "vault_",
+          "type": "address",
+          "value": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
+        }
+      ],
+      "contract": "NucleusBoard",
+      "controls": [
+        {
+          "check": "EIP-1967 implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 admin slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1967 beacon slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "EIP-1822 proxiable slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "zeppelinos implementation slot",
+          "detail": "empty",
+          "ok": true
+        },
+        {
+          "check": "DELEGATECALL, CALLCODE, SELFDESTRUCT in runtime code",
+          "detail": "none (opcode walk over the code before the metadata, PUSH data skipped)",
+          "ok": true
+        },
+        {
+          "check": "administrative function names in the ABI",
+          "detail": "none among idOf, post, posterOf, vault, withdraw, withdrawn",
+          "ok": true
+        },
+        {
+          "check": "fallback or receive function",
+          "detail": "none",
+          "ok": true
+        },
+        {
+          "check": "call owner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call pendingOwner()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call paused()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call implementation()",
+          "detail": "reverts",
+          "ok": true
+        },
+        {
+          "check": "call admin()",
+          "detail": "reverts",
+          "ok": true
+        }
+      ],
+      "creationPath": "create",
+      "immutables": {
+        "vault": "0x000000000000000000000000952c31aa208dd129059f6065a26b57c930c6ab3c"
+      },
+      "label": "base/NucleusBoard",
+      "metadata": "ipfs QmXFvKerRq8ch1KzsvcF1rkHUuXWwvse8UnEGp5fPqcauH, solc 0.8.38",
+      "metadataIpfs": "QmXFvKerRq8ch1KzsvcF1rkHUuXWwvse8UnEGp5fPqcauH",
+      "redacted": [
+        "treasury_"
+      ],
+      "rpc": "https://mainnet.base.org",
+      "runtimeBytes": 1971,
+      "runtimeKeccak256": "0xe8d6a1f17eb0ae8c30e99c20ee7a951663192df1e3110c56438e0f70e5273a60",
+      "runtimeMatch": "exact",
+      "settings": {
+        "evmVersion": "paris",
+        "libraries": {},
+        "metadata": {
+          "bytecodeHash": "ipfs"
+        },
+        "optimizer": {
+          "enabled": true,
+          "runs": 200
+        },
+        "remappings": []
+      },
+      "solcSha256": "b18ac1d1f48394c71ca9aefbf0fb94fef24c87b358f48578de5941e234e0a2a9",
+      "sourceRev": null,
+      "sources": {
+        "src/NucleusBoard.sol": "0xdac2cf371d1b421c89f561d9c1fee865f93aee18b5a6ff84a376ac7903e5b756"
+      },
+      "tx": "0x3b171a4461623fcc998a8fdcf197b9b7ccf25f03cdeaff949a7d205d1f86f642",
+      "verified": true
+    }
+  ]
+}

@@ -170,6 +170,38 @@ pub fn peer_hint(
     Ok(Some(address))
 }
 
+/// The address hint a buyer bound at `bind` posts in this relay mode. With a
+/// relay the node ID is enough and none is posted. With none, the bind
+/// address is the hint, and it is part of the task's ID on the board, so a
+/// hint no seller takes can never be answered: it is refused here, before
+/// anything is posted. The test is the seller's own (`peer_hint`, in its
+/// one-machine form), and an unspecified address, which names no host to
+/// dial, is refused too.
+pub fn posted_hint(bind: &str, relay: &crate::iroh_net::Relay) -> Res<String> {
+    match relay {
+        crate::iroh_net::Relay::None => {
+            let refused = |why: String| -> Res<String> {
+                Err(format!(
+                    "no seller would take the address hint {bind:?} ({why}); with no relay \
+                     (NUCLEUS_RELAY unset or `none`) the bind address is posted, so bind a \
+                     reachable address and port, or set NUCLEUS_RELAY=default"
+                )
+                .into())
+            };
+            match peer_hint(bind, &crate::iroh_net::Relay::None, true) {
+                Ok(Some(address)) if address.ip().is_unspecified() => {
+                    refused("an unspecified address".into())
+                }
+                Ok(Some(_)) => Ok(bind.to_owned()),
+                Ok(None) => refused("empty".into()),
+                Err(Skip::UnsafeAddress(why)) => refused(why),
+                Err(other) => refused(other.to_string()),
+            }
+        }
+        crate::iroh_net::Relay::Default | crate::iroh_net::Relay::Url(_) => Ok(String::new()),
+    }
+}
+
 /// How a seller reaches the buyer that posted a task.
 pub trait BuyerLink {
     /// `iroh://<buyer node>`: what proofs to this buyer name before the path.

@@ -184,8 +184,9 @@ impl OnChain {
         crate::relay::Submission {
             chain: &self.chain,
             relayer: self.relayer.as_deref(),
-            vault: self.deployment.vault,
+            target: self.deployment.vault,
             data,
+            claims: &[],
             wait: self.relayer_wait,
             until,
             poll: Duration::from_secs(3),

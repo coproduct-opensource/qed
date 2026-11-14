@@ -291,10 +291,7 @@ pub fn post_tasks(args: &[String]) -> Res<()> {
             buyer_node: board::node_bytes(&node)?,
             buyer_key_binding: keys.binding(),
             salt: random32()?,
-            buyer_address: match relay {
-                iroh_net::Relay::None => bind.clone(),
-                iroh_net::Relay::Default | iroh_net::Relay::Url(_) => String::new(),
-            },
+            buyer_address: crate::watch::posted_hint(bind, &relay)?,
         };
         if let Some(refusal) = task.refusal(now) {
             return Err(

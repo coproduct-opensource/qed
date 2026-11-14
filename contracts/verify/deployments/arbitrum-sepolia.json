@@ -1,0 +1,55 @@
+{
+  "about": "Arbitrum Sepolia (chain 421614): the reproducible-program trio deployed 2026-11-13 from commit 424dd44d3, and the RISC Zero Groth16 verifier they call. Verify with: cargo run --release --manifest-path contracts/verify/Cargo.toml -- manifest contracts/verify/deployments/arbitrum-sepolia.json",
+  "deployments": [
+    {
+      "label": "arbitrum-sepolia/RiscZeroGroth16Verifier",
+      "contract": "RiscZeroGroth16Verifier",
+      "chainId": 421614,
+      "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
+      "address": "0x8c915b5071206c6e328bc18529586c513408ab3b",
+      "tx": "0xe748b0b76ebd2bacdfe432ebb2f61687b5a3023b73564ef40b1355eda52b8153",
+      "expect": {
+        "control_root": "source:src/groth16/ControlID.sol:CONTROL_ROOT",
+        "bn254_control_id": "source:src/groth16/ControlID.sol:BN254_CONTROL_ID"
+      }
+    },
+    {
+      "label": "arbitrum-sepolia/BaseRegistry",
+      "contract": "BaseRegistry",
+      "chainId": 421614,
+      "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
+      "address": "0x0552026afa8a3b8bf35a5b06922401761f79dc5f",
+      "tx": "0xe0100a011c73632e0b8e2e57409a0d10986cb3d5d93e4343722103c64ae159d1",
+      "expect": {
+        "verifier_": "deployment:arbitrum-sepolia/RiscZeroGroth16Verifier",
+        "baseProgram_": "0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440",
+        "maximumBps_": "50"
+      }
+    },
+    {
+      "label": "arbitrum-sepolia/NucleusVault3",
+      "contract": "NucleusVault3",
+      "chainId": 421614,
+      "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
+      "address": "0xb1d68c62497384a8d19da1860bb4990c3e83aeac",
+      "tx": "0x49bca41b944841a8e9a279eb84267f2dd775f75db5daa2bb19838ce41b82095a",
+      "expect": {
+        "feeBps_": "25",
+        "maximumFeeBps_": "100",
+        "maximumTerm_": "2592000",
+        "registry_": "deployment:arbitrum-sepolia/BaseRegistry"
+      }
+    },
+    {
+      "label": "arbitrum-sepolia/NucleusBoard",
+      "contract": "NucleusBoard",
+      "chainId": 421614,
+      "rpc": "https://sepolia-rollup.arbitrum.io/rpc",
+      "address": "0x81711f647826fe53749c6b73804716655a1bf7c9",
+      "tx": "0xe1d94692d029819e2fc50d7fb85306c9cd83199e63d920fe7b8284d86422f0e3",
+      "expect": {
+        "vault_": "deployment:arbitrum-sepolia/NucleusVault3"
+      }
+    }
+  ]
+}

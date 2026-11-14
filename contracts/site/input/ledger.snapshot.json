@@ -1,13 +1,13 @@
 {
   "networks": [
     {
-      "block": 328918975,
+      "block": 328993694,
       "chainId": 421614,
       "key": "arbitrum-sepolia",
       "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
     },
     {
-      "block": 57044192,
+      "block": 57146040,
       "chainId": 8453,
       "key": "base",
       "rpc": "https://base-rpc.publicnode.com"
@@ -74,7 +74,7 @@
         "transaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -145,7 +145,7 @@
         "transaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -216,7 +216,7 @@
         "transaction": "0x00528f833084175726816eb3b8da3fcbb47e1bbe9fefd1262617bc42443d993e"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -290,7 +290,7 @@
         "transaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf"
       },
       "snapshot": {
-        "block": 57044192,
+        "block": 57146040,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -361,7 +361,7 @@
         "transaction": "0x0459ba1e98d495ddf25dc996b93cd9d89311c271220aa3d055a810419337ef66"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -432,7 +432,7 @@
         "transaction": "0xfe7e8855170f71532e6200feef0d5685868565d05216dd0426d6cb7d7cc4825c"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -506,7 +506,7 @@
         "transaction": "0x91bd2e1c4a9391314e04fea4abb069bf8e1f15cb8bc24df576345ee499eeb7c7"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -580,7 +580,7 @@
         "transaction": "0x14c95288fd99780b54f176a7cfdf5d025861a4779346d83073ec14603b5bb44d"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -654,7 +654,7 @@
         "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -728,7 +728,7 @@
         "transaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -802,7 +802,7 @@
         "transaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -876,7 +876,7 @@
         "transaction": "0xb90258b2ccbc4fb76dbc4653a222252cbfca05918f6f8868360e76861df38549"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -950,7 +950,7 @@
         "transaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1024,7 +1024,7 @@
         "transaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1098,7 +1098,7 @@
         "transaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1172,7 +1172,7 @@
         "transaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1246,7 +1246,7 @@
         "transaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1323,7 +1323,7 @@
         "transaction": "0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8"
       },
       "snapshot": {
-        "block": 57044192,
+        "block": 57146040,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -1397,7 +1397,7 @@
         "transaction": "0x617c633ffc1990ac62774ac415deb41b1f1e92bd39aea5f205777f8640dc85a8"
       },
       "snapshot": {
-        "block": 328918975,
+        "block": 328993694,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1407,8 +1407,85 @@
         "symbol": "USDC"
       },
       "vault": "0xb1d68c62497384a8d19da1860bb4990c3e83aeac"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "what": "First trade on the Base vault of the reproducible programs: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.",
+        "program": {
+          "name": "third-form order program, statement format v2, rebuilds from source (nucleus-order-fmt2r.bin)",
+          "status": "published"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md",
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room"
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "2500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "997500"
+      },
+      "funding": {
+        "block": 57142803,
+        "timestamp": 1794618936,
+        "transaction": "0xdc059a7427093d6f58bc606e5dbc0766fbcca4a603d9388e86785385b4676bc7"
+      },
+      "id": "0xa2f139e12b7aaee29d7c800754b4f4db2007e69b112274d26c417e3d701f07a6",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "1000000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x83c9323b625499fbd7288dc0f9cccee577361503",
+        "context": "0x528c2eaf32689f0280049c7878bfb2feedab7b239a0303987e841e71d73898f8",
+        "deliverBy": 1794629735,
+        "fundBy": 1794619835,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0x704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed",
+        "salt": "0xaad714e48bf41b8ec643701b7f669ce44a33eba5e60f89e62cda97cc67d4cc95",
+        "seller": "0x66004db0b83a671b7f8288e40e8fe975ed4996d1",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xa2f139e12b7aaee29d7c800754b4f4db2007e69b112274d26c417e3d701f07a6",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 57144757,
+        "from": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+        "gasUsed": 348953,
+        "timestamp": 1794619327,
+        "transaction": "0x89c770c44b57f11c2ae1efb5b69628ae8cf5cc3512e023f7d9b66a87dc5bb0d1"
+      },
+      "snapshot": {
+        "block": 57146040,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
     }
   ],
   "schema": "qed-ledger-snapshot/1",
-  "takenAt": 1794599213
+  "takenAt": 1794619583
 }

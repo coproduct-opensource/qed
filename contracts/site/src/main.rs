@@ -7,6 +7,10 @@
 //! nucleus-site snapshot input/ledger.json NOW
 //!     Read every settlement the ledger names from its chain (read-only
 //!     JSON-RPC) and write input/ledger.snapshot.json and input/artifacts/.
+//! nucleus-site snapshot-status input/arbitrum-sepolia.json NOW
+//!     Read the main network's bounty, vaults and relayer at the latest
+//!     block (read-only JSON-RPC, and one POST without a proof to the
+//!     relayer) and write input/status.snapshot.json for the status page.
 //! nucleus-site card-key-create FILE
 //!     Make a new ES256 card-signing key file (mode 0600); refuses to overwrite.
 //! nucleus-site preview DIR 127.0.0.1:PORT
@@ -68,6 +72,21 @@ fn run(args: &[String]) -> Res<()> {
             } else {
                 Err(format!("{} finding(s)", findings.len()).into())
             }
+        }
+        [command, input_file, now] if command == "snapshot-status" => {
+            let path = Path::new(input_file);
+            let input = Input::read(path)?;
+            let now: u64 = now.parse().map_err(|_| "NOW must be a Unix time in seconds")?;
+            let value = nucleus_site::status::snapshot(&input, now)?;
+            let out = path.parent().ok_or("input path")?.join("status.snapshot.json");
+            fs::write(&out, serde_json::to_string_pretty(&value)? + "\n")?;
+            println!(
+                "block {}; {} posts; wrote {}",
+                value["block"],
+                value["posts"].as_array().map_or(0, Vec::len),
+                out.display()
+            );
+            Ok(())
         }
         [command, ledger_file, now] if command == "snapshot" => {
             let path = Path::new(ledger_file);
@@ -136,7 +155,7 @@ fn run(args: &[String]) -> Res<()> {
             }
             Ok(())
         }
-        _ => Err("usage: nucleus-site build OUT_DIR --input FILE --repository DIR [--site-url URL] [--ledger input/ledger.json] [--card-key FILE] [--source-commit HASH] | snapshot input/ledger.json NOW | card-key-create FILE | preview DIR 127.0.0.1:PORT | caddy HOST ROOT | check-live URL BUILT_SITE_DIR | keccak-hex FILE".into()),
+        _ => Err("usage: nucleus-site build OUT_DIR --input FILE --repository DIR [--site-url URL] [--ledger input/ledger.json] [--card-key FILE] [--source-commit HASH] | snapshot input/ledger.json NOW | snapshot-status input/arbitrum-sepolia.json NOW | card-key-create FILE | preview DIR 127.0.0.1:PORT | caddy HOST ROOT | check-live URL BUILT_SITE_DIR | keccak-hex FILE".into()),
     }
 }
 

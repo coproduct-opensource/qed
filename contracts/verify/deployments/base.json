@@ -1,0 +1,55 @@
+{
+  "about": "Base mainnet (chain 8453): the contracts the live bounty runs on, deployed 2026-11-13 from the reproducible-program switch, and the RISC Zero Groth16 verifier they call. Verify with: cargo run --release --manifest-path contracts/verify/Cargo.toml -- manifest contracts/verify/deployments/base.json",
+  "deployments": [
+    {
+      "label": "base/RiscZeroGroth16Verifier",
+      "contract": "RiscZeroGroth16Verifier",
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "address": "0x8c915b5071206c6e328bc18529586c513408ab3b",
+      "tx": "0x430cd977a1598ce423fa8ceaf8fbc24e94117abf27cc546477c2caff254a210e",
+      "expect": {
+        "control_root": "source:src/groth16/ControlID.sol:CONTROL_ROOT",
+        "bn254_control_id": "source:src/groth16/ControlID.sol:BN254_CONTROL_ID"
+      }
+    },
+    {
+      "label": "base/BaseRegistry",
+      "contract": "BaseRegistry",
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "address": "0x4810022c80777d3ef3951845349ea1e129874c63",
+      "tx": "0x386214f5efaccccf98b2f20de47923e46adda5a478679a0ce632f72d39801f3d",
+      "expect": {
+        "verifier_": "deployment:base/RiscZeroGroth16Verifier",
+        "baseProgram_": "0x4e332565d72709224bbeeea36b92e6b8dab0c1a10e5d7aaf437789011357d440",
+        "maximumBps_": "50"
+      }
+    },
+    {
+      "label": "base/NucleusVault3",
+      "contract": "NucleusVault3",
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+      "tx": "0x8f15dd81005bde1c95c56d9007ddfccc4c302e3e3ae5adb54b17d47a1f540b10",
+      "expect": {
+        "feeBps_": "25",
+        "maximumFeeBps_": "100",
+        "maximumTerm_": "2592000",
+        "registry_": "deployment:base/BaseRegistry"
+      }
+    },
+    {
+      "label": "base/NucleusBoard",
+      "contract": "NucleusBoard",
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+      "tx": "0x3b171a4461623fcc998a8fdcf197b9b7ccf25f03cdeaff949a7d205d1f86f642",
+      "expect": {
+        "vault_": "deployment:base/NucleusVault3"
+      }
+    }
+  ]
+}

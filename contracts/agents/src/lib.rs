@@ -30,6 +30,7 @@ pub mod relay;
 pub mod safe;
 pub mod seller;
 pub mod support;
+pub mod sweep;
 pub mod tasks;
 pub mod watch;
 pub mod worker;

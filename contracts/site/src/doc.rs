@@ -150,9 +150,10 @@ impl Doc {
 }
 
 /// The numbered index every page carries, as in the brief's mock.
-pub const INDEX: [(&str, &str); 6] = [
+pub const INDEX: [(&str, &str); 7] = [
     ("protocol/specification", "Specification"),
     ("transactions", "Ledger"),
+    ("status", "Status"),
     ("verify", "Verify"),
     ("protocol/threat-model", "Threat model"),
     ("sellers/run", "Run a seller"),

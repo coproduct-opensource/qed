@@ -13,6 +13,10 @@
 //! - R-1 to R-4 (seller side, `submit`): the seller checks the mined
 //!   transaction against the calldata it built, and sends the call itself if
 //!   the relayer does not deliver in time.
+//! - T-1 to T-9 (`transfer.rs`, RFC §15): one more call, the token's
+//!   `transferWithAuthorization`, signed by a seller an allow-listed vault
+//!   paid, within what the vaults paid it.
+pub mod transfer;
 use crate::chain::{Eip1559, RpcError, Sent};
 use crate::dpop::{DPOP_TYP, proof_check, proof_make};
 use crate::message::{Reply, Request};
@@ -142,6 +146,8 @@ pub struct LaneConfig {
     pub budget: u128,
     /// A-5: the balance the relayer keeps on this chain.
     pub floor: u128,
+    /// T-1: the token whose transfers are relayed here. `None`: none are.
+    pub transfer: Option<transfer::TransferConfig>,
 }
 
 struct Pending {
@@ -157,6 +163,9 @@ struct LaneState {
     pending: Vec<Pending>,
     /// First hash of a request, and every hash used for it, oldest first.
     history: VecDeque<(String, Vec<String>)>,
+    /// T-7: the relayed transfer in flight for each `from`, by first hash,
+    /// until one of its hashes is mined.
+    transfers: HashMap<Address, String>,
 }
 impl LaneState {
     fn record(&mut self, first: &str, hash: &str) {
@@ -335,6 +344,7 @@ impl Lane {
                 .iter()
                 .any(|hash| matches!(self.chain.receipt(hash), Ok(Some(_))));
             if mined {
+                state.transfers.retain(|_, first| *first != pending.first);
                 continue;
             }
             if pending.sent.elapsed() < limits.replace_after
@@ -390,6 +400,23 @@ impl Lane {
         }
         state.pending = keep;
     }
+    /// T-7: the first hash of the relayed transfer for `from` not yet mined.
+    fn transfer_in_flight(&self, from: Address) -> Result<Option<String>, Refusal> {
+        Ok(self.state()?.transfers.get(&from).cloned())
+    }
+    /// Send an admitted transfer (T-9: A-3 to A-8 as for every call) and
+    /// hold it in flight for its `from` until it is mined (T-7).
+    fn send_transfer(
+        &self,
+        key: &SigningKey,
+        admitted: transfer::Admitted,
+        limits: &Limits,
+    ) -> Result<(String, u128), Refusal> {
+        let (token, data, from) = admitted.into_call();
+        let (hash, nonce) = self.send(key, token, &data, limits)?;
+        self.state()?.transfers.insert(from, hash.clone());
+        Ok((hash, nonce))
+    }
     fn hashes(&self, first: &str) -> Option<Vec<String>> {
         let state = self.state.lock().ok()?;
         state
@@ -410,6 +437,23 @@ pub struct Relay {
     keys: Mutex<Window>,
     addresses: Mutex<Window>,
     sellers: Mutex<Window>,
+    /// T-8: relayed transfers per `from`, and in all, per day.
+    transfers: Mutex<Window>,
+    /// T-7: the (chain, `from`) pairs whose transfer is being admitted now.
+    admitting: Mutex<HashSet<(u64, Address)>>,
+}
+
+/// Holds one (chain, `from`) in `Relay::admitting` and releases it on drop.
+struct Admitting<'a> {
+    set: &'a Mutex<HashSet<(u64, Address)>>,
+    key: (u64, Address),
+}
+impl Drop for Admitting<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut set) = self.set.lock() {
+            set.remove(&self.key);
+        }
+    }
 }
 
 impl Relay {
@@ -429,6 +473,8 @@ impl Relay {
             keys: Mutex::new(Window::default()),
             addresses: Mutex::new(Window::default()),
             sellers: Mutex::new(Window::default()),
+            transfers: Mutex::new(Window::default()),
+            admitting: Mutex::new(HashSet::new()),
         })
     }
     /// The address that pays the gas.
@@ -528,6 +574,25 @@ impl Relay {
             .lanes
             .get(&chain_id)
             .ok_or((403, "chain not served here".to_owned()))?;
+        if let Some(config) = &lane.config.transfer
+            && to == config.token
+        {
+            if value != 0 {
+                return Err((403, "value must be 0".into()));
+            }
+            let claims: Vec<String> = match &body["claims"] {
+                Value::Array(list) => list
+                    .iter()
+                    .map(|c| {
+                        c.as_str()
+                            .map(str::to_owned)
+                            .ok_or_else(|| malformed("claims"))
+                    })
+                    .collect::<Result<_, _>>()?,
+                _ => return Err(malformed("claims")),
+            };
+            return self.submit_transfer(chain_id, lane, config, &data, &claims, now);
+        }
         // S-1, S-2.
         if !lane.config.vaults.contains(&to) {
             return Err((403, "not an allow-listed vault".into()));
@@ -550,6 +615,76 @@ impl Relay {
             "relay: {} for seller {} on chain {chain_id}: tx {hash} nonce {nonce}",
             parsed.kind.name(),
             hex(&parsed.seller)
+        );
+        Ok(json!({"transaction": hash, "relayer": hex(&self.address()), "nonce": nonce}))
+    }
+
+    /// T-1 to T-9 for one transfer to `config.token` with value 0.
+    fn submit_transfer(
+        &self,
+        chain_id: u64,
+        lane: &Lane,
+        config: &transfer::TransferConfig,
+        data: &[u8],
+        claims: &[String],
+        now: u64,
+    ) -> Result<Value, Refusal> {
+        // T-2, T-3: no chain needed.
+        let signed = transfer::check_offline(config, data)?;
+        let from = signed.authorization.from;
+        let admitted = |window: &Mutex<Window>, who: &str, limit| {
+            window
+                .lock()
+                .map(|mut w| w.admit_within(who, now, limit, 86_400))
+                .unwrap_or(false)
+        };
+        // T-8.
+        if !admitted(
+            &self.sellers,
+            &format!("{chain_id}:{}", hex(&from)),
+            self.limits.per_seller_per_day,
+        ) || !admitted(
+            &self.transfers,
+            &format!("{chain_id}:{}", hex(&from)),
+            config.per_address_per_day,
+        ) {
+            return Err((429, "daily limit for this address reached".into()));
+        }
+        if !admitted(&self.transfers, &format!("{chain_id}:all"), config.per_day) {
+            return Err((429, "daily limit for relayed transfers reached".into()));
+        }
+        // T-7: one admission at a time per `from`, and none while an earlier
+        // transfer for it is not yet mined.
+        let key = (chain_id, from);
+        if !self
+            .admitting
+            .lock()
+            .map_err(|_| (500, "state poisoned".to_owned()))?
+            .insert(key)
+        {
+            return Err((409, "a transfer for this address is being admitted".into()));
+        }
+        let _held = Admitting {
+            set: &self.admitting,
+            key,
+        };
+        if let Some(first) = lane.transfer_in_flight(from)? {
+            return Err((
+                409,
+                format!("transfer {first} for this address is not mined yet"),
+            ));
+        }
+        // T-4 to T-6.
+        let admitted = transfer::admit(lane, config, signed, claims)?;
+        let (value, paid) = (admitted.value(), admitted.paid());
+        // T-9.
+        let (hash, nonce) = lane.send_transfer(&self.key, admitted, &self.limits)?;
+        println!(
+            "relay: transfer of {value} for {} on chain {chain_id} (claimed {}, out {} since block {}): tx {hash} nonce {nonce}",
+            hex(&from),
+            paid.claimed,
+            paid.out,
+            paid.since
         );
         Ok(json!({"transaction": hash, "relayer": hex(&self.address()), "nonce": nonce}))
     }
@@ -600,7 +735,9 @@ pub fn serve(listener: std::net::TcpListener, relay: Arc<Relay>, forwarded: bool
 /// What the relayer answered for a request, before anything is believed.
 pub trait RelayApi: Send + Sync {
     /// Ask for `data` to be sent to `to` on `chain_id`; the first hash.
-    fn submit(&self, chain_id: u64, to: Address, data: &[u8]) -> Res<String>;
+    /// `claims` names the claim transactions a transfer is bounded by (T-6);
+    /// empty for a vault call.
+    fn submit(&self, chain_id: u64, to: Address, data: &[u8], claims: &[String]) -> Res<String>;
     /// Every hash the relayer says it used for the request `first`.
     fn hashes(&self, first: &str) -> Res<Vec<String>>;
 }
@@ -649,9 +786,13 @@ impl RelayClient {
     }
 }
 impl RelayApi for RelayClient {
-    fn submit(&self, chain_id: u64, to: Address, data: &[u8]) -> Res<String> {
-        let body = json!({"chainId": chain_id, "to": hex(&to), "value": "0", "data": hex(data)})
-            .to_string();
+    fn submit(&self, chain_id: u64, to: Address, data: &[u8], claims: &[String]) -> Res<String> {
+        let mut body =
+            json!({"chainId": chain_id, "to": hex(&to), "value": "0", "data": hex(data)});
+        if !claims.is_empty() {
+            body["claims"] = json!(claims);
+        }
+        let body = body.to_string();
         let answer = self.ask("POST", "/relay", Some(body.as_bytes()))?;
         Ok(answer["transaction"]
             .as_str()
@@ -732,8 +873,11 @@ impl Delivered {
 pub struct Submission<'a> {
     pub chain: &'a Chain,
     pub relayer: Option<&'a dyn RelayApi>,
-    pub vault: Address,
+    /// The call's target: the vault, or the token for a transfer.
+    pub target: Address,
     pub data: &'a [u8],
+    /// T-6: the claims a transfer names; empty for a vault call.
+    pub claims: &'a [String],
     pub wait: Duration,
     pub until: Option<u64>,
     pub poll: Duration,
@@ -773,7 +917,7 @@ impl Submission<'_> {
     }
     /// `Ok(None)`: nothing counted in time.
     fn through(&self, relayer: &dyn RelayApi) -> Res<Option<Delivered>> {
-        let first = relayer.submit(self.chain.id, self.vault, self.data)?;
+        let first = relayer.submit(self.chain.id, self.target, self.data, self.claims)?;
         println!("seller: {}: relayer sent {first}", self.label);
         let started = Instant::now();
         loop {
@@ -783,7 +927,7 @@ impl Submission<'_> {
                 hashes.insert(0, first.clone());
             }
             for hash in &hashes {
-                match judge(self.chain, hash, self.vault, self.data)? {
+                match judge(self.chain, hash, self.target, self.data)? {
                     Seen::Landed { gas } => {
                         return Ok(Some(Delivered::Relayed {
                             transaction: hash.clone(),

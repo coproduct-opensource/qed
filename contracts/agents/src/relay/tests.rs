@@ -119,6 +119,7 @@ fn relay_with(ledger: &Shared, limits: Limits, budget: u128) -> (Endpoint, Relay
             maximum_fee_per_gas: 10 * BASE_FEE,
             budget,
             floor: 10u128.pow(15),
+            transfer: None,
         },
     );
     let relay = Relay::new(BASE_URL, relayer_key(), limits, vec![lane]).unwrap();
@@ -404,7 +405,13 @@ fn fees_stay_under_the_cap() {
 /// A relayer that answers with a fixed hash and lists only it.
 struct Says(String);
 impl RelayApi for Says {
-    fn submit(&self, _chain_id: u64, _to: Address, _data: &[u8]) -> Res<String> {
+    fn submit(
+        &self,
+        _chain_id: u64,
+        _to: Address,
+        _data: &[u8],
+        _claims: &[String],
+    ) -> Res<String> {
         Ok(self.0.clone())
     }
     fn hashes(&self, _first: &str) -> Res<Vec<String>> {
@@ -415,8 +422,9 @@ fn submission<'a>(chain: &'a Chain, relayer: &'a dyn RelayApi, data: &'a [u8]) -
     Submission {
         chain,
         relayer: Some(relayer),
-        vault: VAULT,
+        target: VAULT,
         data,
+        claims: &[],
         wait: Duration::from_millis(300),
         until: None,
         poll: Duration::from_millis(20),
@@ -522,3 +530,5 @@ fn a_hash_for_other_calldata_is_refused() {
         "{delivered:?}"
     );
 }
+
+mod transfer;

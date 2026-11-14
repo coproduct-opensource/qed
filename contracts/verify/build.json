@@ -1,0 +1,100 @@
+{
+  "about": "How each contract QED relies on is compiled. Read by qed-verify. compilers: the official solc release builds from binaries.soliditylang.org, by platform, with the SHA-256 of each file (each one downloaded and hashed on 2026-11-13, and equal to the release list's value). builds: the standard-JSON settings. contracts: the sources, from this repository or fetched by URL and pinned by SHA-256.",
+  "compilers": {
+    "0.8.38+commit.1835d247": {
+      "macosx-amd64": "b18ac1d1f48394c71ca9aefbf0fb94fef24c87b358f48578de5941e234e0a2a9",
+      "linux-amd64": "65c3180a336eabb6bdc4bbd49cc405aeb233976964ae6c11fba2a6c8be8f3243",
+      "linux-arm64": "7a986c8f85945fec780d2cbb352cdd85959b7222dd33830a7563c2af4bc1fca0"
+    },
+    "0.8.26+commit.8a97fa7a": {
+      "macosx-amd64": "0ff016aef2396b12d1fc65429d8ea6cf53c2ee4b041bb8925644615ee1c30ab9",
+      "linux-amd64": "d5f23436f443edb85d8e76906d12f0a86ce0490e7663a9e608efeb7a93f149ef"
+    }
+  },
+  "builds": {
+    "qed": {
+      "about": "What every QED contract was deployed from: solc --optimize --optimize-runs 200 --evm-version paris --bin --bin-runtime --abi -o out src/<Contract>.sol, run in contracts/vault or contracts/board. The command line's defaults put the source unit name src/<Contract>.sol and an IPFS metadata hash into the code; these settings are the same compilation as standard JSON.",
+      "compiler": "0.8.38+commit.1835d247",
+      "settings": {
+        "optimizer": { "enabled": true, "runs": 200 },
+        "evmVersion": "paris",
+        "metadata": { "bytecodeHash": "ipfs" },
+        "remappings": [],
+        "libraries": {}
+      }
+    },
+    "risc0-ethereum-v3.1.0": {
+      "about": "RISC Zero's contracts at tag v3.1.0 (commit ff30da77ba4afdd496290ebebedb205348b15d83), with contracts/foundry.toml's settings: solc 0.8.26, via_ir, evm_version cancun, optimizer_runs 10000, bytecode_hash none. With no metadata hash the code carries only the compiler version, so source unit names do not reach it; units are named by their import paths here, without remappings.",
+      "compiler": "0.8.26+commit.8a97fa7a",
+      "settings": {
+        "optimizer": { "enabled": true, "runs": 10000 },
+        "viaIR": true,
+        "evmVersion": "cancun",
+        "metadata": { "bytecodeHash": "none" },
+        "remappings": [],
+        "libraries": {}
+      }
+    }
+  },
+  "contracts": {
+    "NucleusVault2": {
+      "build": "qed",
+      "target": "src/NucleusVault2.sol",
+      "sources": { "src/NucleusVault2.sol": { "path": "contracts/vault/src/NucleusVault2.sol" } }
+    },
+    "NucleusVault3": {
+      "build": "qed",
+      "target": "src/NucleusVault3.sol",
+      "sources": { "src/NucleusVault3.sol": { "path": "contracts/vault/src/NucleusVault3.sol" } }
+    },
+    "BaseRegistry": {
+      "build": "qed",
+      "target": "src/BaseRegistry.sol",
+      "sources": { "src/BaseRegistry.sol": { "path": "contracts/vault/src/BaseRegistry.sol" } }
+    },
+    "NucleusBoard": {
+      "build": "qed",
+      "target": "src/NucleusBoard.sol",
+      "sources": { "src/NucleusBoard.sol": { "path": "contracts/board/src/NucleusBoard.sol" } }
+    },
+    "RiscZeroGroth16Verifier": {
+      "build": "risc0-ethereum-v3.1.0",
+      "target": "src/groth16/RiscZeroGroth16Verifier.sol",
+      "sources": {
+        "src/groth16/RiscZeroGroth16Verifier.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/groth16/RiscZeroGroth16Verifier.sol", "sha256": "94396a7989abae664abab1c2f313b94a042f1b3ec52a843ddf5d4de3f9543fcd" },
+        "src/groth16/ControlID.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/groth16/ControlID.sol", "sha256": "d95af60e9cfa2b002b33eef957ba3676625ffdcef343eca68652fed2d5d45f93" },
+        "src/groth16/Groth16Verifier.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/groth16/Groth16Verifier.sol", "sha256": "e11414d4edbfb9b2f5952ed90dea0ab578305de8f3fb6b97468e70942a021f76" },
+        "src/IRiscZeroVerifier.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/IRiscZeroVerifier.sol", "sha256": "cfd7c80872313134d028c0250ddc86036448fb4df290ce4dba113ea80646e180" },
+        "src/IRiscZeroSelectable.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/IRiscZeroSelectable.sol", "sha256": "54a8a39dd427e8ec21db31815d80a3df6df992d3244a2370ba21517dde7dd11b" },
+        "src/StructHash.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/StructHash.sol", "sha256": "9fd507fc30726dcecf35a7a1d16b2ffe34561721fa37895bb75b9c3cf07f0131" },
+        "src/Util.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/Util.sol", "sha256": "4711aa3c42754c996278f62091ffd1422132512e0900a9cdea3fe54235fa5896" },
+        "openzeppelin/contracts/utils/math/SafeCast.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/utils/math/SafeCast.sol", "sha256": "9769274bf53f26a7c7896c526ea1980dc9bea5bf5c2a5fd04870008c4afc1de9" }
+      }
+    },
+    "RiscZeroVerifierEmergencyStop": {
+      "build": "risc0-ethereum-v3.1.0",
+      "target": "src/RiscZeroVerifierEmergencyStop.sol",
+      "sources": {
+        "src/RiscZeroVerifierEmergencyStop.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/RiscZeroVerifierEmergencyStop.sol", "sha256": "a3ba25c1e80b9a60c96528643cbe0941bcc74198c02fd989dd884ee7c804796b" },
+        "src/IRiscZeroVerifier.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/IRiscZeroVerifier.sol", "sha256": "cfd7c80872313134d028c0250ddc86036448fb4df290ce4dba113ea80646e180" },
+        "src/Util.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/Util.sol", "sha256": "4711aa3c42754c996278f62091ffd1422132512e0900a9cdea3fe54235fa5896" },
+        "openzeppelin/contracts/access/Ownable2Step.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/access/Ownable2Step.sol", "sha256": "c75345d7b9feef17ae29f2a800ca2f65f8021cf80436a41d6ec00f57f5180f36" },
+        "openzeppelin/contracts/access/Ownable.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/access/Ownable.sol", "sha256": "38578bd71c0a909840e67202db527cc6b4e6b437e0f39f0c909da32c1e30cb81" },
+        "openzeppelin/contracts/utils/Context.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/utils/Context.sol", "sha256": "847fda5460fee70f56f4200f59b82ae622bb03c79c77e67af010e31b7e2cc5b6" },
+        "openzeppelin/contracts/utils/Pausable.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/utils/Pausable.sol", "sha256": "6543160582b3c0319a180f31660faf6ba0a8444acbdb03357c09790a96256835" }
+      }
+    },
+    "RiscZeroVerifierRouter": {
+      "build": "risc0-ethereum-v3.1.0",
+      "target": "src/RiscZeroVerifierRouter.sol",
+      "sources": {
+        "src/RiscZeroVerifierRouter.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/RiscZeroVerifierRouter.sol", "sha256": "75cda2771b91531b96db2baee4e03eedb4a2a42f10350e2a250461c3f5b064eb" },
+        "src/IRiscZeroVerifier.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/IRiscZeroVerifier.sol", "sha256": "cfd7c80872313134d028c0250ddc86036448fb4df290ce4dba113ea80646e180" },
+        "src/Util.sol": { "url": "https://raw.githubusercontent.com/risc0/risc0-ethereum/ff30da77ba4afdd496290ebebedb205348b15d83/contracts/src/Util.sol", "sha256": "4711aa3c42754c996278f62091ffd1422132512e0900a9cdea3fe54235fa5896" },
+        "openzeppelin/contracts/access/Ownable2Step.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/access/Ownable2Step.sol", "sha256": "c75345d7b9feef17ae29f2a800ca2f65f8021cf80436a41d6ec00f57f5180f36" },
+        "openzeppelin/contracts/access/Ownable.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/access/Ownable.sol", "sha256": "38578bd71c0a909840e67202db527cc6b4e6b437e0f39f0c909da32c1e30cb81" },
+        "openzeppelin/contracts/utils/Context.sol": { "url": "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/acd4ff74de833399287ed6b31b4debf6b2b35527/contracts/utils/Context.sol", "sha256": "847fda5460fee70f56f4200f59b82ae622bb03c79c77e67af010e31b7e2cc5b6" }
+      }
+    }
+  }
+}

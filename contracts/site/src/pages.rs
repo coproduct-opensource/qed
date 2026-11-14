@@ -36,7 +36,7 @@ fn absolute(build: &Build, path: &str) -> String {
         None => path.to_owned(),
     }
 }
-fn date(seconds: u64) -> String {
+pub(crate) fn date(seconds: u64) -> String {
     // Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
     let days = (seconds / 86_400) as i64;
     let z = days + 719_468;
@@ -66,7 +66,7 @@ fn units(amount: &str, decimals: u64, symbol: &str) -> String {
         format!("{whole}.{frac} {symbol}")
     }
 }
-fn short(hex: &str) -> String {
+pub(crate) fn short(hex: &str) -> String {
     if hex.len() > 22 {
         format!("{}…{}", &hex[..12], &hex[hex.len() - 8..])
     } else {
@@ -308,8 +308,16 @@ fn before_anything(input: &Input) -> Block {
                     "Live on {} mainnet, in {}.",
                     m.network.name, m.token.name
                 )),
-                t(format!(" {} test runs stay in the ", input.network.name)),
+                t(match &input.test_buyers_stopped {
+                    Some(day) => format!(
+                        " No buyer runs on {} since {}; its test runs stay in the ",
+                        input.network.name, day
+                    ),
+                    None => format!(" {} test runs stay in the ", input.network.name),
+                }),
                 link("/transactions", "ledger"),
+                t(". Balances, open tasks and the relayer, read from the chain: "),
+                link("/status", "status"),
                 t("."),
             ]);
             items.push(vec![
@@ -457,106 +465,170 @@ pub fn home(input: &Input, build: &Build) -> Doc {
     d
 }
 
-pub fn protocol(input: &Input) -> Doc {
-    let ex = &input.network.explorer;
+/// One deployment's contracts, as the protocol page lists them.
+struct Listed<'a> {
+    network: &'a Network,
+    board: &'a Deployed,
+    vault: &'a str,
+    registry: &'a str,
+    verifier: &'a str,
+    token: &'a Token,
+}
+
+fn deployment_rows(d: &Listed) -> Vec<Vec<Line>> {
+    let ex = &d.network.explorer;
     let a = |addr: &str| code_link(format!("{ex}/address/{addr}"), addr);
-    let rows: Vec<Vec<Line>> = vec![
+    vec![
         vec![
             vec![t("Task board")],
-            vec![a(&input.board.address)],
+            vec![a(&d.board.address)],
             vec![t(
                 "Where buyers post tasks. Holds no funds and calls no token.",
             )],
         ],
         vec![
             vec![t("Vault")],
-            vec![a(&input.vault.address)],
+            vec![a(d.vault)],
             vec![t(
                 "Holds each order's deposit until it is settled or refunded.",
             )],
         ],
         vec![
             vec![t("Base registry")],
-            vec![a(&input.registry.address)],
+            vec![a(d.registry)],
             vec![t(
                 "Records who proved a base library and the royalty rate inside that proof.",
             )],
         ],
         vec![
             vec![t("Proof verifier")],
-            vec![a(&input.verifier.address)],
+            vec![a(d.verifier)],
             vec![t(
                 "RISC Zero's Groth16 verifier, deployed by RISC Zero. The vault asks it whether a proof holds.",
             )],
         ],
         vec![
             vec![t("Token")],
-            vec![a(&input.token.address)],
+            vec![a(&d.token.address)],
             vec![t(format!(
                 "{}, the token tasks are priced in.",
-                input.token.name
+                d.token.name
             ))],
         ],
-    ];
+    ]
+}
+
+pub fn protocol(input: &Input) -> Doc {
+    let test = Listed {
+        network: &input.network,
+        board: &input.board,
+        vault: &input.vault.address,
+        registry: &input.registry.address,
+        verifier: &input.verifier.address,
+        token: &input.token,
+    };
+    let mut tables = Vec::new();
+    match (&input.mainnet, input.test_is_history()) {
+        (Some(m), true) => {
+            tables.push(h2("deployment", "The current deployment"));
+            tables.push(Block::Table {
+                caption: format!(
+                    "{}, chain {}: the live offer",
+                    m.network.name, m.network.chain_id
+                ),
+                head: vec!["Contract".into(), "Address".into(), "What it does".into()],
+                rows: deployment_rows(&Listed {
+                    network: &m.network,
+                    board: &m.board,
+                    vault: &m.vault.address,
+                    registry: &m.registry.address,
+                    verifier: &m.verifier.address,
+                    token: &m.token,
+                }),
+            });
+            tables.push(h2("history", "Earlier: the test deployment"));
+            tables.push(para(&format!(
+                "No buyer runs on {} since {}. Its contracts stay deployed and its settlements stay in the ledger.",
+                input.network.name,
+                input.test_buyers_stopped.as_deref().unwrap_or("")
+            )));
+            tables.push(Block::Table {
+                caption: format!(
+                    "{}, chain {}: history",
+                    input.network.name, input.network.chain_id
+                ),
+                head: vec!["Contract".into(), "Address".into(), "What it does".into()],
+                rows: deployment_rows(&test),
+            });
+        }
+        _ => {
+            tables.push(h2("deployment", "The current deployment"));
+            tables.push(Block::Table {
+                caption: format!("{}, chain {}", input.network.name, input.network.chain_id),
+                head: vec!["Contract".into(), "Address".into(), "What it does".into()],
+                rows: deployment_rows(&test),
+            });
+        }
+    }
+    let mut blocks = protocol_blocks();
+    blocks.extend(tables);
+    blocks.push(p(vec![
+        t("Transport: iroh, ALPN "),
+        code(ALPN),
+        t("; payments: x402 v2, scheme "),
+        code(X402_SCHEME),
+        t(". A seller's card binds "),
+        code(BINDING),
+        t(" ("),
+        code_link(format!("/{SELLER_CARD_PATH}"), "example"),
+        t(")."),
+    ]));
     doc(
         "protocol",
         "Protocol",
         "How the vault, the task board, the base registry and the agents fit together, and where each is specified.",
-        vec![
-            Block::Ol(vec![
-                vec![t(
-                    "A buyer posts a statement's hash, a price cap and deadlines; it serves the statement over iroh.",
-                )],
-                vec![t(
-                    "A seller proves it, checks the proof, and offers an order.",
-                )],
-                vec![t(
-                    "The buyer signs one token authorization for the first acceptable offer.",
-                )],
-                vec![t(
-                    "The vault takes the deposit. The seller proves (RISC Zero) that the Lean checker accepts the proof, and settles.",
-                )],
-                vec![t(
-                    "The vault books seller, fee and royalty; each payee claims. No accepted proof by the deadline: the buyer is refunded.",
-                )],
-            ]),
-            h2("documents", "Documents"),
-            Block::Ul(vec![
-                vec![link("/protocol/specification", "Specification")],
-                vec![link("/protocol/threat-model", "Threat model")],
-                vec![
-                    link(format!("/{SPEC_PATH}"), "A2A over iroh"),
-                    t(" (agent transport)"),
-                ],
-                vec![
-                    code_link("/deployment.json", "deployment.json"),
-                    t(", "),
-                    code_link("/abi/NucleusVault3.json", "abi/NucleusVault3.json"),
-                    t(", "),
-                    code_link("/abi/NucleusBoard.json", "abi/NucleusBoard.json"),
-                    t(", "),
-                    code_link("/abi/BaseRegistry.json", "abi/BaseRegistry.json"),
-                ],
-            ]),
-            h2("deployment", "The current deployment"),
-            Block::Table {
-                caption: format!("{}, chain {}", input.network.name, input.network.chain_id),
-                head: vec!["Contract".into(), "Address".into(), "What it does".into()],
-                rows,
-            },
-            p(vec![
-                t("Transport: iroh, ALPN "),
-                code(ALPN),
-                t("; payments: x402 v2, scheme "),
-                code(X402_SCHEME),
-                t(". A seller's card binds "),
-                code(BINDING),
-                t(" ("),
-                code_link(format!("/{SELLER_CARD_PATH}"), "example"),
-                t(")."),
-            ]),
-        ],
+        blocks,
     )
+}
+
+fn protocol_blocks() -> Vec<Block> {
+    vec![
+        Block::Ol(vec![
+            vec![t(
+                "A buyer posts a statement's hash, a price cap and deadlines; it serves the statement over iroh.",
+            )],
+            vec![t(
+                "A seller proves it, checks the proof, and offers an order.",
+            )],
+            vec![t(
+                "The buyer signs one token authorization for the first acceptable offer.",
+            )],
+            vec![t(
+                "The vault takes the deposit. The seller proves (RISC Zero) that the Lean checker accepts the proof, and settles.",
+            )],
+            vec![t(
+                "The vault books seller, fee and royalty; each payee claims. No accepted proof by the deadline: the buyer is refunded.",
+            )],
+        ]),
+        h2("documents", "Documents"),
+        Block::Ul(vec![
+            vec![link("/protocol/specification", "Specification")],
+            vec![link("/protocol/threat-model", "Threat model")],
+            vec![
+                link(format!("/{SPEC_PATH}"), "A2A over iroh"),
+                t(" (agent transport)"),
+            ],
+            vec![
+                code_link("/deployment.json", "deployment.json"),
+                t(", "),
+                code_link("/abi/NucleusVault3.json", "abi/NucleusVault3.json"),
+                t(", "),
+                code_link("/abi/NucleusBoard.json", "abi/NucleusBoard.json"),
+                t(", "),
+                code_link("/abi/BaseRegistry.json", "abi/BaseRegistry.json"),
+            ],
+        ]),
+    ]
 }
 
 pub fn specification(input: &Input, programs: &[Published]) -> Doc {
@@ -1001,7 +1073,6 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
             "This build was made without a chain snapshot, so no receipts are listed.",
         )),
     }
-    blocks.push(h2("board", "Tasks on the board now"));
     let ours = if input.disclose_author_addresses {
         input
             .our_addresses
@@ -1011,17 +1082,43 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
     } else {
         Vec::new()
     };
-    let (live, data) = live_board(
-        Board {
-            network: &input.network,
-            board: &input.board,
-            vault: &input.vault.address,
-            token: &input.token,
-            ours,
-        },
-        vectors,
-        programs,
-    );
+    // Once the test deployment is history, the board read live is the
+    // main network's: that is where tasks are posted.
+    let board = match (&input.mainnet, input.test_is_history()) {
+        (Some(m), true) => {
+            blocks.push(h2(
+                "board",
+                &format!("Tasks on the {} board now", m.network.name),
+            ));
+            blocks.push(p(vec![
+                t(format!(
+                    "No buyer runs on {} since {}; its settlements stay in the table above. Balances, payouts and the relayer: ",
+                    input.network.name,
+                    input.test_buyers_stopped.as_deref().unwrap_or("")
+                )),
+                link("/status", "status"),
+                t("."),
+            ]));
+            Board {
+                network: &m.network,
+                board: &m.board,
+                vault: &m.vault.address,
+                token: &m.token,
+                ours,
+            }
+        }
+        _ => {
+            blocks.push(h2("board", "Tasks on the board now"));
+            Board {
+                network: &input.network,
+                board: &input.board,
+                vault: &input.vault.address,
+                token: &input.token,
+                ours,
+            }
+        }
+    };
+    let (live, data) = live_board(board, vectors, programs);
     blocks.push(live);
     let mut d = doc(
         "transactions",
@@ -1203,13 +1300,21 @@ pub struct SellerRelease {
     /// Whether the registry serves the image without an account. A new
     /// package on ghcr.io is private until its owner changes that.
     pub image_public: bool,
+    /// Whether this release's seller has `nucleus-seller sweep` (relayed
+    /// USDC transfers out of the seller's address). Off: the pages say the
+    /// command needs the next release and the QuickStart's line is a comment.
+    pub has_sweep: bool,
 }
 pub const SELLER_RELEASE: SellerRelease = SellerRelease {
-    tag: "v0.1.1",
+    tag: "v0.2.1",
     image: "ghcr.io/coproduct-opensource/qed-seller",
-    digest: "sha256:f7c2701d1cea6d32ce2710689c1763c2a3e35f28d27a9cd331b8dbe9603946ac",
-    // 2026-11-13: an anonymous pull of the digest answered 401.
+    digest: "sha256:45ecedc5790a7134bd7100a5057b7d1a36766a15f35bb60ce6f932770071b522",
+    // 2026-11-14: cosign verify of the v0.2.1 digest with no registry
+    // credentials passed (exit 0), and Apple `container` pulled it and ran
+    // `nucleus-acceptance-host order2r-image` (704bdf3b…42ed).
     image_public: true,
+    // The sweep was added to the source after v0.2.1 (1d677dbe5).
+    has_sweep: false,
 };
 
 /// The standing bounty on the main network: the offer, how to take part,
@@ -1632,7 +1737,7 @@ fn checker_section(build: &Build) -> Vec<Block> {
         ],
     );
     vec![
-        h2("in-browser", "8. In your browser"),
+        h2("in-browser", "9. In your browser"),
         Block::Rendered {
             html,
             markdown: format!(
@@ -1642,34 +1747,44 @@ fn checker_section(build: &Build) -> Vec<Block> {
     ]
 }
 
-pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
-    let i = input;
-    let rpc = &i.network.rpc;
-    let base = i.program(Role::Base);
-    let code_rows: Vec<Vec<Line>> = [
+/// Where the build finds `qed-verify manifest --json` output for the live
+/// deployment (`contracts/verify`), with the treasury redacted.
+pub const VERIFIED_PATH: &str = "contracts/site/input/verified-base.json";
+
+/// The contracts of one deployment, for the code and fixed-value tables.
+struct Contracts<'a> {
+    board: &'a Deployed,
+    vault: &'a crate::Vault,
+    registry: &'a crate::Registry,
+    verifier: &'a Deployed,
+    base_program: String,
+}
+
+fn code_rows(c: &Contracts) -> Vec<Vec<Line>> {
+    [
         (
             "Task board",
-            &i.board.address,
-            i.board.code_bytes,
-            &i.board.code_keccak,
+            &c.board.address,
+            c.board.code_bytes,
+            &c.board.code_keccak,
         ),
         (
             "Vault",
-            &i.vault.address,
-            i.vault.code_bytes,
-            &i.vault.code_keccak,
+            &c.vault.address,
+            c.vault.code_bytes,
+            &c.vault.code_keccak,
         ),
         (
             "Base registry",
-            &i.registry.address,
-            i.registry.code_bytes,
-            &i.registry.code_keccak,
+            &c.registry.address,
+            c.registry.code_bytes,
+            &c.registry.code_keccak,
         ),
         (
             "Proof verifier",
-            &i.verifier.address,
-            i.verifier.code_bytes,
-            &i.verifier.code_keccak,
+            &c.verifier.address,
+            c.verifier.code_bytes,
+            &c.verifier.code_keccak,
         ),
     ]
     .iter()
@@ -1681,7 +1796,260 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
             vec![code(k.as_str())],
         ]
     })
-    .collect();
+    .collect()
+}
+
+/// The "rebuilt from source" section: what `qed-verify` checked, per
+/// contract, from its JSON report.
+fn rebuilt_section(report: Option<&Value>, explorer: &str) -> Vec<Block> {
+    let mut blocks = vec![
+        h2("rebuilt", "4. Source, settings and constructor arguments, rebuilt"),
+        para(
+            "qed-verify (contracts/verify) compiles each contract's source with the official solc release pinned by SHA-256 and the settings it was deployed with, then compares: the runtime code with eth_getCode (immutables filled in, metadata included), the deploy transaction's input with the creation code plus the constructor arguments, and the metadata's IPFS hash with the one in the code. It reads the upgrade controls from the chain. Plain JSON-RPC; no key, no account. Exit 0 when every check holds, 1 when one fails.",
+        ),
+        verification_command(
+            "rebuild-command",
+            "git clone https://github.com/coproduct-opensource/qed && cd qed\ncargo run --release --manifest-path contracts/verify/Cargo.toml -- \\\n  manifest contracts/verify/deployments/base.json".to_string(),
+        ),
+        para(
+            "The same tool says which RISC Zero contract the verifier is, by rebuilding the three candidates from RISC Zero's v3.1.0 tag:",
+        ),
+        verification_command(
+            "identify-command",
+            "cargo run --release --manifest-path contracts/verify/Cargo.toml -- \\\n  identify --rpc https://mainnet.base.org --address 0x8c915b5071206c6e328bc18529586c513408ab3b \\\n  RiscZeroGroth16Verifier RiscZeroVerifierEmergencyStop RiscZeroVerifierRouter".to_string(),
+        ),
+    ];
+    let Some(report) = report else {
+        blocks.push(para(
+            "This build was made without a verification report, so no results are shown.",
+        ));
+        return blocks;
+    };
+    let deployments = report["deployments"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for d in &deployments {
+        let name = d["contract"].as_str().unwrap_or("");
+        let address = d["address"].as_str().unwrap_or("");
+        let chain = d["chainId"].as_u64().unwrap_or(0);
+        blocks.push(h3(&format!("rebuilt-{}", name.to_ascii_lowercase()), name));
+        let args: Vec<String> = d["constructorArguments"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|a| {
+                let value = a["value"].as_str().unwrap_or("");
+                let value = if value.contains("redacted") {
+                    "an address fixed at deployment (not listed here)".to_string()
+                } else {
+                    value.to_string()
+                };
+                format!(
+                    "{} ({}) = {value}",
+                    a["name"].as_str().unwrap_or(""),
+                    a["type"].as_str().unwrap_or("")
+                )
+            })
+            .collect();
+        let controls: Vec<String> = d["controls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|c| {
+                format!(
+                    "{} {}: {}",
+                    if c["ok"] == true { "ok" } else { "FAIL" },
+                    c["check"].as_str().unwrap_or(""),
+                    c["detail"].as_str().unwrap_or("")
+                )
+            })
+            .collect();
+        let sources: Vec<String> = d["sources"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(unit, k)| format!("{unit} (keccak-256 {})", k.as_str().unwrap_or("")))
+            .collect();
+        let runtime = match d["runtimeMatch"].as_str() {
+            Some("exact") => format!(
+                "{} bytes, keccak-256 {}: equal to the rebuild byte for byte, metadata included, immutables filled",
+                d["runtimeBytes"],
+                d["runtimeKeccak256"].as_str().unwrap_or("")
+            ),
+            Some(other) => format!("{other}: see the checks"),
+            None => "not compared".into(),
+        };
+        let ours = name != "RiscZeroGroth16Verifier";
+        let mut pairs: Vec<(String, Line)> = vec![
+            (
+                "Address".into(),
+                vec![code_link(format!("{explorer}/address/{address}"), address)],
+            ),
+            (
+                "Result".into(),
+                vec![strong(if d["verified"] == true {
+                    format!("every check held at block {}", d["checkedAtBlock"])
+                } else {
+                    format!("a check failed at block {}", d["checkedAtBlock"])
+                })],
+            ),
+            (
+                "Compiler".into(),
+                vec![
+                    t(format!(
+                        "solc {} (official build, SHA-256 {}), settings ",
+                        d["compiler"].as_str().unwrap_or(""),
+                        d["solcSha256"].as_str().unwrap_or("")
+                    )),
+                    code(d["settings"].to_string()),
+                ],
+            ),
+            ("Source".into(), vec![t(sources.join("; "))]),
+            (
+                "Constructor arguments".into(),
+                vec![t(if args.is_empty() {
+                    "none".into()
+                } else {
+                    args.join("; ")
+                })],
+            ),
+            ("Runtime code".into(), vec![t(runtime)]),
+            (
+                "Metadata".into(),
+                vec![t(match d["metadataIpfs"].as_str() {
+                    Some(cid) => format!("IPFS {cid}; the rebuild's metadata JSON hashes to it"),
+                    None => format!(
+                        "{} (no metadata hash: built with bytecodeHash none)",
+                        d["metadata"].as_str().unwrap_or("")
+                    ),
+                })],
+            ),
+            (
+                "Creation".into(),
+                vec![
+                    t(format!("{} in ", d["creationPath"].as_str().unwrap_or(""))),
+                    code_link(
+                        format!("{explorer}/tx/{}", d["tx"].as_str().unwrap_or("")),
+                        short(d["tx"].as_str().unwrap_or("")),
+                    ),
+                    t("; its input is the rebuild's creation code followed by the arguments above"),
+                ],
+            ),
+            ("Upgrade controls".into(), vec![t(controls.join("; "))]),
+        ];
+        if ours {
+            pairs.push((
+                "Explorers".into(),
+                vec![
+                    link(
+                        format!("https://repo.sourcify.dev/{chain}/{address}"),
+                        "Sourcify",
+                    ),
+                    t(" (exact match, creation and runtime) and "),
+                    link(
+                        format!("https://base.blockscout.com/address/{address}?tab=contract"),
+                        "Blockscout",
+                    ),
+                    t(" (verified), each checked by the authors on 2026-11-14"),
+                ],
+            ));
+        } else {
+            pairs.push((
+                "Which contract".into(),
+                vec![t(
+                    "RISC Zero's plain RiscZeroGroth16Verifier, release v3.1.0 (commit ff30da77ba4afdd496290ebebedb205348b15d83), selector 0xe71e6620: its 5,313 bytes equal the rebuild from that tag; RISC Zero's RiscZeroVerifierEmergencyStop (2,384 bytes) and RiscZeroVerifierRouter (2,793 bytes) do not. Its constructor arguments equal CONTROL_ROOT and BN254_CONTROL_ID in that tag's ControlID.sol. It has no owner, no pause and no upgrade path: its only state is immutables. RISC Zero's router reaches it through an emergency-stop wrapper (0x5144A37e65fd032F628663Cb21E16490378a8630); the registry and vaults here call it directly, so a RISC Zero emergency stop would not stop them. Not submitted to Sourcify by the authors: it is RISC Zero's contract.",
+                )],
+            ));
+        }
+        blocks.push(Block::Dl(pairs));
+    }
+    blocks
+}
+
+pub fn verify(
+    input: &Input,
+    programs: &[Published],
+    build: &Build,
+    verified: Option<&Value>,
+) -> Doc {
+    let i = input;
+    let base = i.program(Role::Base);
+    let test = Contracts {
+        board: &i.board,
+        vault: &i.vault,
+        registry: &i.registry,
+        verifier: &i.verifier,
+        base_program: base.image_id.clone(),
+    };
+    let live = i.mainnet.as_ref().map(|m| {
+        // The base program the live registry was constructed with, as the
+        // verification report decoded it; the input's otherwise.
+        let from_report = verified
+            .and_then(|r| r["deployments"].as_array())
+            .into_iter()
+            .flatten()
+            .find(|d| d["address"].as_str() == Some(m.registry.address.as_str()))
+            .and_then(|d| d["constructorArguments"].as_array())
+            .into_iter()
+            .flatten()
+            .find(|a| a["name"] == "baseProgram_")
+            .and_then(|a| a["value"].as_str())
+            .map(|v| v.trim_start_matches("0x").to_owned());
+        (
+            m,
+            Contracts {
+                board: &m.board,
+                vault: &m.vault,
+                registry: &m.registry,
+                verifier: &m.verifier,
+                base_program: from_report.unwrap_or_else(|| base.image_id.clone()),
+            },
+        )
+    });
+    // The live deployment's tables come first; the test deployment's after,
+    // marked as history once its buyers have stopped.
+    let (rpc, first) = match &live {
+        Some((m, c)) => (&m.network.rpc, c),
+        None => (&i.network.rpc, &test),
+    };
+    let test_caption = if i.test_is_history() {
+        format!(
+            "{} (chain {}): history; no buyer runs there since {}",
+            i.network.name,
+            i.network.chain_id,
+            i.test_buyers_stopped.as_deref().unwrap_or("")
+        )
+    } else {
+        format!("{} (chain {})", i.network.name, i.network.chain_id)
+    };
+    let mut code_tables = Vec::new();
+    if let Some((m, c)) = &live {
+        code_tables.push(Block::Table {
+            caption: format!(
+                "{} (chain {}): the live deployment",
+                m.network.name, m.network.chain_id
+            ),
+            head: vec![
+                "Contract".into(),
+                "Address".into(),
+                "Bytes".into(),
+                "Keccak-256 of the code".into(),
+            ],
+            rows: code_rows(c),
+        });
+    }
+    code_tables.push(Block::Table {
+        caption: test_caption,
+        head: vec![
+            "Contract".into(),
+            "Address".into(),
+            "Bytes".into(),
+            "Keccak-256 of the code".into(),
+        ],
+        rows: code_rows(&test),
+    });
+    let c = first;
     let getter = |contract: &str, name: &str, expect: String, meaning: String| -> Vec<Line> {
         vec![
             vec![t(contract)],
@@ -1696,7 +2064,7 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
             "Vault",
             "treasury",
             if i.disclose_author_addresses {
-                word_of_address(&i.vault.treasury)
+                word_of_address(&c.vault.treasury)
             } else {
                 "an address fixed at deployment (not listed here)".into()
             },
@@ -1705,61 +2073,61 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
         getter(
             "Vault",
             "feeBps",
-            word_of_number(u64::from(i.vault.fee_bps)),
+            word_of_number(u64::from(c.vault.fee_bps)),
             format!(
                 "fee: {} basis points of a settled order, rounded up",
-                i.vault.fee_bps
+                c.vault.fee_bps
             ),
         ),
         getter(
             "Vault",
             "maximumFeeBps",
-            word_of_number(u64::from(i.vault.maximum_fee_bps)),
+            word_of_number(u64::from(c.vault.maximum_fee_bps)),
             format!(
                 "fee and royalty together at most {} basis points",
-                i.vault.maximum_fee_bps
+                c.vault.maximum_fee_bps
             ),
         ),
         getter(
             "Vault",
             "maximumTerm",
-            word_of_number(i.vault.maximum_term_seconds),
+            word_of_number(c.vault.maximum_term_seconds),
             format!(
                 "longest time from funding to the delivery deadline: {} days",
-                i.vault.maximum_term_seconds / 86_400
+                c.vault.maximum_term_seconds / 86_400
             ),
         ),
         getter(
             "Vault",
             "registry",
-            word_of_address(&i.registry.address),
+            word_of_address(&c.registry.address),
             "the registry the vault reads a royalty from, once, at funding".into(),
         ),
         getter(
             "Task board",
             "vault",
-            word_of_address(&i.vault.address),
+            word_of_address(&c.vault.address),
             "the one vault this board's tasks settle through".into(),
         ),
         getter(
             "Base registry",
             "verifier",
-            word_of_address(&i.verifier.address),
+            word_of_address(&c.verifier.address),
             "the verifier a registration's proof is checked by".into(),
         ),
         getter(
             "Base registry",
             "baseProgram",
-            format!("0x{}", base.image_id),
+            format!("0x{}", c.base_program),
             "the program whose proof registers a base".into(),
         ),
         getter(
             "Base registry",
             "maximumBps",
-            word_of_number(u64::from(i.registry.maximum_bps)),
+            word_of_number(u64::from(c.registry.maximum_bps)),
             format!(
                 "highest royalty rate it records: {} basis points",
-                i.registry.maximum_bps
+                c.registry.maximum_bps
             ),
         ),
     ];
@@ -1793,33 +2161,36 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
         .and_then(|s| s.strip_prefix("https://"))
         .map(|h| h.trim_end_matches('/').to_owned())
         .unwrap_or_else(|| "qed.coproduct.dev".into());
+    let fixed_caption = match &live {
+        Some((m, _)) => format!(
+            "Immutable values on {} and the words eth_call returns (the {} contracts hold the same values except their own addresses)",
+            m.network.name, i.network.name
+        ),
+        None => "Immutable values and the words eth_call returns".into(),
+    };
+    let explorer = live.as_ref().map_or(i.network.explorer.clone(), |(m, _)| {
+        m.network.explorer.clone()
+    });
     let mut blocks = vec![
         para(
             "Public RPC, published files, standard tools. No account, wallet or help from the authors.",
         ),
         h2("code", "1. The code at each address"),
         para("eth_getCode, then Keccak-256 of the bytes."),
-        Block::Table {
-            caption: format!("{} (chain {})", i.network.name, i.network.chain_id),
-            head: vec![
-                "Contract".into(),
-                "Address".into(),
-                "Bytes".into(),
-                "Keccak-256 of the code".into(),
-            ],
-            rows: code_rows,
-        },
+    ];
+    blocks.extend(code_tables);
+    blocks.extend([
         verification_command(
             "code-command",
             format!(
                 "curl -s {rpc} -H 'content-type: application/json' \\\n  -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getCode\",\"params\":[\"{}\",\"latest\"]}}'",
-                i.vault.address
+                c.vault.address
             ),
         ),
         h2("fixed", "2. The values fixed at deployment"),
         para("Constants in the code. Read each with eth_call, the selector as data."),
         Block::Table {
-            caption: "Immutable values and the words eth_call returns".into(),
+            caption: fixed_caption,
             head: vec![
                 "Contract".into(),
                 "Call".into(),
@@ -1841,7 +2212,10 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
                 " ABIs list every function. State changes: vault fund, settle, refund, claim; board post, withdraw; registry register. No owner, pause or upgrade. {source}"
             )),
         ]),
-        h2("programs", "4. The proof programs"),
+    ]);
+    blocks.extend(rebuilt_section(verified, &explorer));
+    blocks.extend([
+        h2("programs", "5. The proof programs"),
         Block::Table {
             caption: "Programs this deployment names".into(),
             head: vec![
@@ -1863,7 +2237,7 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
         para(
             "What that does not show: that the source does what it says (read it, and its tests), and how RISC Zero built the toolchain inside its image. Earlier program pairs, still named by older deployments, rebuild only on the machine that published them; compare those by hash.",
         ),
-        h2("settlement", "5. A settlement"),
+        h2("settlement", "6. A settlement"),
         Block::Ol(vec![
             vec![
                 t("Take a receipt from the "),
@@ -1875,10 +2249,10 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
                 "Its Keccak-256 must equal the Settled log and artifactOf(orderDigest).",
             )],
             vec![t(
-                "Run a Lean 4 checker on statement + artifact with the policy's axioms (section 8 does this in your browser).",
+                "Run a Lean 4 checker on statement + artifact with the policy's axioms (section 9 does this in your browser).",
             )],
         ]),
-        h2("card", "6. The Agent Card's signature"),
+        h2("card", "7. The Agent Card's signature"),
         p(vec![
             t("Fetch "),
             code(card_url),
@@ -1888,13 +2262,13 @@ pub fn verify(input: &Input, programs: &[Published], build: &Build) -> Doc {
                 ". Per A2A 1.0.1 §8.4: drop defaults and signatures, canonicalize (RFC 8785), verify ES256 over BASE64URL(header).BASE64URL(card) with the key named by kid.",
             ),
         ]),
-        h2("dns", "7. DNS"),
+        h2("dns", "8. DNS"),
         verification_command(
             "dns-command",
             format!("dig +dnssec {host} A @1.1.1.1\ndig {host} CAA @1.1.1.1"),
         ),
         para("Flag ad means DNSSEC validated. CAA names the one certificate authority allowed."),
-    ];
+    ]);
     blocks.extend(checker_section(build));
     let mut d = doc(
         "verify",
@@ -2035,6 +2409,220 @@ const SELLER_MEASURED: [(&str, &str, &str); 8] = [
     ),
 ];
 
+/// The seller's configuration for the main-network bounty, as the steps
+/// write it into the volume.
+fn seller_json(m: &Mainnet) -> String {
+    format!(
+        "{{\n  \"deployment\": \"/data/base.json\",\n  \"keys\": \"/data/seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"relayer\": \"{RELAYER_URL}\",\n  \"prover\": [\"/usr/local/bin/nucleus-fixture-prover\",\n             \"/data/{}\",\n             \"/data/{}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"groth16Data\": \"/data/groth16\",\n  \"expectedProvingSeconds\": 3600,\n  \"workDir\": \"/data/seller-work\"\n}}",
+        m.board.address,
+        m.board.deploy_block.unwrap_or(0),
+        file_name(STATEMENT_FILE),
+        file_name(PROOF_FILE),
+        m.bounty.price,
+    )
+}
+
+/// The Mac QuickStart as one shell session: Apple's `container` CLI, the
+/// release named once by digest (`SELLER_RELEASE`), and the main-network
+/// deployment from the input. The page and the Agent Card both carry it.
+pub fn mac_quickstart_script(m: &Mainnet) -> String {
+    let r = &SELLER_RELEASE;
+    format!(
+        "# 1. Apple's container runtime (Apple silicon; https://github.com/apple/container/releases)
+container system start
+
+# 2. The seller release {tag}, named by digest
+IMAGE={image}@{digest}
+container image pull \"$IMAGE\"
+
+# 3. Check it. cosign needs no account; gh attestation needs gh signed in to GitHub.
+cosign verify \"$IMAGE\" \\
+  --certificate-identity-regexp '^https://github.com/coproduct-opensource/qed/\\.github/workflows/release\\.yml@refs/tags/v' \\
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify \"oci://$IMAGE\" --repo coproduct-opensource/qed
+container run --rm --entrypoint nucleus-acceptance-host \"$IMAGE\" order2r-image
+#    prints: image_id {program}
+
+# 4. A volume for the key and data. container 1.4.1 gives a new volume to
+#    root, not the image's user, so hand it over once, then make the wallet.
+container volume create qed
+container run --rm --user 0 -v qed:/data --entrypoint /bin/chown \"$IMAGE\" 10001:999 /data
+container run --rm -v qed:/data --entrypoint nucleus-vault-ops \"$IMAGE\" keys /data/seller.keys
+#    prints your wallet address; the key stays in the volume
+
+# 5. The bounty's statement and its public proof; the Groth16 data
+#    (2.4 GB download checked against a pinned SHA-256, 4.2 GB kept)
+curl -fsSO https://qed.coproduct.dev/{statement}
+curl -fsSO https://qed.coproduct.dev/{proof}
+container run --rm -v qed:/data --entrypoint qed-groth16-data \"$IMAGE\" /data/groth16
+
+# 6. Two configuration files, copied into the volume with the task's files
+printf '%s\\n' '{base}' > base.json
+printf '%s\\n' '{seller}' > seller.json
+for f in base.json seller.json {statement_file} {proof_file}; do
+  cat \"$f\" | container run --rm -i -v qed:/data --entrypoint tee \"$IMAGE\" \"/data/$f\" > /dev/null
+done
+
+# 7. Run. Proving needs memory: the default VM is too small. 8 CPUs and
+#    16 GB took about 13.5 minutes per trade (13 of them proving).
+container run -d --name qed-seller --cpus 8 --memory 16g --read-only --tmpfs /tmp -v qed:/data \"$IMAGE\"
+container logs -f qed-seller
+#    working: \"seller: watching board {board} from block ...\"
+
+# 8. Stop
+container stop qed-seller && container rm qed-seller
+
+# 9. Move your earnings to your own wallet, with no ETH (see \"Moving your earnings\")
+{sweep}",
+        sweep = if r.has_sweep {
+            SWEEP_LINE.to_string()
+        } else {
+            format!(
+                "#    Needs a seller release with sweep; {} has none, so the line stays a comment until then.\n# {SWEEP_LINE}",
+                r.tag
+            )
+        },
+        tag = r.tag,
+        image = r.image,
+        digest = r.digest,
+        program = m.bounty.program,
+        statement = STATEMENT_FILE,
+        proof = PROOF_FILE,
+        statement_file = file_name(STATEMENT_FILE),
+        proof_file = file_name(PROOF_FILE),
+        base = deployment_json(m),
+        seller = seller_json(m),
+        board = m.board.address,
+    )
+}
+
+fn mac_quickstart(m: &Mainnet) -> Vec<Block> {
+    vec![
+        h2("mac", "Mac QuickStart (Apple container)"),
+        p(vec![
+            t("On a Mac with Apple silicon, with Apple's "),
+            code("container"),
+            t(
+                " CLI (not Docker). It runs the image's arm64 build natively (the image is multi-architecture), each container in its own small VM. Every command below was run on 2026-11-14 with ",
+            ),
+            code("container"),
+            t(
+                " 1.4.1 from an empty volume, through to the seller watching the Base board and then stopping it. That run named its volume and container differently and added \"onlyPoster\" set to an address that never posts, so it could not take the bounty. The steps are the same as the numbered sections after this one.",
+            ),
+        ]),
+        verification_command("mac-quickstart", mac_quickstart_script(m)),
+        Block::Ul(vec![
+            vec![
+                strong("Memory."),
+                t(" "),
+                code("container run"),
+                t(
+                    " gives a container a small VM by default. Proving peaked near 10 GB, so give the seller ",
+                ),
+                code("--memory 16g"),
+                t(" and several CPUs; the measured trades used 8 CPUs and 16 GB."),
+            ],
+            vec![
+                strong("Volume ownership."),
+                t(" Without the "),
+                code("chown"),
+                t(" step, making the wallet stops with "),
+                code("FAILED: Permission denied (os error 13)"),
+                t(
+                    ": Docker copies the image's /data ownership into a new volume and container 1.4.1 does not.",
+                ),
+            ],
+            vec![
+                strong("Seeing it work."),
+                t(" "),
+                code("container ls"),
+                t(" lists it running; the log's "),
+                code("seller: watching board"),
+                t(
+                    " line names the board and the block it reads from. When a task is posted it logs each step: offer, fund, proof, settle and claim.",
+                ),
+            ],
+            vec![
+                strong("Checks."),
+                t(" "),
+                code("cosign"),
+                t(" verifies the release workflow's signature with no account; "),
+                code("gh attestation verify"),
+                t(" works only with gh signed in to GitHub."),
+            ],
+        ]),
+        h2("earnings", "Moving your earnings"),
+    ]
+    .into_iter()
+    .chain(earnings())
+    .collect()
+}
+
+/// The QuickStart's sweep, run as a one-off container.
+const SWEEP_LINE: &str = "container run --rm -v qed:/data --entrypoint nucleus-seller \"$IMAGE\" sweep /data/seller.json 0xYOUR_WALLET";
+/// The first relayed sweep on Base, 2026-11-14 (relayer record, §18).
+const FIRST_SWEEP: &str = "0x0c9ab94a7a6286a48dfef36573f3cefb32b18c2717546cf856546950666c209d";
+
+/// "Moving your earnings": the relayer record's seller-page text (§17),
+/// with what the published release has.
+fn earnings() -> Vec<Block> {
+    let r = &SELLER_RELEASE;
+    let mut blocks = vec![
+        p(vec![
+            strong("Move your earnings without ETH."),
+            t(
+                " The vault pays your seller key's address. To send that USDC to your own wallet, run",
+            ),
+        ]),
+        verification_command(
+            "seller-sweep",
+            "nucleus-seller sweep seller.json 0xYOUR_WALLET".to_string(),
+        ),
+        p(vec![
+            t("or, with the image, "),
+            code(SWEEP_LINE),
+            t(". It signs one USDC transfer authorization (EIP-3009 "),
+            code("transferWithAuthorization"),
+            t(") with your seller key, for your whole balance or for "),
+            code("AMOUNT"),
+            t(" if you give one, valid for 15 minutes. The relayer sends it and pays the gas. "),
+            strong("It is free:"),
+            t(
+                " there is no fee. The first sweep on Base cost the relayer 80,920 gas, 0.00000049 ETH (",
+            ),
+            code_link(format!("{BASE_TX}{FIRST_SWEEP}"), "transaction"),
+            t(
+                "). Your seller then checks on chain that the transfer landed and prints both balances.",
+            ),
+        ]),
+        p(vec![
+            t(
+                "The relayer can send your authorization or refuse it, but it cannot change where the money goes or how much: your signature binds both, and the token checks it. It relays only what the vaults paid you: up to the amounts in your claim transactions, less everything that has left your address since the earliest of them. It relays one transfer per address at a time, at most five per address a day. If it refuses and your seller has a little ETH, ",
+            ),
+            code("sweep"),
+            t(
+                " sends the same signed transfer itself; that fallback has not been exercised on mainnet. Your seller finds its claims from ",
+            ),
+            code("startBlock"),
+            t(" in "),
+            code("seller.json"),
+            t(" (or name them with "),
+            code("--claim 0x…"),
+            t(")."),
+        ]),
+    ];
+    if !r.has_sweep {
+        blocks.push(p(vec![
+            strong("Needs the next seller release."),
+            t(format!(
+                " The published {} image and archives have no sweep command: it was added to the source after that release and ships with the next one.",
+                r.tag
+            )),
+        ]));
+    }
+    blocks
+}
+
 /// "Run a seller": the released image and archives, how to check them, the
 /// steps that take the main-network bounty with them, the gas relayer,
 /// and what a first run costs.
@@ -2085,6 +2673,11 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
                 " The gas relayer at {RELAYER_URL} (below) sends fund, settle and claim and pays the gas. A little ETH lets your seller send them itself when the relayer is slow or refuses.",
             )),
         ]),
+    ];
+    if let Some(m) = mainnet {
+        blocks.extend(mac_quickstart(m));
+    }
+    blocks.extend([
         h2("check", "1. Check the image"),
         para(
             "The image is signed keyless by the release workflow and carries a build-provenance attestation. Check both against the digest you will run, not a tag:",
@@ -2115,12 +2708,12 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             t(
                 "This shows who built the artifact and from which commit. It does not show the source is correct. The program the vault pays for is checked separately: ",
             ),
-            code("nucleus-acceptance-host order2-image"),
+            code("nucleus-acceptance-host order2r-image"),
             t(" must print the program ID the order names:"),
         ]),
         verification_command(
             "seller-program",
-            format!("docker run --rm --entrypoint nucleus-acceptance-host {image} order2-image"),
+            format!("docker run --rm --entrypoint nucleus-acceptance-host {image} order2r-image"),
         ),
         h2("key", "2. Make a wallet"),
         p(vec![
@@ -2145,7 +2738,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
         para(
             "It prints the wallet address. The key file stays in the volume, readable only by the image's user.",
         ),
-    ];
+    ]);
     let Some(m) = mainnet else {
         blocks.push(para(
             "Configure the seller for a deployment as in the repository README's seller section, with the paths of the image.",
@@ -2177,17 +2770,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
         p(vec![code("base.json"), t(":")]),
         verification_command("seller-base-json", deployment_json(m)),
         p(vec![code("seller.json"), t(":")]),
-        verification_command(
-            "seller-json",
-            format!(
-                "{{\n  \"deployment\": \"/data/base.json\",\n  \"keys\": \"/data/seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"relayer\": \"{RELAYER_URL}\",\n  \"prover\": [\"/usr/local/bin/nucleus-fixture-prover\",\n             \"/data/{}\",\n             \"/data/{}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"/usr/local/bin/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"groth16Data\": \"/data/groth16\",\n  \"expectedProvingSeconds\": 3600,\n  \"workDir\": \"/data/seller-work\"\n}}",
-                m.board.address,
-                m.board.deploy_block.unwrap_or(0),
-                file_name(STATEMENT_FILE),
-                file_name(PROOF_FILE),
-                m.bounty.price,
-            ),
-        ),
+        verification_command("seller-json", seller_json(m)),
         p(vec![
             code("startBlock"),
             t(" is the board's deployment block, so a post already open is seen. "),
