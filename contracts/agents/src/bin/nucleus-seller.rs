@@ -1,7 +1,7 @@
 //! `nucleus-seller CONFIG.json` — see `seller.rs` for the configuration and
 //! the exchange. `nucleus-seller watch CONFIG.json` answers the task board
 //! instead of waiting for buyers (`watch.rs`). `nucleus-seller sweep CONFIG.json TO
-//! [AMOUNT]` moves what the vault paid to `TO` without ETH (`sweep.rs`). Prints `iroh:<node id>@<ip:port>`, which is what a buyer is
+//! [AMOUNT]` moves what the vault paid to `TO` without ETH (`sweep.rs`). `nucleus-seller test-delivery DEPLOYMENT BOARD FROM_BLOCK TASK_ID KEYFILE` sends one labelled test offer that cannot be signed for (`deliveries.rs`). Prints `iroh:<node id>@<ip:port>`, which is what a buyer is
 //! given.
 use nucleus_commerce_agents::{chain::Res, http, iroh_net, seller};
 use std::{
@@ -20,6 +20,11 @@ fn run(args: &[String]) -> Res<()> {
         && command == "sweep"
     {
         return nucleus_commerce_agents::sweep::sweep(rest);
+    }
+    if let Some((command, rest)) = args.split_first()
+        && command == "test-delivery"
+    {
+        return nucleus_commerce_agents::deliveries::test_delivery(rest);
     }
     let [config] = args else {
         return Err("usage: nucleus-seller CONFIG.json".into());

@@ -3219,6 +3219,7 @@ dependencies = [
  "nucleus-proof-acceptance",
  "nucleus-proof-commerce",
  "p256",
+ "qed-deliveries",
  "serde_json",
  "sha2 0.10.9",
  "sha3 0.10.9",
@@ -3787,6 +3788,17 @@ dependencies = [
  "rand 0.10.3",
  "rand_xorshift",
  "unarray",
+]
+
+[[package]]
+name = "qed-deliveries"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "p256",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

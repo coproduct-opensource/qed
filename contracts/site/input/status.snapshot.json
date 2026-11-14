@@ -1,8 +1,12 @@
 {
-  "block": 57192532,
-  "blockTimestamp": 1794628882,
+  "block": 57502161,
+  "blockTimestamp": 1794690807,
   "buyerUsdc": "100000000",
   "chainId": 8453,
+  "deliveries": {
+    "jws": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6IjlVcGtkYk9mY2huQkVGUUVTRWVwdHdJSTRBVFNUYllrdDhDNF8yUERfQ1kiLCJ5IjoibkM0VnBDM3FqRXNwUHhRUzdwNXNYMzlwNTVkanFYelVlT3BLRktsMmJKOCJ9LCJ0eXAiOiJxZWQtZGVsaXZlcmllcytqd3MifQ.eyJmb3JtYXQiOiJxZWQtZGVsaXZlcmllcy1zdW1tYXJ5LzEiLCJidXllciI6IjB4MTMzYzI1YTgwZmIzMjNkZTE0M2U4YWQ1YzZjNjIwYmY4NzEzZWRmZCIsIm9wZW5lZCI6MTc5NDY4OTY0Niwic2lnbmVkQXQiOjE3OTQ2OTA2MDYsInJlY29yZHMiOjEsInVucmVhZGFibGUiOjAsInVucmVjb3JkZWQiOjAsImZpcnN0IjoxNzk0NjkwMTc0LCJsYXN0IjoxNzk0NjkwMTc0LCJhY2NlcHRlZCI6MCwicmV2aWV3ZWQiOjAsInJlZnVzZWQiOnsib3Zlci1saW1pdCI6MX0sInNlbGxlcnMiOnsiZGlzdGluY3QiOjEsIm91cnMiOjAsInVua25vd24iOjF9LCJ1bmtub3duU2VsbGVycyI6W3sibiI6MSwiZmlyc3RBdCI6MTc5NDY5MDE3NCwicm91dGUiOiJyZXZpZXciLCJvdXRjb21lIjoicmVmdXNlZCIsInJlYXNvbiI6Im92ZXItbGltaXQifV19.IHrUZlOZntvFSYZzp3MNDfFq7ml7IRULE6qnpkcJwnKIO7AyYMbg8dNzXcmcOHEUocSYdtMeNzQCB5zEYQITiA",
+    "readAt": 1794690807
+  },
   "posts": [
     {
       "block": 57110912,
@@ -54,19 +58,19 @@
       "id": "block",
       "method": "eth_blockNumber",
       "params": [],
-      "result": "0x368b054",
+      "result": "0x36d69d1",
       "what": "the block every value below is read at"
     },
     {
       "id": "block-header",
       "method": "eth_getBlockByNumber",
       "params": [
-        "0x368b054",
+        "0x36d69d1",
         false
       ],
       "result": {
-        "number": "0x368b054",
-        "timestamp": "0x6af7dd12"
+        "number": "0x36d69d1",
+        "timestamp": "0x6af8cef7"
       },
       "what": "that block's timestamp"
     },
@@ -90,7 +94,85 @@
         {
           "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
           "fromBlock": "0x36828c9",
-          "toBlock": "0x368b054"
+          "toBlock": "0x368ec17"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-2",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x368ec18",
+          "toBlock": "0x369af66"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-3",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x369af67",
+          "toBlock": "0x36a72b5"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-4",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x36a72b6",
+          "toBlock": "0x36b3604"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-5",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x36b3605",
+          "toBlock": "0x36bf953"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-6",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x36bf954",
+          "toBlock": "0x36cbca2"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the board's Posted and Withdrawn events"
+    },
+    {
+      "id": "board-logs-7",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
+          "fromBlock": "0x36cbca3",
+          "toBlock": "0x36d69d1"
         }
       ],
       "result": "0 logs",
@@ -116,7 +198,85 @@
         {
           "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
           "fromBlock": "0x368288e",
-          "toBlock": "0x368b054"
+          "toBlock": "0x368ebdc"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-2",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x368ebdd",
+          "toBlock": "0x369af2b"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-3",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x369af2c",
+          "toBlock": "0x36a727a"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-4",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x36a727b",
+          "toBlock": "0x36b35c9"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-5",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x36b35ca",
+          "toBlock": "0x36bf918"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-6",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x36bf919",
+          "toBlock": "0x36cbc67"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault0-logs-7",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
+          "fromBlock": "0x36cbc68",
+          "toBlock": "0x36d69d1"
         }
       ],
       "result": "0 logs",
@@ -130,7 +290,7 @@
           "data": "0x70a08231000000000000000000000000952c31aa208dd129059f6065a26b57c930c6ab3c",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x368b054"
+        "0x36d69d1"
       ],
       "result": "0x00000000000000000000000000000000000000000000000000000000000009c4",
       "what": "USDC the vault holds"
@@ -246,7 +406,85 @@
         {
           "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
           "fromBlock": "0x36863f8",
-          "toBlock": "0x368b054"
+          "toBlock": "0x3692746"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-9",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x3692747",
+          "toBlock": "0x369ea95"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-10",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x369ea96",
+          "toBlock": "0x36aade4"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-11",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x36aade5",
+          "toBlock": "0x36b7133"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-12",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x36b7134",
+          "toBlock": "0x36c3482"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-13",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x36c3483",
+          "toBlock": "0x36cf7d1"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-14",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x36cf7d2",
+          "toBlock": "0x36d69d1"
         }
       ],
       "result": "0 logs",
@@ -260,7 +498,7 @@
           "data": "0x70a082310000000000000000000000008917c501755f966a5b5f20d6608e297e7066f13b",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x368b054"
+        "0x36d69d1"
       ],
       "result": "0x00000000000000000000000000000000000000000000000000000000000009c4",
       "what": "USDC the vault holds"
@@ -272,7 +510,7 @@
         {
           "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "fromBlock": "0x367f5c6",
-          "toBlock": "0x368b054",
+          "toBlock": "0x368b914",
           "topics": [
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
             "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
@@ -280,6 +518,125 @@
         }
       ],
       "result": "1 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-1",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x368b915",
+          "toBlock": "0x3697c63",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-2",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x3697c64",
+          "toBlock": "0x36a3fb2",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-3",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36a3fb3",
+          "toBlock": "0x36b0301",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-4",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36b0302",
+          "toBlock": "0x36bc650",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-5",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36bc651",
+          "toBlock": "0x36c899f",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-6",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36c89a0",
+          "toBlock": "0x36d4cee",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps0-7",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36d4cef",
+          "toBlock": "0x36d69d1",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
       "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
     },
     {
@@ -340,7 +697,109 @@
         {
           "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "fromBlock": "0x3686b13",
-          "toBlock": "0x368b054",
+          "toBlock": "0x3692e61",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-4",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x3692e62",
+          "toBlock": "0x369f1b0",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-5",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x369f1b1",
+          "toBlock": "0x36ab4ff",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-6",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36ab500",
+          "toBlock": "0x36b784e",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-7",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36b784f",
+          "toBlock": "0x36c3b9d",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-8",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36c3b9e",
+          "toBlock": "0x36cfeec",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-9",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x36cfeed",
+          "toBlock": "0x36d69d1",
           "topics": [
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
             "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
@@ -355,7 +814,7 @@
       "method": "eth_getTransactionCount",
       "params": [
         "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
-        "0x368b054"
+        "0x36d69d1"
       ],
       "result": "0x7",
       "what": "transactions the relayer's wallet has sent"
@@ -368,7 +827,7 @@
           "data": "0x70a08231000000000000000000000000133c25a80fb323de143e8ad5c6c620bf8713edfd",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x368b054"
+        "0x36d69d1"
       ],
       "result": "0x0000000000000000000000000000000000000000000000000000000005f5e100",
       "what": "USDC the bounty buyer holds"
@@ -378,7 +837,7 @@
       "method": "eth_getBalance",
       "params": [
         "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
-        "0x368b054"
+        "0x36d69d1"
       ],
       "result": "0x3587eae46c19a3",
       "what": "ETH the relayer holds, in wei"
@@ -390,7 +849,7 @@
       "body": "DPoP proof missing",
       "status": 401
     },
-    "checkedAt": 1794628881,
+    "checkedAt": 1794690807,
     "url": "https://relay.qed.coproduct.dev/relay"
   },
   "relayerWei": "15067616690051491",
@@ -405,7 +864,7 @@
       "transaction": "0x0c9ab94a7a6286a48dfef36573f3cefb32b18c2717546cf856546950666c209d"
     }
   ],
-  "takenAt": 1794628881,
+  "takenAt": 1794690807,
   "vaults": [
     {
       "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",

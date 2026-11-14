@@ -77,7 +77,15 @@ fn run(args: &[String]) -> Res<()> {
             let path = Path::new(input_file);
             let input = Input::read(path)?;
             let now: u64 = now.parse().map_err(|_| "NOW must be a Unix time in seconds")?;
-            let value = nucleus_site::status::snapshot(&input, now)?;
+            // The buyer's signed delivery summary, fetched just before by
+            // `nucleus-buyer deliveries-fetch NODE input/deliveries.jws`.
+            let deliveries = fs::read_to_string(
+                path.parent()
+                    .ok_or("input path")?
+                    .join(nucleus_site::status::DELIVERIES_FILE),
+            )
+            .ok();
+            let value = nucleus_site::status::snapshot(&input, now, deliveries.as_deref())?;
             let out = path.parent().ok_or("input path")?.join("status.snapshot.json");
             fs::write(&out, serde_json::to_string_pretty(&value)? + "\n")?;
             println!(

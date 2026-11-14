@@ -70,10 +70,13 @@ pub struct TaskRef {
     pub salt: Option<Hash>,
 }
 
-/// Why a post was withdrawn, which decides whether it used up a task (R-4).
+/// Why a post was withdrawn. Since 2026-11-14 no withdrawal uses up a task
+/// (R-4: only a settlement does); `Unresumable` still counts toward
+/// `Stop::Failures`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Withdrawal {
-    /// Its whole funding window passed and nothing was signed. A task.
+    /// Its whole funding window passed and nothing was signed. A task until
+    /// 2026-11-14; not one since (the journal line is unchanged).
     WindowEnded,
     /// This buyer could not reopen its desk after a restart. Not a task.
     Unresumable(String),
@@ -238,9 +241,13 @@ pub struct Ledger {
     pub spent: u64,
     /// Posts made.
     pub posted: u32,
-    /// Posts that used up a task: settled, refunded or lapsed orders, and
-    /// posts withdrawn after their whole funding window (R-4).
-    pub consumed: u32,
+    /// Settled orders: the only thing that uses up a task (R-4, owner
+    /// decision of 2026-11-14). A window that ends unanswered, a lapsed or
+    /// a refunded order does not.
+    pub settled: u32,
+    /// Funded orders refunded undelivered. Not tasks; bounded on their own
+    /// (`Stop::Refunds`), since each costs the buyer a refund and a claim.
+    pub refunded: u32,
     /// Posts withdrawn because this buyer could not resume them.
     pub failures: u32,
     pub open: Option<Open>,
@@ -258,7 +265,8 @@ impl Ledger {
             header,
             spent: 0,
             posted: 0,
-            consumed: 0,
+            settled: 0,
+            refunded: 0,
             failures: 0,
             open: None,
             signed: vec![],
@@ -299,9 +307,10 @@ impl Ledger {
                 Some(Open::Posted(posted)),
             ) if *task == posted.id => {
                 match reason {
-                    Withdrawal::WindowEnded => self.consumed += 1,
                     Withdrawal::Unresumable(_) => self.failures += 1,
-                    Withdrawal::Closed | Withdrawal::Unrecorded => {}
+                    // A window that ended unanswered cost one post's gas and
+                    // no budget: not a task since 2026-11-14 (R-4).
+                    Withdrawal::WindowEnded | Withdrawal::Closed | Withdrawal::Unrecorded => {}
                 }
                 self.checkpoint = self.checkpoint.max(*block);
                 None
@@ -320,15 +329,20 @@ impl Ledger {
                     return Err("a settlement pays the order's amount");
                 }
                 self.spent += paid;
-                self.consumed += 1;
+                self.settled += 1;
                 self.checkpoint = self.checkpoint.max(*block);
                 None
             }
             (Entry::Refunded { digest, block }, Some(Open::Signed(_, order)))
-            | (Entry::Lapsed { digest, block }, Some(Open::Signed(_, order)))
                 if *digest == order.digest =>
             {
-                self.consumed += 1;
+                self.refunded += 1;
+                self.checkpoint = self.checkpoint.max(*block);
+                None
+            }
+            (Entry::Lapsed { digest, block }, Some(Open::Signed(_, order)))
+                if *digest == order.digest =>
+            {
                 self.checkpoint = self.checkpoint.max(*block);
                 None
             }
@@ -649,6 +663,9 @@ pub enum Stop {
     /// As many posts were withdrawn for this buyer's own failures as the
     /// task limit: something needs the operator.
     Failures,
+    /// As many funded orders were refunded undelivered as the task limit:
+    /// sellers keep taking the post and not proving (R-4, 2026-11-14).
+    Refunds,
 }
 impl std::fmt::Display for Stop {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -657,6 +674,10 @@ impl std::fmt::Display for Stop {
             Self::Failures => write!(
                 f,
                 "as many posts were withdrawn because this buyer could not resume them as the task limit; stopping for the operator"
+            ),
+            Self::Refunds => write!(
+                f,
+                "as many funded orders were refunded undelivered as the task limit; stopping for the operator"
             ),
             Self::Budget => write!(f, "the budget does not cover another task"),
             Self::Wallet => write!(f, "the wallet does not cover another task"),
@@ -754,23 +775,29 @@ fn step(
     market: &mut dyn Market,
     first: bool,
 ) -> Res<Option<Stop>> {
-    let (open, spent, consumed, failed) = {
+    let (open, spent, settled, refunded, failed) = {
         let journal = locked(journal)?;
         let ledger = journal.ledger();
         (
             ledger.open.clone(),
             ledger.spent,
-            ledger.consumed,
+            ledger.settled,
+            ledger.refunded,
             ledger.failures,
         )
     };
     let record = |entry: Entry| -> Res<()> { locked(journal)?.record(entry) };
     match open {
         None => {
-            let stop = if consumed >= limits.tasks {
+            // R-4 (2026-11-14): only settled orders are tasks. Settlement is
+            // the only spend, so `tasks` settled is the spend cap; refunds and
+            // the buyer's own failures are bounded by the same number.
+            let stop = if settled >= limits.tasks {
                 Some(Stop::TaskLimit)
             } else if failed >= limits.tasks {
                 Some(Stop::Failures)
+            } else if refunded >= limits.tasks {
+                Some(Stop::Refunds)
             } else if spent.saturating_add(limits.price) > limits.budget {
                 Some(Stop::Budget)
             } else if market.wallet()? < limits.price {
@@ -1156,18 +1183,19 @@ impl Market for Live {
         if let Some(error) = error {
             self.last_error = Some((now, error.clone()));
         }
-        let (open, posted, consumed, failures, spent) = match locked(&self.journal) {
+        let (open, posted, settled, refunded, failures, spent) = match locked(&self.journal) {
             Ok(journal) => {
                 let ledger = journal.ledger();
                 (
                     ledger.open.clone(),
                     ledger.posted,
-                    ledger.consumed,
+                    ledger.settled,
+                    ledger.refunded,
                     ledger.failures,
                     ledger.spent,
                 )
             }
-            Err(_) => (None, 0, 0, 0, 0),
+            Err(_) => (None, 0, 0, 0, 0, 0),
         };
         let open = match &open {
             None => Value::Null,
@@ -1192,7 +1220,8 @@ impl Market for Live {
             "open": open,
             "lastError": self.last_error.as_ref().map(|(at, error)| json!({"at": at, "error": error})),
             "posted": posted,
-            "consumed": consumed,
+            "settled": settled,
+            "refunded": refunded,
             "withdrawnForFailures": failures,
             "spent": spent,
         });
@@ -1390,10 +1419,11 @@ pub fn bounty_ledger(args: &[String]) -> Res<()> {
         }
     };
     println!(
-        "bounty-ledger: {} lines; posted {}; used up {} tasks; withdrawn for this buyer's failures {}; spent {}; open: {open}; checkpoint block {}",
+        "bounty-ledger: {} lines; posted {}; settled {} (the tasks used up); refunded {}; withdrawn for this buyer's failures {}; spent {}; open: {open}; checkpoint block {}",
         ledger.lines,
         ledger.posted,
-        ledger.consumed,
+        ledger.settled,
+        ledger.refunded,
         ledger.failures,
         ledger.spent,
         ledger.checkpoint
@@ -1466,24 +1496,25 @@ pub fn bounty(args: &[String]) -> Res<()> {
         let journal = locked(&journal)?;
         let ledger = journal.ledger();
         println!(
-            "bounty: price {} budget {} tasks {} pause {}s; journal has spent {} over {} posts, {} of which used up a task and {} were withdrawn for this buyer's failures",
+            "bounty: price {} budget {} tasks {} pause {}s; journal has spent {} over {} posts, {} settled (the tasks used up), {} refunded and {} withdrawn for this buyer's failures",
             limits.price,
             limits.budget,
             limits.tasks,
             limits.pause,
             ledger.spent,
             ledger.posted,
-            ledger.consumed,
+            ledger.settled,
+            ledger.refunded,
             ledger.failures
         );
     }
     let stop = run(limits, &journal, &mut market)?;
     let journal = locked(&journal)?;
     println!(
-        "bounty: stopped: {stop}; spent {} over {} posts ({} used up a task)",
+        "bounty: stopped: {stop}; spent {} over {} posts ({} settled)",
         journal.ledger().spent,
         journal.ledger().posted,
-        journal.ledger().consumed
+        journal.ledger().settled
     );
     Ok(())
 }
@@ -1589,6 +1620,25 @@ fn live(
         );
         Ok(())
     }));
+    // Every offer and review the desk answers is recorded beside the
+    // journal, and its signed summary served at GET /deliveries
+    // (docs/rfcs/qed-deliveries-2026-11-14.md). The authors' wallets come
+    // from `ours.txt` beside the journal; without it every seller is outside.
+    let ours_path = journal_path.with_file_name("ours.txt");
+    let ours = crate::deliveries::ours(&ours_path)?;
+    println!(
+        "bounty: delivery record {}; {} of the authors' wallets in {}",
+        journal_path.with_extension("deliveries.jsonl").display(),
+        ours.len(),
+        ours_path.display()
+    );
+    desk.record_attempts(Box::new(crate::deliveries::Record::open(
+        &journal_path.with_extension("deliveries.jsonl"),
+        &journal_path.with_extension("deliveries.jws"),
+        keys.address(),
+        keys.possession.clone(),
+        ours,
+    )?));
     let desk = Arc::new(Mutex::new(desk));
     let _router = {
         let _guard = runtime.enter();

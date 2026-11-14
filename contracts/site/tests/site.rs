@@ -948,3 +948,139 @@ fn the_whole_site_has_at_most_3000_counted_words() {
         nucleus_site::words::LIMIT
     );
 }
+
+/// The status page shows the bounty buyer's signed record of delivery
+/// attempts as a dated snapshot, says when none has been recorded, and
+/// shows anything it cannot read as "could not read", never as a zero
+/// (docs/rfcs/qed-deliveries-2026-11-14.md). Red on `c15327361`, whose
+/// page had no such section.
+#[test]
+fn the_status_page_shows_the_buyers_signed_delivery_counts_or_could_not_read() {
+    use nucleus_site::{DeliveriesInput, doc, status};
+    use qed_deliveries::{Attempt, Outcome, Party, Reason, Route};
+    let buyer_key = SigningKey::from_slice(&[9u8; 32]).unwrap();
+    let binding = |key: &SigningKey| {
+        let point = key.verifying_key().to_sec1_point(false);
+        let bytes = point.as_bytes();
+        qed_deliveries::thumbprint(
+            bytes[1..33].try_into().unwrap(),
+            bytes[33..65].try_into().unwrap(),
+        )
+    };
+    let mut input = input();
+    let st = input.mainnet.as_mut().unwrap().status.as_mut().unwrap();
+    st.deliveries = Some(DeliveriesInput {
+        key_binding: qed_deliveries::hex(&binding(&buyer_key)),
+        node: "4304f10154038dfff2837b4f031689c006782e8920e228a8fc0ad7c94fcec506".into(),
+        notes: vec![],
+    });
+    let buyer = st.buyer.clone();
+    let opened = 1_794_690_000;
+    let record = |lines: &[String]| {
+        let mut text = qed_deliveries::header_line(opened, &buyer);
+        text.push('\n');
+        for line in lines {
+            text.push_str(line);
+            text.push('\n');
+        }
+        text
+    };
+    let refused = Attempt {
+        at: opened + 300,
+        route: Route::Review,
+        task: Some([0x28; 32]),
+        outcome: Outcome::Refused(Reason::OverLimit),
+        seller_key: Some([1; 32]),
+        party: Party::Outside,
+    }
+    .line();
+    let signed = |text: &str, key: &SigningKey| {
+        qed_deliveries::sign(
+            &qed_deliveries::summarize(text, 0, opened + 600).unwrap(),
+            key,
+        )
+    };
+    let page = |jws: Option<&str>| {
+        let mut snap: Value =
+            serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+        snap["deliveries"] = json!({"jws": jws, "readAt": opened + 700});
+        doc::markdown(&status::page(&input, Some(&snap)).unwrap(), None)
+    };
+    const COUNTS: &str = "| Attempts |";
+    const COULD_NOT: &str = "Could not read the bounty buyer's record of delivery attempts";
+
+    // One refused attempt from a seller not in the authors' list.
+    let md = page(Some(&signed(
+        &record(std::slice::from_ref(&refused)),
+        &buyer_key,
+    )));
+    for row in [
+        "| Attempts | 1 |",
+        "| Refused: over the price cap | 1 |",
+        "| Sellers not in the authors' wallet list | 1 |",
+        "| Reviewed (nothing signed) | 0 |",
+    ] {
+        assert!(md.contains(row), "{row} missing:\n{md}");
+    }
+    assert!(
+        md.contains("signed by the bounty buyer, 2026-11-14"),
+        "{md}"
+    );
+    assert!(
+        md.contains("**Delivery attempts:** 1, signed 2026-11-14"),
+        "{md}"
+    );
+    assert!(
+        md.contains("nucleus-buyer deliveries-fetch 4304f101"),
+        "{md}"
+    );
+
+    // Nothing recorded: said so, with the date the record began.
+    let md = page(Some(&signed(&record(&[]), &buyer_key)));
+    assert!(
+        md.contains("No delivery attempt has been recorded since 2026-11-14"),
+        "{md}"
+    );
+    assert!(!md.contains(COUNTS));
+
+    // An unreadable line is shown, not folded into the counts.
+    let md = page(Some(&signed(
+        &record(&[refused.clone(), r#"{"at":1,"outcome":"mystery"}"#.into()]),
+        &buyer_key,
+    )));
+    assert!(
+        md.contains("| Records that could not be read | 1 |"),
+        "{md}"
+    );
+
+    // Another key, no summary, or not a summary: could not read, no counts.
+    let other = SigningKey::from_slice(&[10u8; 32]).unwrap();
+    for jws in [
+        Some(signed(&record(std::slice::from_ref(&refused)), &other)),
+        None,
+        Some("not a summary".to_owned()),
+    ] {
+        let md = page(jws.as_deref());
+        assert!(md.contains(COULD_NOT), "{md}");
+        assert!(
+            md.contains("**Delivery attempts:** could not read."),
+            "{md}"
+        );
+        assert!(!md.contains(COUNTS));
+        assert!(!md.contains("No delivery attempt has been recorded"));
+    }
+    // An input without the buyer's key reads nothing.
+    let mut bare = input.clone();
+    bare.mainnet
+        .as_mut()
+        .unwrap()
+        .status
+        .as_mut()
+        .unwrap()
+        .deliveries = None;
+    let mut snap: Value =
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    snap["deliveries"] = json!({"jws": signed(&record(&[refused]), &buyer_key)});
+    let md = doc::markdown(&status::page(&bare, Some(&snap)).unwrap(), None);
+    assert!(md.contains(COULD_NOT));
+}

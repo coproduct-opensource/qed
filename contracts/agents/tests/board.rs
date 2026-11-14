@@ -1240,3 +1240,277 @@ fn a_five_megabyte_statement_is_served_and_fetched_whole() {
     assert!(fetched == large);
     assert!(fetched.len() < nucleus_commerce_agents::message::MAXIMUM_STATEMENT);
 }
+
+// ---- Delivery attempts: every offer and review is recorded -----------------
+// docs/rfcs/qed-deliveries-2026-11-14.md.
+
+use nucleus_commerce_agents::{
+    deliveries::Record,
+    desk::{Answer, Reason, Recorder, Route, Seen},
+};
+
+struct Captured(Arc<Mutex<Vec<Seen>>>);
+impl Recorder for Captured {
+    fn record(&mut self, seen: &Seen) {
+        self.0.lock().unwrap().push(seen.clone());
+    }
+    fn signed_summary(&self) -> Result<String, String> {
+        Err("a capture signs nothing".into())
+    }
+}
+
+fn header_for(order: &vault::Order) -> String {
+    vault_wire::required_header(
+        serde_json::json!({"url": "test"}),
+        vault_wire::requirements(&deployment(), &domain(), order, 60),
+    )
+    .unwrap()
+}
+
+/// POST to the desk with an optional PAYMENT-REQUIRED and a proof.
+fn attempt(buyer: &Buyer, seller: &Seller, path: &str, header: Option<String>) -> Reply {
+    let headers: BTreeMap<String, String> = header
+        .map(|h| (REQUIRED_HEADER.to_ascii_lowercase(), h))
+        .into_iter()
+        .collect();
+    ask(
+        &buyer.dial(&seller.keys),
+        &seller.keys,
+        "POST",
+        path,
+        headers,
+        vec![],
+    )
+    .unwrap()
+}
+
+#[test]
+fn every_offer_and_review_is_reported_with_its_outcome_and_typed_reason() {
+    let buyer = Buyer::new();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    buyer
+        .desk
+        .lock()
+        .unwrap()
+        .record_attempts(Box::new(Captured(seen.clone())));
+    let seller = Seller::new();
+    let id = buyer.posted.id;
+    let dear = seller.order(&buyer, |o| o.amount = vault_amount(CAP + 1));
+    let other_policy = seller.order(&buyer, |o| o.policy_hash = [3; 32]);
+    let late = seller.order(&buyer, |o| o.deliver_by += 24 * 3_600);
+    let good = seller.order(&buyer, |_| {});
+
+    let statuses = [
+        attempt(
+            &buyer,
+            &seller,
+            &board::review_path(&id),
+            Some(header_for(&dear)),
+        )
+        .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&id),
+            Some(header_for(&other_policy)),
+        )
+        .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&id),
+            Some(header_for(&late)),
+        )
+        .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&id),
+            Some("not base64".into()),
+        )
+        .status,
+        attempt(&buyer, &seller, &board::offer_path(&id), None).status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&[0x77; 32]),
+            Some(header_for(&good)),
+        )
+        .status,
+        // No proof at all.
+        buyer
+            .dial(&seller.keys)
+            .send(&Request {
+                method: "POST".into(),
+                path: board::offer_path(&id),
+                headers: [(REQUIRED_HEADER.to_ascii_lowercase(), header_for(&good))].into(),
+                body: vec![],
+            })
+            .unwrap()
+            .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::review_path(&id),
+            Some(header_for(&good)),
+        )
+        .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&id),
+            Some(header_for(&good)),
+        )
+        .status,
+        attempt(
+            &buyer,
+            &seller,
+            &board::offer_path(&id),
+            Some(header_for(&good)),
+        )
+        .status,
+    ];
+    assert_eq!(statuses, [422, 422, 422, 422, 400, 404, 401, 200, 200, 409]);
+    // Reading the policy is not a delivery attempt.
+    let policy = ask(
+        &buyer.dial(&seller.keys),
+        &seller.keys,
+        "GET",
+        &board::path(&id),
+        BTreeMap::new(),
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(policy.status, 409);
+
+    let seen = seen.lock().unwrap();
+    let answers: Vec<(Route, Answer)> = seen.iter().map(|s| (s.route, s.outcome)).collect();
+    use Answer::*;
+    assert_eq!(
+        answers,
+        [
+            (Route::Review, Refused(Reason::OverLimit)),
+            (Route::Offer, Refused(Reason::TermsMismatch)),
+            (Route::Offer, Refused(Reason::Deadline)),
+            (Route::Offer, Refused(Reason::Malformed)),
+            (Route::Offer, Refused(Reason::Malformed)),
+            (Route::Offer, Refused(Reason::UnknownTask)),
+            (Route::Offer, Refused(Reason::Unauthenticated)),
+            (Route::Review, Reviewed),
+            (Route::Offer, Accepted),
+            (Route::Offer, Refused(Reason::NotOpen)),
+        ]
+    );
+    let key = seller.keys.binding();
+    for (index, s) in seen.iter().enumerate() {
+        let unauthenticated = s.outcome == Refused(Reason::Unauthenticated);
+        assert_eq!(
+            s.seller_key,
+            (!unauthenticated).then_some(key),
+            "attempt {index}"
+        );
+        // The seller's address is read wherever the offer decodes.
+        let unreadable = matches!(index, 3 | 4);
+        assert_eq!(
+            s.named_seller,
+            (!unreadable).then_some(seller.keys.address()),
+            "attempt {index}"
+        );
+        let task = if index == 5 { [0x77; 32] } else { id };
+        assert_eq!(s.task, Some(task), "attempt {index}");
+    }
+}
+
+#[test]
+fn the_record_keeps_no_seller_address_and_the_desk_serves_its_signed_summary() {
+    let buyer = Buyer::new();
+    let dir = scratch("deliveries");
+    let (path, summary_path) = (
+        dir.join("bounty.deliveries.jsonl"),
+        dir.join("bounty.deliveries.jws"),
+    );
+    let ours = Seller::new();
+    let outside = Seller::new();
+    let record = Record::open(
+        &path,
+        &summary_path,
+        buyer.keys.address(),
+        buyer.keys.possession.clone(),
+        [ours.keys.address()].into(),
+    )
+    .unwrap();
+    buyer.desk.lock().unwrap().record_attempts(Box::new(record));
+    let binding = buyer.keys.binding();
+    let fetch = |seller: &Seller| {
+        ask(
+            &buyer.dial(&seller.keys),
+            &seller.keys,
+            "GET",
+            "/deliveries",
+            BTreeMap::new(),
+            vec![],
+        )
+        .unwrap()
+    };
+    // Before any attempt: a signed summary that says so.
+    let empty = fetch(&outside);
+    assert_eq!(empty.status, 200, "{}", text(&empty));
+    let summary = qed_deliveries::verify(&text(&empty), &binding).unwrap();
+    assert_eq!((summary.records, summary.first), (0, None));
+    // Without a proof the summary is not served.
+    let bare = buyer
+        .dial(&outside.keys)
+        .send(&Request {
+            method: "GET".into(),
+            path: "/deliveries".into(),
+            headers: BTreeMap::new(),
+            body: vec![],
+        })
+        .unwrap();
+    assert_eq!(bare.status, 401);
+
+    let id = buyer.posted.id;
+    for seller in [&ours, &outside, &outside] {
+        let dear = seller.order(&buyer, |o| o.amount = vault_amount(CAP + 1));
+        assert_eq!(
+            attempt(
+                &buyer,
+                seller,
+                &board::offer_path(&id),
+                Some(header_for(&dear))
+            )
+            .status,
+            422
+        );
+    }
+    let served = fetch(&ours);
+    let summary = qed_deliveries::verify(&text(&served), &binding).unwrap();
+    assert_eq!((summary.records, summary.unreadable), (3, 0));
+    assert_eq!(summary.refused[&Reason::OverLimit], 3);
+    assert_eq!(
+        (
+            summary.sellers.distinct,
+            summary.sellers.ours,
+            summary.sellers.unknown
+        ),
+        (2, 1, 1)
+    );
+    assert_eq!(summary.unknown_sellers.len(), 1);
+    assert_eq!(summary.unknown_sellers[0].n, 1);
+    // The file beside the record is the summary the desk serves, signed by
+    // the buyer's key and by no other.
+    let on_disk = std::fs::read_to_string(&summary_path).unwrap();
+    assert_eq!(qed_deliveries::verify(&on_disk, &binding).unwrap(), summary);
+    assert!(qed_deliveries::verify(&on_disk, &ours.keys.binding()).is_err());
+    // No seller address is written anywhere.
+    let record = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(record.lines().count(), 4);
+    for seller in [&ours, &outside] {
+        let address = nucleus_commerce_agents::chain::hex(&seller.keys.address());
+        assert!(
+            !record.contains(&address[2..]),
+            "the record names {address}"
+        );
+        assert!(!on_disk.contains(&address[2..]));
+    }
+}

@@ -117,6 +117,10 @@ struct Fake {
     probe: Option<RpcChain>,
     /// Every health report, in order.
     reports: Vec<Health>,
+    /// The wallet reads empty once this many posts were withdrawn: how a
+    /// test ends a bounty nobody answers (R-4: unanswered windows no longer
+    /// stop it).
+    broke_after: Option<u32>,
 }
 const STATEMENT_GONE: &str = "the statement file /var/lib/qed-buyer/statement.v2 cannot be read: No such file or directory (os error 2)";
 impl Fake {
@@ -132,6 +136,7 @@ impl Fake {
             waits: 0,
             probe: None,
             reports: vec![],
+            broke_after: None,
         }
     }
     fn degraded(&self) -> usize {
@@ -212,7 +217,11 @@ impl Market for Fake {
         Ok(self.world.borrow().block)
     }
     fn wallet(&mut self) -> Res<u64> {
-        Ok(self.world.borrow().wallet)
+        let world = self.world.borrow();
+        if self.broke_after.is_some_and(|n| world.withdrawals >= n) {
+            return Ok(0);
+        }
+        Ok(world.wallet)
     }
     fn prepare(&mut self, price: u64) -> Res<TaskRef> {
         self.prepared += 1;
@@ -442,14 +451,16 @@ fn a_post_whose_receipt_was_lost_is_found_and_resumed_not_withdrawn() {
     let journal = open(&path);
     let limits = Limits { tasks: 1, ..LIMITS };
     let mut fake = Fake::new(&world, &journal);
-    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    fake.broke_after = Some(1);
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Wallet);
     // R-3: the restarted process reopened the desk, and the post stood for
-    // its whole funding window before it was withdrawn, as a task.
+    // its whole funding window before it was withdrawn (not a task since
+    // 2026-11-14, R-4).
     let world = world.borrow();
     assert_eq!((world.withdrawals, world.posts, world.paid), (1, 0, 0));
     assert!(world.clock > 10_000 + 600);
     let journal = journal.lock().unwrap();
-    assert_eq!((journal.ledger().posted, journal.ledger().consumed), (1, 1));
+    assert_eq!((journal.ledger().posted, journal.ledger().settled), (1, 0));
     assert!(
         fs::read_to_string(&path)
             .unwrap()
@@ -486,7 +497,7 @@ fn a_restart_resumes_an_open_unsigned_post_and_a_seller_can_still_win() {
     // The same post was won and settled; nothing was withdrawn.
     assert_eq!((world.withdrawals, world.paid), (0, 100));
     let ledger = journal.lock().unwrap().ledger().clone();
-    assert_eq!((ledger.posted, ledger.consumed, ledger.spent), (1, 1, 100));
+    assert_eq!((ledger.posted, ledger.settled, ledger.spent), (1, 1, 100));
     assert!(!fs::read_to_string(&path).unwrap().contains("\"withdrawn\""));
 }
 
@@ -502,7 +513,7 @@ fn a_restart_without_the_statement_withdraws_and_says_why() {
     assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Failures);
     assert_eq!(world.borrow().withdrawals, 1);
     let ledger = journal.lock().unwrap().ledger().clone();
-    assert_eq!((ledger.consumed, ledger.failures), (0, 1));
+    assert_eq!((ledger.settled, ledger.failures), (0, 1));
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("\"reason\":\"unresumable\""), "{text}");
     assert!(text.contains("statement.v2 cannot be read"), "{text}");
@@ -516,7 +527,7 @@ fn a_restart_without_the_statement_withdraws_and_says_why() {
 }
 
 #[test]
-fn only_settled_refunded_lapsed_and_window_ended_posts_use_up_a_task() {
+fn only_settled_orders_use_up_a_task_and_old_journals_still_replay() {
     let opened = Entry::Opened(header()).to_json().to_string();
     let lines = |entries: &[Entry]| {
         let mut text = opened.clone();
@@ -562,15 +573,16 @@ fn only_settled_refunded_lapsed_and_window_ended_posts_use_up_a_task() {
     assert_eq!(
         (
             ledger.posted,
-            ledger.consumed,
+            ledger.settled,
             ledger.failures,
             ledger.spent,
             ledger.open
         ),
         (4, 0, 0, 0, None)
     );
-    // An unresumable post is a failure, not a task; a window that ended is
-    // a task; an operator's close is neither.
+    // An unresumable post is a failure, not a task. A window that ended was
+    // a task until 2026-11-14 and is not now; the journal line is the same,
+    // only how it counts changed (R-4). An operator's close is neither.
     let mut entries = post(1).to_vec();
     entries.push(withdrawn(1, Withdrawal::Unresumable("gone".into())));
     entries.extend(post(2));
@@ -578,7 +590,56 @@ fn only_settled_refunded_lapsed_and_window_ended_posts_use_up_a_task() {
     entries.extend(post(3));
     entries.push(withdrawn(3, Withdrawal::Closed));
     let ledger = lines(&entries);
-    assert_eq!((ledger.posted, ledger.consumed, ledger.failures), (3, 1, 1));
+    assert_eq!((ledger.posted, ledger.settled, ledger.failures), (3, 0, 1));
+    // Refunded and lapsed orders are not tasks either; a refund is counted
+    // on its own (`Stop::Refunds`), a lapse not at all.
+    let order = |n: u8| OrderRef {
+        digest: [n; 32],
+        amount: 100,
+        order: nucleus_proof_commerce::vault::Order {
+            buyer: [1; 20],
+            seller: [2; 20],
+            asset: [3; 20],
+            amount: [0; 32],
+            verifier: [4; 20],
+            program: [5; 32],
+            policy_hash: [6; 32],
+            base: [0; 32],
+            fund_by: 10,
+            deliver_by: 20,
+            salt: [7; 32],
+            context: [8; 32],
+        },
+    };
+    let mut entries = vec![];
+    for (n, end) in [(1u8, "refunded"), (2, "lapsed"), (3, "settled")] {
+        entries.extend(post(n));
+        entries.push(Entry::Signed {
+            task: [n; 32],
+            order: order(n),
+        });
+        entries.push(match end {
+            "refunded" => Entry::Refunded {
+                digest: [n; 32],
+                block: 6,
+            },
+            "lapsed" => Entry::Lapsed {
+                digest: [n; 32],
+                block: 6,
+            },
+            _ => Entry::Settled {
+                digest: [n; 32],
+                paid: 100,
+                checked: true,
+                block: 6,
+            },
+        });
+    }
+    let ledger = lines(&entries);
+    assert_eq!(
+        (ledger.posted, ledger.settled, ledger.refunded, ledger.spent),
+        (3, 1, 1, 100)
+    );
 }
 
 #[test]
@@ -617,7 +678,7 @@ fn a_rate_limited_rpc_does_not_end_the_bounty_and_the_post_stays_open() {
     assert!(fake.degraded() >= 1, "{:?}", fake.reports);
     let world = world.borrow();
     assert_eq!((world.withdrawals, world.paid), (0, 100));
-    assert_eq!(journal.lock().unwrap().ledger().consumed, 1);
+    assert_eq!(journal.lock().unwrap().ledger().settled, 1);
 }
 
 #[test]
@@ -645,10 +706,14 @@ fn an_intent_is_not_abandoned_while_a_transaction_from_the_buyer_is_pending() {
         }
     }));
     let limits = Limits { tasks: 1, ..LIMITS };
-    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    fake.broke_after = Some(1);
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Wallet);
     let text = fs::read_to_string(&path).unwrap();
     assert!(!text.contains("\"abandoned\""), "{text}");
-    assert_eq!(journal.lock().unwrap().ledger().consumed, 1);
+    // The post that landed stood its window and was withdrawn: one post,
+    // and the window's end is not a task (R-4, 2026-11-14).
+    assert_eq!(journal.lock().unwrap().ledger().posted, 1);
+    assert_eq!(world.borrow().withdrawals, 1);
 }
 
 #[test]
@@ -678,7 +743,9 @@ fn a_post_nobody_answers_is_withdrawn_at_its_funding_deadline() {
     let journal = open(&path);
     let limits = Limits { tasks: 2, ..LIMITS };
     let mut fake = Fake::new(&world, &journal);
-    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    // Nobody answers; the run ends when the wallet does, after two windows.
+    fake.broke_after = Some(2);
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Wallet);
     let world = world.borrow();
     assert_eq!((world.withdrawals, world.posts), (2, 0));
     assert_eq!((world.paid, world.wallet), (0, 1_000));
@@ -702,7 +769,10 @@ fn a_funded_order_that_is_not_delivered_is_refunded_and_claimed() {
             fake.world.borrow_mut().fund(digest);
         }
     }));
-    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    // A refund is not a task (R-4, 2026-11-14); as many refunds as the task
+    // limit stop the bounty for the operator.
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Refunds);
+    assert_eq!(journal.lock().unwrap().ledger().settled, 0);
     let world = world.borrow();
     // The deposit is back in the wallet and nothing counts as spent.
     assert_eq!(
@@ -720,16 +790,22 @@ fn a_signed_order_that_is_never_funded_lapses_and_costs_nothing() {
     let limits = Limits { tasks: 1, ..LIMITS };
     let mut fake = Fake::new(&world, &journal);
     fake.script = Some(Box::new(|fake: &mut Fake| {
-        if fake
-            .open_task()
-            .is_some_and(|task| fake.desks.contains(&task.id))
+        if fake.prepared == 1
+            && fake
+                .open_task()
+                .is_some_and(|task| fake.desks.contains(&task.id))
         {
             fake.sign(100);
             // Nobody funds; the fake counts a live post until it ends.
             fake.world.borrow_mut().posts -= 1;
         }
     }));
-    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    // A lapse is not a task (R-4, 2026-11-14): the bounty posts again, and
+    // nobody answers that post, whose window ends; then the wallet is empty.
+    fake.broke_after = Some(1);
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::Wallet);
+    assert_eq!(journal.lock().unwrap().ledger().posted, 2);
+    assert_eq!(journal.lock().unwrap().ledger().settled, 0);
     assert_eq!((world.borrow().paid, world.borrow().wallet), (0, 1_000));
     assert!(fs::read_to_string(&path).unwrap().contains("\"lapsed\""));
 }
@@ -1127,4 +1203,33 @@ fn a_journal_with_a_signed_order_is_not_closed_over() {
     assert!(refusal.contains("signed for and not finished"), "{refusal}");
     assert_eq!(world.borrow().withdrawals, 0);
     assert_eq!(fs::read_to_string(&path).unwrap(), before);
+}
+
+/// R-4 as decided on 2026-11-14: only a settlement uses up a task. A run of
+/// posts whose windows end unanswered does not stop the bounty; it keeps
+/// posting, and stops at the task limit once that many orders settled.
+/// Red under the old rule, which stopped after `tasks` unanswered windows
+/// with nothing paid.
+#[test]
+fn unanswered_windows_do_not_stop_the_bounty_only_settlements_do() {
+    let (_path, world) = (scratch(), chain(1_000));
+    let journal = open(&_path);
+    let limits = Limits { tasks: 2, ..LIMITS };
+    let mut fake = Fake::new(&world, &journal);
+    // Nobody answers the first five posts; from the sixth on, a seller does.
+    fake.script = Some(Box::new(|fake: &mut Fake| {
+        let unanswered = fake.world.borrow().withdrawals;
+        if unanswered >= 5
+            && fake
+                .open_task()
+                .is_some_and(|task| fake.desks.contains(&task.id))
+        {
+            fake.trade(100);
+        }
+    }));
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    let world = world.borrow();
+    assert_eq!(world.withdrawals, 5, "five windows ended unanswered");
+    assert_eq!(world.paid, 200, "two tasks settled, the limit");
+    assert!(world.peak_exposure <= LIMITS.budget);
 }

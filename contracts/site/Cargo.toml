@@ -26,3 +26,6 @@ ureq = { version = "3", default-features = false, features = ["rustls", "json"] 
 # ES256 for the Agent Card's JWS signature, as the agents' DPoP uses it.
 p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
 base64 = "0.23"
+# The bounty buyer's signed summary of delivery attempts, checked against
+# its key binding before the status page shows it.
+qed-deliveries = { path = "../deliveries" }

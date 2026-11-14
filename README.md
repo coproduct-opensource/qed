@@ -616,6 +616,7 @@ to the same ID.
 | `contracts/proof-acceptance` | the acceptance rule, the vendored Lean checker, the proof programs, the prover front end and native Groth16 wrap; `wasm-checker` builds the same acceptance rule for a browser |
 | `contracts/agents` | buyer, seller and operations binaries; iroh and HTTP transports; A2A over iroh |
 | `contracts/a2a-iroh-card` | identifiers and agent card for the A2A-over-iroh binding |
+| `contracts/deliveries` | the bounty buyer's record of delivery attempts and the summary it signs |
 | `contracts/site` | the website generator and its A2A agent card |
 | `contracts/vault-conformance`, `token-conformance`, `x402-interop` | tests of the contracts in a local EVM, against real token and verifier bytecode, and against independent x402 types |
 | `crates/nucleus-proof-commerce` | order digest, fee and royalty split, x402 wire types |

@@ -182,7 +182,7 @@
       "relayer": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
       "relayerUrl": "https://relay.qed.coproduct.dev",
       "relayerFloorWei": "200000000000000",
-      "relayerFloorSource": "floorWei in its configuration, which is not in the public repository",
+      "relayerFloorSource": "floorWei in its private configuration",
       "vaults": [
         {
           "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
@@ -193,7 +193,14 @@
           "deployBlock": 56772992
         }
       ],
-      "publishWallets": true
+      "publishWallets": true,
+      "deliveries": {
+        "keyBinding": "0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8",
+        "node": "4304f10154038dfff2837b4f031689c006782e8920e228a8fc0ad7c94fcec506",
+        "notes": [
+          "One attempt (2026-11-14) is the authors' test."
+        ]
+      }
     }
   }
 }

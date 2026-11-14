@@ -17,6 +17,7 @@ pub mod board;
 pub mod bounty;
 pub mod buyer;
 pub mod chain;
+pub mod deliveries;
 pub mod deploy;
 pub mod desk;
 pub mod dpop;

@@ -30,8 +30,14 @@
 //!   GET  /task/<id>           -> 200 {"policy": ...}
 //!   POST /task/<id>/offer     PAYMENT-REQUIRED -> 200 PAYMENT-SIGNATURE | refusal
 //!
+//!   GET  /deliveries          -> 200 the signed summary of delivery attempts
+//!
 //! Every request carries a fresh DPoP proof from the seller, bound to the
 //! seller's node as iroh authenticated it.
+//!
+//! Every offer and review is a delivery attempt. A desk given a `Recorder`
+//! reports each one, with its outcome and typed reason, before it answers
+//! (`contracts/deliveries`; docs/rfcs/qed-deliveries-2026-11-14.md).
 use crate::board::{self, Task};
 use crate::message::{Handler, Reply, Request, Via};
 use crate::prelude::*;
@@ -41,6 +47,8 @@ use nucleus_proof_commerce::{
     vault::wire::{self as vault_wire, OfferError, ReviewedOffer},
     x402::wire::{REQUIRED_HEADER, SIGNATURE_HEADER},
 };
+/// How the desk answered a delivery attempt (`qed_deliveries::Outcome`).
+pub use qed_deliveries::{Outcome as Answer, Reason, Route};
 use std::collections::{HashMap, HashSet};
 
 /// A funding deadline must leave the seller at least this long to relay.
@@ -59,6 +67,9 @@ pub enum Refused {
     Offer(OfferError),
     /// The order's funding deadline is later than the one posted.
     LateFunding,
+    /// The offer passed review and its signature could not be recorded
+    /// first, so none was released; the post is closed.
+    NotRecorded,
 }
 impl std::fmt::Display for Refused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -67,8 +78,85 @@ impl std::fmt::Display for Refused {
             Self::NotOpen => write!(f, "this task is no longer open"),
             Self::Offer(error) => write!(f, "offer refused: {error}"),
             Self::LateFunding => write!(f, "funding deadline is later than posted"),
+            Self::NotRecorded => write!(
+                f,
+                "this task is no longer open: the authorization could not be recorded, so none was signed"
+            ),
         }
     }
+}
+impl Refused {
+    /// The record's reason for this refusal. Exhaustive: a new refusal does
+    /// not compile until it has one (ADR 0007 E-1).
+    pub fn reason(&self) -> Reason {
+        match self {
+            Self::Unknown => Reason::UnknownTask,
+            Self::NotOpen => Reason::NotOpen,
+            Self::LateFunding => Reason::Deadline,
+            Self::NotRecorded => Reason::NotRecorded,
+            Self::Offer(error) => match error {
+                OfferError::Wire(_) | OfferError::NoSingleOffer => Reason::Malformed,
+                OfferError::Vault(_) => Reason::Inadmissible,
+                OfferError::NotMyOrder => Reason::TermsMismatch,
+                OfferError::UntrustedJudge => Reason::UntrustedJudge,
+                OfferError::OverBudget => Reason::OverLimit,
+                OfferError::Deadline => Reason::Deadline,
+                OfferError::UnsupportedBase => Reason::UnsupportedBase,
+            },
+        }
+    }
+    fn status(&self) -> u16 {
+        match self {
+            Self::Unknown => 404,
+            Self::NotOpen | Self::NotRecorded => 409,
+            Self::Offer(_) | Self::LateFunding => 422,
+        }
+    }
+}
+
+/// One delivery attempt as the desk saw it, for a `Recorder`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Seen {
+    pub at: u64,
+    pub route: Route,
+    /// The task the path named, when it is a well-formed ID.
+    pub task: Option<Hash>,
+    pub outcome: Answer,
+    /// The thumbprint of the key the seller proved possession of.
+    pub seller_key: Option<Hash>,
+    /// The seller address the offer named, when one could be read. The
+    /// recorder classifies it and does not keep it.
+    pub named_seller: Option<Address>,
+}
+
+/// Where a desk reports delivery attempts, and what it serves at
+/// `GET /deliveries`.
+pub trait Recorder: Send {
+    fn record(&mut self, seen: &Seen);
+    /// The current signed summary, or why there is none.
+    fn signed_summary(&self) -> Result<String, String>;
+}
+
+/// The seller address a `PAYMENT-REQUIRED` header names, if it can be read.
+/// Read for classification only; nothing here trusts it.
+pub fn named_seller(header: &str) -> Option<Address> {
+    let bytes = B64.decode(header.trim()).ok()?;
+    let required: vault_wire::PaymentRequired = serde_json::from_slice(&bytes).ok()?;
+    let mut offers = required
+        .accepts
+        .iter()
+        .filter(|offer| offer.scheme == vault_wire::SCHEME);
+    let (Some(offer), None) = (offers.next(), offers.next()) else {
+        return None;
+    };
+    unhex(&offer.extra.order.seller).ok()?.try_into().ok()
+}
+
+fn task_of(id: &str) -> Option<Hash> {
+    if id.len() != 66 || !id.starts_with("0x") {
+        return None;
+    }
+    unhex(id).ok()?.try_into().ok()
 }
 
 /// A task this buyer posted and has not signed for.
@@ -216,6 +304,8 @@ pub struct Desk {
     /// Base libraries an order may name, each with the registry entry it was
     /// priced from (the deployment file's `bases`). Empty: no base accepted.
     bases: Vec<(Hash, vault::Entry)>,
+    /// Told of every delivery attempt; serves `GET /deliveries`.
+    recorder: Option<Box<dyn Recorder>>,
 }
 
 /// What a desk calls before releasing a signature: somewhere durable to
@@ -241,7 +331,13 @@ impl Desk {
             clock: system_clock,
             on_sign: None,
             bases: Vec::new(),
+            recorder: None,
         }
+    }
+    /// Report every delivery attempt to `recorder` before it is answered,
+    /// and serve its signed summary at `GET /deliveries`.
+    pub fn record_attempts(&mut self, recorder: Box<dyn Recorder>) {
+        self.recorder = Some(recorder);
     }
     /// Accept orders naming these base libraries, priced from these registry
     /// entries. Without this a desk refuses any order that names a base.
@@ -338,7 +434,7 @@ impl Desk {
                     && let Err(why) = record(&signed)
                 {
                     println!("buyer: not releasing a signature that could not be recorded: {why}");
-                    return Err(Refused::NotOpen);
+                    return Err(Refused::NotRecorded);
                 }
                 let payment = signed.payment.clone();
                 *state = State::Signed(Box::new(signed));
@@ -351,66 +447,113 @@ impl Desk {
         }
     }
 
+    /// Tell the recorder, if any, of one delivery attempt.
+    fn note(&mut self, seen: Seen) {
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.record(&seen);
+        }
+    }
+
     fn route(&mut self, via: &Via, request: &Request) -> Result<Reply, (u16, String)> {
+        let now = (self.clock)();
+        if request.path == "/deliveries" {
+            crate::dpop::authenticate(via, request, now, &mut self.seen)?;
+            return match (request.method.as_str(), self.recorder.as_ref()) {
+                ("GET", Some(recorder)) => match recorder.signed_summary() {
+                    Ok(jws) => Ok(Reply::text(200, &jws)),
+                    Err(why) => Err((503, format!("no signed summary: {why}"))),
+                },
+                ("GET", None) => Err((404, "this desk keeps no record of deliveries".into())),
+                _ => Err((404, "no such resource".into())),
+            };
+        }
         let Some(rest) = request.path.strip_prefix("/task/") else {
             return Err((404, "no such resource".into()));
         };
-        let now = (self.clock)();
-        let seller = crate::dpop::authenticate(via, request, now, &mut self.seen)?;
-        // A review asks what an offer would get and commits the buyer to
-        // nothing: no signature is made and the post stays open.
-        if let ("POST", Some(id)) = (request.method.as_str(), rest.strip_suffix("/review")) {
-            let Some(header) = request.headers.get(&REQUIRED_HEADER.to_ascii_lowercase()) else {
-                return Err((400, "PAYMENT-REQUIRED missing".into()));
-            };
-            return match self.review_only(id, header, now) {
-                Ok(digest) => {
-                    println!(
-                        "buyer: reviewed, without signing, an offer for task {id} from the key {} at node {}: order {} would be signed for",
-                        hex(&seller),
-                        via.peer.as_deref().unwrap_or("(none)"),
-                        hex(&digest)
-                    );
-                    Ok(Reply::text(
-                        200,
-                        &json!({"review": "passes", "order": hex(&digest)}).to_string(),
-                    ))
+        // Offers and reviews are delivery attempts, recorded however they end.
+        let attempt = match (
+            request.method.as_str(),
+            rest.strip_suffix("/offer"),
+            rest.strip_suffix("/review"),
+        ) {
+            ("POST", Some(id), _) => Some((Route::Offer, id.to_owned())),
+            ("POST", _, Some(id)) => Some((Route::Review, id.to_owned())),
+            _ => None,
+        };
+        let header = request
+            .headers
+            .get(&REQUIRED_HEADER.to_ascii_lowercase())
+            .cloned();
+        let seen = |outcome, seller_key| {
+            attempt.as_ref().map(|(route, id)| Seen {
+                at: now,
+                route: *route,
+                task: task_of(id),
+                outcome,
+                seller_key,
+                named_seller: header.as_deref().and_then(named_seller),
+            })
+        };
+        let seller = match crate::dpop::authenticate(via, request, now, &mut self.seen) {
+            Ok(seller) => seller,
+            Err(refusal) => {
+                if let Some(s) = seen(Answer::Refused(Reason::Unauthenticated), None) {
+                    self.note(s);
                 }
-                Err(Refused::Unknown) => Err((404, Refused::Unknown.to_string())),
-                Err(Refused::NotOpen) => Err((409, Refused::NotOpen.to_string())),
-                Err(refused) => Err((422, refused.to_string())),
-            };
-        }
-        match (request.method.as_str(), rest.strip_suffix("/offer")) {
-            ("GET", None) => match self.tasks.get(rest) {
-                Some(State::Posted(posted)) => Ok(Reply::text(
+                return Err(refusal);
+            }
+        };
+        let Some((route, id)) = attempt.clone() else {
+            // Not an attempt: the policy of a posted task.
+            return match (request.method.as_str(), self.tasks.get(rest)) {
+                ("GET", Some(State::Posted(posted))) => Ok(Reply::text(
                     200,
                     &json!({"policy": policy_json(&posted.policy)}).to_string(),
                 )),
-                Some(_) => Err((409, Refused::NotOpen.to_string())),
-                None => Err((404, Refused::Unknown.to_string())),
-            },
-            ("POST", Some(id)) => {
-                let Some(header) = request.headers.get(&REQUIRED_HEADER.to_ascii_lowercase())
-                else {
-                    return Err((400, "PAYMENT-REQUIRED missing".into()));
-                };
-                match self.offer(id, header, now) {
-                    Ok(payment) => {
-                        println!(
-                            "buyer: signed for task {id}; offer came from the key {} at node {}",
-                            hex(&seller),
-                            via.peer.as_deref().unwrap_or("(none)")
-                        );
-                        Ok(Reply::new(200).with(SIGNATURE_HEADER, payment))
-                    }
-                    Err(Refused::Unknown) => Err((404, Refused::Unknown.to_string())),
-                    Err(Refused::NotOpen) => Err((409, Refused::NotOpen.to_string())),
-                    Err(refused) => Err((422, refused.to_string())),
-                }
+                ("GET", Some(_)) => Err((409, Refused::NotOpen.to_string())),
+                ("GET", None) => Err((404, Refused::Unknown.to_string())),
+                _ => Err((404, "no such resource".into())),
+            };
+        };
+        let Some(header) = header.clone() else {
+            if let Some(s) = seen(Answer::Refused(Reason::Malformed), Some(seller)) {
+                self.note(s);
             }
-            _ => Err((404, "no such resource".into())),
+            return Err((400, "PAYMENT-REQUIRED missing".into()));
+        };
+        let result = match route {
+            // A review asks what an offer would get and commits the buyer to
+            // nothing: no signature is made and the post stays open.
+            Route::Review => self.review_only(&id, &header, now).map(|digest| {
+                println!(
+                    "buyer: reviewed, without signing, an offer for task {id} from the key {} at node {}: order {} would be signed for",
+                    hex(&seller),
+                    via.peer.as_deref().unwrap_or("(none)"),
+                    hex(&digest)
+                );
+                Reply::text(
+                    200,
+                    &json!({"review": "passes", "order": hex(&digest)}).to_string(),
+                )
+            }),
+            Route::Offer => self.offer(&id, &header, now).map(|payment| {
+                println!(
+                    "buyer: signed for task {id}; offer came from the key {} at node {}",
+                    hex(&seller),
+                    via.peer.as_deref().unwrap_or("(none)")
+                );
+                Reply::new(200).with(SIGNATURE_HEADER, payment)
+            }),
+        };
+        let outcome = match (&result, route) {
+            (Ok(_), Route::Offer) => Answer::Accepted,
+            (Ok(_), Route::Review) => Answer::Reviewed,
+            (Err(refused), _) => Answer::Refused(refused.reason()),
+        };
+        if let Some(s) = seen(outcome, Some(seller)) {
+            self.note(s);
         }
+        result.map_err(|refused| (refused.status(), refused.to_string()))
     }
 }
 

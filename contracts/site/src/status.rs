@@ -124,7 +124,10 @@ fn published(address: &str, st: &StatusInput) -> String {
 }
 
 /// Read the main network's bounty, vaults and relayer at the latest block.
-pub fn snapshot(input: &Input, now: u64) -> Res<Value> {
+/// `deliveries` is the buyer's signed summary of delivery attempts as
+/// `nucleus-buyer deliveries-fetch` wrote it beside the input, if it did; it
+/// is stored as fetched and checked when the page is built.
+pub fn snapshot(input: &Input, now: u64, deliveries: Option<&str>) -> Res<Value> {
     let m = input
         .mainnet
         .as_ref()
@@ -379,8 +382,126 @@ pub fn snapshot(input: &Input, now: u64) -> Res<Value> {
         "relayerNonce": quantity(&relayer_nonce)?,
         "sweeps": sweeps,
         "relayerReach": { "url": relay, "checkedAt": now, "answer": reach },
+        "deliveries": { "jws": deliveries.map(str::trim), "readAt": now },
         "reads": r.reads,
     }))
+}
+
+// ---- Delivery attempts --------------------------------------------------------
+
+/// The file `nucleus-buyer deliveries-fetch` writes beside the input, which
+/// `snapshot-status` stores in the snapshot.
+pub const DELIVERIES_FILE: &str = "deliveries.jws";
+
+/// What the page can say about the buyer's record of delivery attempts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Deliveries {
+    /// A summary signed by the buyer's key, for the bounty buyer.
+    Read(Box<qed_deliveries::Summary>),
+    /// Anything else. Shown as "could not read", never as a count of zero.
+    CouldNotRead(String),
+}
+
+/// Read the snapshot's signed summary against the input's key binding.
+pub fn deliveries(st: &StatusInput, snap: &Value) -> Deliveries {
+    let could_not = |why: &str| Deliveries::CouldNotRead(why.to_owned());
+    let Some(d) = st.deliveries.as_ref() else {
+        return could_not("the input names no key for the buyer's record");
+    };
+    let binding: Option<qed_deliveries::Hash> =
+        unhex(&d.key_binding).ok().and_then(|b| b.try_into().ok());
+    let Some(binding) = binding else {
+        return could_not("the input's key binding is not 32 bytes");
+    };
+    let Some(jws) = snap["deliveries"]["jws"].as_str() else {
+        return could_not("the snapshot holds no signed summary");
+    };
+    match qed_deliveries::verify(jws, &binding) {
+        Ok(s) if s.buyer.eq_ignore_ascii_case(&st.buyer) => Deliveries::Read(Box::new(s)),
+        Ok(_) => could_not("the summary is for another buyer"),
+        Err(why) => Deliveries::CouldNotRead(why.to_string()),
+    }
+}
+
+/// The section's blocks, and the line for the compact summary.
+fn deliveries_section(st: &StatusInput, snap: &Value) -> (Vec<Block>, Line) {
+    let mut blocks = vec![h2("deliveries", "Delivery attempts")];
+    let s = match deliveries(st, snap) {
+        Deliveries::CouldNotRead(why) => {
+            blocks.push(para(&format!(
+                "Could not read the bounty buyer's record of delivery attempts: {why}."
+            )));
+            return (
+                blocks,
+                vec![strong("Delivery attempts:"), t(" could not read.")],
+            );
+        }
+        Deliveries::Read(s) => s,
+    };
+    blocks.push(para(&format!(
+        "Off-chain offers, signed by the bounty buyer, {}.",
+        date(s.signed_at)
+    )));
+    let line = vec![
+        strong("Delivery attempts:"),
+        t(format!(" {}, signed {}.", s.records, date(s.signed_at))),
+    ];
+    if s.records == 0 && s.unreadable == 0 && s.unrecorded == 0 {
+        blocks.push(para(&format!(
+            "No delivery attempt has been recorded since {}.",
+            date(s.opened)
+        )));
+    } else {
+        let count = |what: String, n: u64| vec![vec![t(what)], vec![t(n.to_string())]];
+        let mut rows = vec![
+            count("Attempts".into(), s.records),
+            count("Accepted (authorization signed)".into(), s.accepted),
+            count("Reviewed (nothing signed)".into(), s.reviewed),
+        ];
+        for (reason, n) in &s.refused {
+            rows.push(count(format!("Refused: {}", reason.describe()), *n));
+        }
+        for (what, at) in [("First", s.first), ("Last", s.last)] {
+            if let Some(at) = at {
+                rows.push(vec![vec![t(what)], vec![t(date(at))]]);
+            }
+        }
+        rows.push(count("Sellers, by key".into(), s.sellers.distinct));
+        rows.push(count(
+            "Sellers not in the authors' wallet list".into(),
+            s.sellers.unknown,
+        ));
+        if s.unreadable > 0 {
+            rows.push(count("Records that could not be read".into(), s.unreadable));
+        }
+        if s.unrecorded > 0 {
+            rows.push(count(
+                "Attempts that could not be recorded".into(),
+                s.unrecorded,
+            ));
+        }
+        blocks.push(Block::Table {
+            caption: "Delivery attempts, from the bounty buyer's signed record".into(),
+            head: ["Count", "Value"].map(String::from).to_vec(),
+            rows,
+        });
+    }
+    if let Some(d) = st.deliveries.as_ref() {
+        for note in &d.notes {
+            blocks.push(para(&format!("Authors' note: {note}")));
+        }
+        blocks.push(Block::Details {
+            summary: "Check".into(),
+            blocks: query(
+                "q-deliveries",
+                format!(
+                    "nucleus-buyer deliveries-fetch {} deliveries.jws {}",
+                    d.node, d.key_binding
+                ),
+            ),
+        });
+    }
+    (blocks, line)
 }
 
 // ---- The page ---------------------------------------------------------------
@@ -738,6 +859,11 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     bounty_queries.extend(pre("buyer-usdc", curl(rpc_url, &read("buyer-usdc"), st)));
     blocks.push(queries(bounty_queries));
 
+    // Delivery attempts: what the chain does not show.
+    let (delivery_blocks, delivery_line) = deliveries_section(st, s);
+    blocks.extend(delivery_blocks);
+    summary.push(delivery_line);
+
     // Payouts and the vault's books.
     blocks.push(h2("payouts", "Payouts and what the vault owes"));
     let payout_rows: Vec<Vec<Line>> = events0
@@ -918,7 +1044,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     let sweep_reads = log_reads("sweeps");
     if !sweep_reads.is_empty() {
         relayer_queries.push(para(
-            "Templates of the search that found them (PAYEE: a payee's address, topic 1 of a Claimed event, padded to 64 hex digits):",
+            "Search templates (PAYEE: topic 1 of a Claimed event, padded to 64 hex digits):",
         ));
         for r in sweep_reads {
             relayer_queries.push(Block::Pre {
@@ -948,9 +1074,8 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     {
         let address = v["address"].as_str().unwrap_or("");
         let mut queries = vec![para(&format!(
-            "The earlier vault {address} holds {} unclaimed at block {block}. Its events, {} blocks a query:",
+            "The earlier vault {address} holds {} unclaimed at block {block}.",
             usdc(n(&v["usdcHeld"])),
-            m.network.log_range.unwrap_or(10_000)
         ))];
         for r in log_reads(&format!("vault{index}-logs")) {
             queries.extend(pre(
@@ -968,7 +1093,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         });
     }
     blocks.push(para(
-        "Not shown: the relayer's per-restart gas budget, which lives in its memory and is not on chain.",
+        "Not shown: the relayer's gas budget, kept in its memory, not on chain.",
     ));
     blocks.insert(summary_at, Block::Ul(summary));
     let data = json!({

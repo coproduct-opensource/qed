@@ -173,6 +173,23 @@ pub struct StatusInput {
     /// queries that need them carry a placeholder.
     #[serde(default)]
     pub publish_wallets: bool,
+    /// The bounty buyer's record of delivery attempts: which key signs its
+    /// summary, and the authors' notes on it (docs/rfcs/qed-deliveries-2026-11-14.md).
+    #[serde(default)]
+    pub deliveries: Option<DeliveriesInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeliveriesInput {
+    /// The buyer's key binding (`buyerKeyBinding` in each of its posts):
+    /// only a summary signed by that key is shown.
+    pub key_binding: String,
+    /// The buyer's iroh node ID, which the check command dials.
+    pub node: String,
+    /// The authors' word on particular attempts, shown as such.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -4,6 +4,8 @@
 //!   posts a task on the board and waits at its desk (`post.rs`).
 //! `nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json...`
 //!   posts several tasks from task files and waits at one desk (`tasks.rs`).
+//! `nucleus-buyer deliveries-fetch NODE_ID OUT [BINDING]`
+//!   fetches a desk's signed summary of delivery attempts (`deliveries.rs`).
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     nucleus_commerce_agents::exit(match args.split_first() {
@@ -19,6 +21,9 @@ fn main() -> std::process::ExitCode {
         }
         Some((command, rest)) if command == "bounty-ledger" => {
             nucleus_commerce_agents::bounty::bounty_ledger(rest)
+        }
+        Some((command, rest)) if command == "deliveries-fetch" => {
+            nucleus_commerce_agents::deliveries::deliveries_fetch(rest)
         }
         _ => nucleus_commerce_agents::buyer::buyer(&args),
     })

@@ -37,6 +37,9 @@ jobs:
           - dir: contracts/a2a-iroh-card
             packages: ""
             test: cargo test --locked
+          - dir: contracts/deliveries
+            packages: ""
+            test: cargo test --locked
           - dir: contracts/proof-acceptance
             fmt: -p nucleus-proof-acceptance
             packages: -p nucleus-proof-acceptance --no-deps

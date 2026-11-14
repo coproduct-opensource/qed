@@ -1,0 +1,17 @@
+[package]
+name = "qed-deliveries"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "The bounty buyer's record of delivery attempts (offers and reviews a seller sends its desk), the summary of it, and that summary signed with the buyer's possession key. Written by the desk, read by the site and the watcher."
+
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = { version = "0.10.9", default-features = false }
+# ES256, as the agents' DPoP and the Agent Card use it.
+p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
+base64 = "0.23"
