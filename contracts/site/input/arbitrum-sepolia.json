@@ -57,7 +57,7 @@
   ],
   "assurance": {
     "audited": false,
-    "review": "Each has had one read-only review by an AI model, which built and ran nothing. That is not an audit.",
+    "review": "Each had one read-only review by an AI model, which ran nothing: not an audit.",
     "counterparties": {
       "kind": "authors-only"
     }
@@ -182,7 +182,7 @@
       "relayer": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
       "relayerUrl": "https://relay.qed.coproduct.dev",
       "relayerFloorWei": "200000000000000",
-      "relayerFloorSource": "floorWei in the relayer's configuration (relay.json on its host, written by the authors' host tooling, which is not in the public repository); the relayer refuses a call that would take its balance below it",
+      "relayerFloorSource": "floorWei in its configuration, which is not in the public repository",
       "vaults": [
         {
           "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",

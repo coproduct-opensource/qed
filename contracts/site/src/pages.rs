@@ -171,7 +171,7 @@ pub fn receipt_summary(r: &Value, ledger: &LedgerInput) -> Vec<Block> {
     let matches = s(art, "keccak256") == s(art, "recordedByVault")
         && s(art, "keccak256") == s(art, "inSettledLog");
     let booked = &r["booked"];
-    let mut pairs: Vec<(String, Line)> = vec![
+    let pairs: Vec<(String, Line)> = vec![
         (
             "Network".into(),
             vec![t(format!(
@@ -265,22 +265,33 @@ pub fn receipt_summary(r: &Value, ledger: &LedgerInput) -> Vec<Block> {
         ),
     ];
     let a = &r["asserted"];
-    pairs.push((
-        "Authors' note".into(),
-        vec![t(format!(
-            "{}{}{}",
-            s(a, "what"),
-            match a["counterparties"].as_str() {
-                Some(c) => format!(" {c}"),
-                None => String::new(),
-            },
-            match a["realMoney"]["what"].as_str() {
-                Some(w) => format!(" The token is {w}."),
-                None => String::new(),
-            }
-        ))],
-    ));
-    vec![Block::Dl(pairs)]
+    // The fields are chain values, so a table; the authors' note is prose
+    // and stays a paragraph (counted, src/words.rs).
+    vec![
+        Block::Table {
+            caption: "The receipt's fields, read from the chain".into(),
+            head: vec!["Field".into(), "Value".into()],
+            rows: pairs
+                .into_iter()
+                .map(|(field, value)| vec![vec![t(field)], value])
+                .collect(),
+        },
+        p(vec![
+            strong("Authors' note:"),
+            t(format!(
+                " {}{}{}",
+                s(a, "what"),
+                match a["counterparties"].as_str() {
+                    Some(c) => format!(" {c}"),
+                    None => String::new(),
+                },
+                match a["realMoney"]["what"].as_str() {
+                    Some(w) => format!(" The token is {w}."),
+                    None => String::new(),
+                }
+            )),
+        ]),
+    ]
 }
 
 // ---- Pages ----------------------------------------------------------------
@@ -309,14 +320,11 @@ fn before_anything(input: &Input) -> Block {
                     m.network.name, m.token.name
                 )),
                 t(match &input.test_buyers_stopped {
-                    Some(day) => format!(
-                        " No buyer runs on {} since {}; its test runs stay in the ",
-                        input.network.name, day
-                    ),
-                    None => format!(" {} test runs stay in the ", input.network.name),
+                    Some(day) => format!(" {} is history since {day} (", input.network.name),
+                    None => format!(" {} test runs (", input.network.name),
                 }),
                 link("/transactions", "ledger"),
-                t(". Balances, open tasks and the relayer, read from the chain: "),
+                t("). Balances and open tasks: "),
                 link("/status", "status"),
                 t("."),
             ]);
@@ -366,21 +374,16 @@ fn before_anything(input: &Input) -> Block {
     items.push(vec![
         strong("The current proof programs rebuild from source, byte for byte."),
         t(" "),
-        code("nucleus-acceptance-host verify-programs"),
-        t(" rebuilds them in RISC Zero's builder image, pinned by digest, and compares IDs and bytes ("),
+        code("verify-programs"),
+        t(" ("),
         link("/verify#programs", "how"),
-        t(format!(
-            "). {}{}",
-            input.network.name,
-            match &input.mainnet {
-                Some(m) if input.programs.iter().all(|p| p.image_id != m.bounty.program) => format!(
-                    " names them. {} still names the earlier pair, which rebuilds only on the machine that built it, until it switches.",
-                    m.network.name
-                ),
-                Some(m) => format!(" and {} name them.", m.network.name),
-                None => " names them.".into(),
-            }
-        )),
+        t(match &input.mainnet {
+            Some(m) if input.programs.iter().all(|p| p.image_id != m.bounty.program) => format!(
+                "). {} still names the earlier pair, which rebuilds only on the machine that built it.",
+                m.network.name
+            ),
+            _ => ").".into(),
+        }),
     ]);
     Block::Note {
         title: "Before anything else".into(),
@@ -413,7 +416,7 @@ fn status_line(input: &Input, build: &Build) -> Block {
         None => line.push(t(", without a chain snapshot.")),
     }
     line.push(t(match &input.mainnet {
-        Some(m) => format!(" Live on {}. Re-check: ", m.network.name),
+        Some(_) => " Re-check: ".into(),
         None => format!(
             " Deployment {} on {}. Re-check: ",
             input.version, input.network.name
@@ -547,15 +550,12 @@ pub fn protocol(input: &Input) -> Doc {
                 }),
             });
             tables.push(h2("history", "Earlier: the test deployment"));
-            tables.push(para(&format!(
-                "No buyer runs on {} since {}. Its contracts stay deployed and its settlements stay in the ledger.",
-                input.network.name,
-                input.test_buyers_stopped.as_deref().unwrap_or("")
-            )));
             tables.push(Block::Table {
                 caption: format!(
-                    "{}, chain {}: history",
-                    input.network.name, input.network.chain_id
+                    "{}, chain {}: history; no buyer runs there since {}",
+                    input.network.name,
+                    input.network.chain_id,
+                    input.test_buyers_stopped.as_deref().unwrap_or("")
                 ),
                 head: vec!["Contract".into(), "Address".into(), "What it does".into()],
                 rows: deployment_rows(&test),
@@ -577,7 +577,7 @@ pub fn protocol(input: &Input) -> Doc {
         code(ALPN),
         t("; payments: x402 v2, scheme "),
         code(X402_SCHEME),
-        t(". A seller's card binds "),
+        t("; seller card: "),
         code(BINDING),
         t(" ("),
         code_link(format!("/{SELLER_CARD_PATH}"), "example"),
@@ -595,29 +595,24 @@ fn protocol_blocks() -> Vec<Block> {
     vec![
         Block::Ol(vec![
             vec![t(
-                "A buyer posts a statement's hash, a price cap and deadlines; it serves the statement over iroh.",
+                "A buyer posts a statement's hash, a price cap and deadlines, and serves the statement over iroh.",
+            )],
+            vec![t("A seller proves it and offers an order.")],
+            vec![t(
+                "The buyer signs one token authorization; the vault takes the deposit.",
             )],
             vec![t(
-                "A seller proves it, checks the proof, and offers an order.",
+                "The seller proves (RISC Zero) that the Lean checker accepts its proof, and settles.",
             )],
             vec![t(
-                "The buyer signs one token authorization for the first acceptable offer.",
-            )],
-            vec![t(
-                "The vault takes the deposit. The seller proves (RISC Zero) that the Lean checker accepts the proof, and settles.",
-            )],
-            vec![t(
-                "The vault books seller, fee and royalty; each payee claims. No accepted proof by the deadline: the buyer is refunded.",
+                "Each payee claims its share. No accepted proof by the deadline: the buyer is refunded.",
             )],
         ]),
         h2("documents", "Documents"),
         Block::Ul(vec![
             vec![link("/protocol/specification", "Specification")],
             vec![link("/protocol/threat-model", "Threat model")],
-            vec![
-                link(format!("/{SPEC_PATH}"), "A2A over iroh"),
-                t(" (agent transport)"),
-            ],
+            vec![link(format!("/{SPEC_PATH}"), "A2A over iroh")],
             vec![
                 code_link("/deployment.json", "deployment.json"),
                 t(", "),
@@ -761,7 +756,7 @@ pub fn specification(input: &Input, programs: &[Published]) -> Doc {
                 t(", version "),
                 code("3"),
                 t(
-                    ", chain ID, vault address. The buyer's EIP-3009 authorization uses it as nonce, is redeemable only by the vault, and expires at fundBy.",
+                    ", chain ID, vault address; the buyer's EIP-3009 authorization uses it as nonce, only the vault can redeem it, and it expires at fundBy.",
                 ),
             ]),
             h2("calls", "The vault's calls"),
@@ -769,26 +764,24 @@ pub fn specification(input: &Input, programs: &[Published]) -> Doc {
                 (
                     "fund(order, authorization)".into(),
                     vec![t(
-                        "Takes the deposit if: new order, before fundBy, deliverBy within the term, fee plus royalty within the cap. Stores the base's payee and royalty.",
+                        "Takes the deposit for a new order before fundBy, with deliverBy within the term and fee plus royalty within the cap.",
                     )],
                 ),
                 (
                     "settle(order, artifact, seal)".into(),
                     vec![t(
-                        "Before deliverBy, if the order's verifier accepts the seal for its program and the journal below: records keccak256(artifact), books seller, fee and royalty.",
+                        "Before deliverBy, if the verifier accepts the seal for the program and journal: records keccak256(artifact) and books the shares.",
                     )],
                 ),
                 (
                     "refund(order)".into(),
                     vec![t(
-                        "After deliverBy, if funded and unsettled: books the deposit to the buyer.",
+                        "After deliverBy, if unsettled: books the deposit to the buyer.",
                     )],
                 ),
                 (
                     "claim(payee, asset)".into(),
-                    vec![t(
-                        "Pays out everything booked to the payee in that token. The only outflow.",
-                    )],
+                    vec![t("Pays the payee what is booked to it. The only outflow.")],
                 ),
             ]),
             para("Anyone may make any call."),
@@ -818,17 +811,16 @@ pub fn specification(input: &Input, programs: &[Published]) -> Doc {
             h2("acceptance", "The acceptance rule"),
             Block::Ol(vec![
                 vec![t(
-                    "The policy pins a Lean 4 export's SHA-256 (NDJSON or v2, ending with the claim), the claim's name, permitted axioms and a size limit.",
-                )],
-                vec![t("The seller appends the artifact.")],
-                vec![t(
-                    "Vendored nanoda type-checks every declaration, admitting only those axioms.",
+                    "The policy pins a Lean 4 export's SHA-256 (ending with the claim), the claim's name, permitted axioms and a size limit.",
                 )],
                 vec![t(
-                    "The artifact declares no axiom or quotient and has a term of exactly the claim's type.",
+                    "Vendored nanoda type-checks the export plus the artifact, admitting only those axioms.",
                 )],
                 vec![t(
-                    "On a base: its proof is verified, the statement must begin with its bytes, and those declarations are not re-checked.",
+                    "The artifact declares no axiom or quotient and proves exactly the claim's type.",
+                )],
+                vec![t(
+                    "On a base, the statement begins with the base's bytes, whose proof is verified instead of re-checked.",
                 )],
             ]),
             p(vec![
@@ -842,7 +834,7 @@ pub fn specification(input: &Input, programs: &[Published]) -> Doc {
             ]),
             h2("theorems", "Theorems about the model"),
             para(
-                "About the Lean 4.35.0 models, not the bytecode; the contracts are tested against a Rust reference.",
+                "About Lean 4.35.0 models, not the bytecode, which is tested against a Rust reference.",
             ),
             Block::Table {
                 caption: "Theorems, each depending on the axioms propext and, for some, Quot.sound"
@@ -897,7 +889,7 @@ pub fn threat_model(input: &Input) -> Doc {
         (
             "The verifier contract accepts only valid proofs",
             "Assumed",
-            "RISC Zero's Groth16 verifier, deployed by RISC Zero; its code is compared by hash. Whether any owner-controlled state exists behind the address it names has not been established here.",
+            "RISC Zero's Groth16 verifier v3.1.0, deployed by RISC Zero and rebuilt here from its tag byte for byte; its only state is immutables (no owner, pause or upgrade path: /verify, section 4). That its circuit accepts only valid proofs is RISC Zero's claim.",
         ),
         (
             "The trusted setup and circuit data are sound",
@@ -975,7 +967,7 @@ pub fn threat_model(input: &Input) -> Doc {
                     "A late settle reverts but publishes the artifact; sellers keep a margin.",
                 )],
                 vec![t(
-                    "A base's first prover sets its royalty (zero up to the ceiling) and is paid it; one extra declaration makes a new base.",
+                    "A base's first prover sets its royalty, up to the ceiling; one extra declaration makes a new base.",
                 )],
                 vec![t(
                     "Any contract can fake a board event; sellers trust only the board's address.",
@@ -1090,15 +1082,6 @@ pub fn transactions(input: &Input, build: &Build, vectors: &Value, programs: &[P
                 "board",
                 &format!("Tasks on the {} board now", m.network.name),
             ));
-            blocks.push(p(vec![
-                t(format!(
-                    "No buyer runs on {} since {}; its settlements stay in the table above. Balances, payouts and the relayer: ",
-                    input.network.name,
-                    input.test_buyers_stopped.as_deref().unwrap_or("")
-                )),
-                link("/status", "status"),
-                t("."),
-            ]));
             Board {
                 network: &m.network,
                 board: &m.board,
@@ -1151,7 +1134,7 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
             [crate::html::tx(
                 "p",
                 &[],
-                "The live list needs JavaScript. The posts are the board's Posted and Withdrawn events, on any block explorer.",
+                "Without JavaScript: the board's Posted and Withdrawn events, on any block explorer.",
             )],
         ),
         crate::html::el(
@@ -1162,7 +1145,7 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
                     "p",
                     &[],
                     &format!(
-                        "Read in your browser with eth_getLogs from a public {} endpoint; use any other.",
+                        "Read with eth_getLogs from this {} endpoint:",
                         b.network.name
                     ),
                 ),
@@ -1317,38 +1300,25 @@ pub const SELLER_RELEASE: SellerRelease = SellerRelease {
     has_sweep: true,
 };
 
-/// The standing bounty on the main network: the offer, how to take part,
-/// what it costs in time, what can go wrong, and the board read live. Its
-/// steps build from `repo`, so there is no page until the source is public.
-pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) -> Doc {
+/// The standing bounty on the main network: the offer, the board read live,
+/// what it costs in time and what can go wrong. How to take part is on the
+/// seller page, whose from-source steps need public source, so the caller
+/// builds this page only when the source is public.
+pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published]) -> Doc {
     let usdc = |units: u64| format!("{} {}", amount(units, m.token.decimals), m.token.name);
     let ex = &m.network.explorer;
-    let pre = |id: &str, text: String| Block::Pre {
-        id: id.into(),
-        text,
-        copy: Some("Copy".into()),
-    };
     let mut blocks = vec![
         p(vec![t(format!(
-            "A buyer the authors run posts tasks on the task board on {} and pays {} for each one a seller proves. The vault keeps a fee of {} basis points, so the seller receives {}.",
+            "A buyer the authors run posts tasks on the {} board and pays for each one a seller proves.",
             m.network.name,
-            usdc(m.bounty.price),
-            m.vault.fee_bps,
-            usdc(m.seller_receives()),
         ))]),
         h2("offer", "The offer"),
         Block::Dl(vec![
             (
                 "Price".into(),
                 vec![t(format!(
-                    "{} a task, the price cap in each post.",
-                    usdc(m.bounty.price)
-                ))],
-            ),
-            (
-                "Seller receives".into(),
-                vec![t(format!(
-                    "{}. The fee, {}, is booked to the vault's treasury, {}.",
+                    "{} a task, the cap in each post. The seller receives {}; the fee, {}, goes to the vault's treasury, {}.",
+                    usdc(m.bounty.price),
                     usdc(m.seller_receives()),
                     usdc(m.bounty.price - m.seller_receives()),
                     m.treasury_kind
@@ -1357,7 +1327,7 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
             (
                 "Budget".into(),
                 vec![t(format!(
-                    "{}: at most {} tasks. One post is open at a time.",
+                    "{}: at most {} tasks, one post open at a time.",
                     usdc(m.bounty.budget),
                     m.bounty.tasks
                 ))],
@@ -1365,30 +1335,28 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
             (
                 "Window".into(),
                 vec![t(format!(
-                    "Each post names a funding deadline {} hours after it is posted. The buyer may withdraw a post earlier; the list below shows what is open now.",
+                    "A post can be funded for {} hours unless the buyer withdraws it.",
                     m.bounty.post_window_seconds / 3600
                 ))],
             ),
             (
                 "Who is paid".into(),
                 vec![t(
-                    "The first offer that passes the buyer's review: price at or under the cap, the verifier and proof program the post names, and deadlines that fit the post.",
+                    "The first offer at or under the cap, naming the post's verifier and program, with deadlines that fit.",
                 )],
             ),
             (
                 "The task".into(),
                 vec![
-                    t("A fixed statement whose proof is already public ("),
+                    t("A fixed statement whose proof is public ("),
                     code(BOUNTY_PROOF),
-                    t(
-                        "). It tests the machinery — board, transport, proof, settlement, claim — not hard proving.",
-                    ),
+                    t("): it tests board, transport, proof, settlement and claim, not proving."),
                 ],
             ),
             (
                 "Who may take part".into(),
                 vec![t(format!(
-                    "Anyone with a wallet on {}. No account, no sign-up, nothing to send us.",
+                    "Anyone with a wallet on {}; no account, nothing to send us.",
                     m.network.name
                 ))],
             ),
@@ -1435,81 +1403,12 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
         h2("steps", "Take part"),
         p(vec![
             t(format!(
-                "A seller image and release binaries ({}) are published; the steps for them, and the commands that check them, are on ",
+                "Run the released seller ({}) or build it from source: ",
                 SELLER_RELEASE.tag
             )),
             link("/sellers/run", "Run a seller"),
-            t(". The steps below build the seller from the source at "),
-            code_link(repo, repo),
-            t(" instead. Every command runs from the root of a checkout."),
+            t("."),
         ]),
-        h3("install", "1. Install Rust and RISC Zero"),
-        p(vec![
-            t("Rust from "),
-            code("https://rustup.rs"),
-            t(", then RISC Zero's "),
-            code("r0vm"),
-            t(" 3.1.0 and its Groth16 circuit data, about 5.5 GB on disk:"),
-        ]),
-        pre(
-            "install",
-            "curl -sSL https://risczero.com/install | bash\nrzup install r0vm 3.1.0 && rzup install risc0-groth16".into(),
-        ),
-        h3("build", "2. Build the seller"),
-        pre(
-            "build",
-            format!(
-                "git clone {repo} qed && cd qed\n(cd contracts/agents && cargo build --release --locked)\n(cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)"
-            ),
-        ),
-        h3("wallet", "3. Make a wallet and give it gas"),
-        pre(
-            "wallet",
-            "contracts/agents/target/release/nucleus-vault-ops keys seller.keys".into(),
-        ),
-        p(vec![
-            t("It prints the wallet address. "),
-            code("seller.keys"),
-            t(format!(
-                " holds three keys, readable only by you: the wallet, a key for proof of possession, and your network node identity. Send the wallet a little ETH on {}: the seller sends the fund, settle and claim transactions. The fund and settle transactions of the 2026-11-12 settlement on {} cost 0.0000034 ETH together; 0.0002 ETH leaves room.",
-                m.network.name, m.network.name
-            )),
-        ]),
-        h3("files", "4. Write two files"),
-        p(vec![code("base.json"), t(", where the vault is:")]),
-        pre(
-            "base-json",
-            deployment_json(m),
-        ),
-        p(vec![
-            code("seller.json"),
-            t(". The prover is the fixture prover, which answers this one statement with its public proof:"),
-        ]),
-        pre(
-            "seller-json",
-            format!(
-                "{{\n  \"deployment\": \"base.json\",\n  \"keys\": \"seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"contracts/agents/target/release/nucleus-fixture-prover\",\n             \"{BOUNTY_STATEMENT}\",\n             \"{BOUNTY_PROOF}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"expectedProvingSeconds\": 1200,\n  \"workDir\": \"seller-work\"\n}}",
-                m.board.address,
-                m.board.deploy_block.unwrap_or(0),
-                m.bounty.price,
-            ),
-        ),
-        p(vec![
-            code("startBlock"),
-            t(" is the board's deployment block, so a post already open is seen; without it the seller sees only posts made after it starts. On a machine without Apple silicon set "),
-            code("expectedProvingSeconds"),
-            t(" to 3600: the seller does not start a proof it expects to finish after the delivery deadline."),
-        ]),
-        h3("run", "5. Run it"),
-        pre(
-            "run",
-            "contracts/agents/target/release/nucleus-seller watch seller.json".into(),
-        ),
-        p(vec![t("It prints each step: the post it read, the statement it fetched from the buyer's node over iroh, the Lean checker's verdict on the proof, its offer, and, if the buyer signs, the fund, settle and claim transactions. If the claim fails, the share stays booked to the seller's address in the vault, and anyone can claim it later:")]),
-        pre(
-            "claim",
-            "contracts/agents/target/release/nucleus-vault-ops claim base.json seller.keys YOUR_WALLET_ADDRESS".into(),
-        ),
         h2("times", "How long it takes"),
         Block::Table {
             caption: "Measured times for one task's proof".into(),
@@ -1532,41 +1431,27 @@ pub fn bounty(m: &Mainnet, repo: &str, vectors: &Value, programs: &[Published]) 
                 ],
             ],
         },
-        para("First-time setup — installing, building and writing the files — took about an hour."),
+        para("First-time setup from source took about an hour."),
         h2("risks", "What can go wrong"),
         Block::Ul(vec![
-            vec![
-                strong(UNAUDITED),
-                t(format!(
-                    " They hold real {}. At most one deposit of {} is in the vault at a time.",
-                    m.token.name,
-                    usdc(m.bounty.price)
-                )),
-            ],
-            vec![
-                strong("A seller can lose"),
-                t(" its gas and its time if its proof is not on chain before the delivery deadline. The buyer is then refunded."),
-            ],
-            vec![
-                strong("USDC is Circle's token."),
-                t(" Circle can freeze an address, for example a sanctioned one; the vault cannot pay a frozen address."),
-            ],
-            vec![
-                strong("This site is a projection."),
-                t(" The contracts decide who is paid. Read them on the chain ("),
-                link("/verify", "verify"),
-                t(")."),
-            ],
             vec![t(format!(
-                "The authors' gas relayer, {RELAYER_URL}, sends a seller's fund, settle and claim and pays the gas; a seller relies on it for timeliness, never for payment. {}",
-                AUTHORS_ONLY
+                "At most one {} deposit is in the vault at a time.",
+                usdc(m.bounty.price)
             ))],
+            vec![t(format!(
+                "Circle, the issuer of {}, can freeze an address; the vault cannot pay a frozen one.",
+                m.token.name
+            ))],
+            vec![
+                t("The rest, said once for the whole site: "),
+                link("/", "Before anything else"),
+                t("."),
+            ],
         ]),
-        h2("proves", "What a settlement here shows, and what it does not"),
+        h2("proves", "What a settlement here shows"),
         Block::Ul(vec![
-            vec![t("A settlement by someone other than the authors would show that a stranger can find a post, fetch its statement, prove, and be paid by the contract without contacting the authors. None has happened yet.")],
-            vec![t("It does not show that the system finds proofs: the proof is public, and the fixture prover only copies it.")],
-            vec![t("It does not show the contracts are free of defects. They are unaudited.")],
+            vec![t("That a stranger can find a post, prove and be paid by the contract without contacting the authors. None has yet.")],
+            vec![t("Not that the system finds proofs: the proof is public, and the fixture prover copies it.")],
         ]),
     ]);
     let mut d = doc(
@@ -1683,7 +1568,7 @@ fn checker_section(build: &Build) -> Vec<Block> {
             tx(
                 "p",
                 &[],
-                "Runs the proof program's Lean acceptance rule (same code, as WebAssembly) on a settlement's artifact, statement and policy. It does not check the zero-knowledge proof or the chain; the hashes it shows tie its inputs to the order.",
+                "The proof program's Lean acceptance rule, as WebAssembly, on a settlement's artifact, statement and policy. Not the zero-knowledge proof or the chain.",
             ),
             el(
                 "noscript",
@@ -1691,7 +1576,7 @@ fn checker_section(build: &Build) -> Vec<Block> {
                 [tx(
                     "p",
                     &[],
-                    "Needs JavaScript. Without it: take the statement and artifact from a transaction page and run a Lean 4 kernel checker on the statement then the artifact, admitting only the policy's axioms.",
+                    "Needs JavaScript. Without it, follow section 6.",
                 )],
             ),
             el(
@@ -1805,15 +1690,13 @@ fn rebuilt_section(report: Option<&Value>, explorer: &str) -> Vec<Block> {
     let mut blocks = vec![
         h2("rebuilt", "4. Source, settings and constructor arguments, rebuilt"),
         para(
-            "qed-verify (contracts/verify) compiles each contract's source with the official solc release pinned by SHA-256 and the settings it was deployed with, then compares: the runtime code with eth_getCode (immutables filled in, metadata included), the deploy transaction's input with the creation code plus the constructor arguments, and the metadata's IPFS hash with the one in the code. It reads the upgrade controls from the chain. Plain JSON-RPC; no key, no account. Exit 0 when every check holds, 1 when one fails.",
+            "qed-verify rebuilds each contract with the pinned official solc and its deployed settings, compares runtime code, creation input and metadata with the chain, and reads the upgrade slots:",
         ),
         verification_command(
             "rebuild-command",
             "git clone https://github.com/coproduct-opensource/qed && cd qed\ncargo run --release --manifest-path contracts/verify/Cargo.toml -- \\\n  manifest contracts/verify/deployments/base.json".to_string(),
         ),
-        para(
-            "The same tool says which RISC Zero contract the verifier is, by rebuilding the three candidates from RISC Zero's v3.1.0 tag:",
-        ),
+        para("Which RISC Zero contract the verifier is, by rebuilding three candidates:"),
         verification_command(
             "identify-command",
             "cargo run --release --manifest-path contracts/verify/Cargo.toml -- \\\n  identify --rpc https://mainnet.base.org --address 0x8c915b5071206c6e328bc18529586c513408ab3b \\\n  RiscZeroGroth16Verifier RiscZeroVerifierEmergencyStop RiscZeroVerifierRouter".to_string(),
@@ -1958,11 +1841,24 @@ fn rebuilt_section(report: Option<&Value>, explorer: &str) -> Vec<Block> {
             pairs.push((
                 "Which contract".into(),
                 vec![t(
-                    "RISC Zero's plain RiscZeroGroth16Verifier, release v3.1.0 (commit ff30da77ba4afdd496290ebebedb205348b15d83), selector 0xe71e6620: its 5,313 bytes equal the rebuild from that tag; RISC Zero's RiscZeroVerifierEmergencyStop (2,384 bytes) and RiscZeroVerifierRouter (2,793 bytes) do not. Its constructor arguments equal CONTROL_ROOT and BN254_CONTROL_ID in that tag's ControlID.sol. It has no owner, no pause and no upgrade path: its only state is immutables. RISC Zero's router reaches it through an emergency-stop wrapper (0x5144A37e65fd032F628663Cb21E16490378a8630); the registry and vaults here call it directly, so a RISC Zero emergency stop would not stop them. Not submitted to Sourcify by the authors: it is RISC Zero's contract.",
+                    "RiscZeroGroth16Verifier, release v3.1.0 (commit ff30da77ba4afdd496290ebebedb205348b15d83), selector 0xe71e6620: its 5,313 bytes equal the rebuild from that tag; RiscZeroVerifierEmergencyStop (2,384 bytes) and RiscZeroVerifierRouter (2,793 bytes) do not. Constructor arguments equal CONTROL_ROOT and BN254_CONTROL_ID in that tag's ControlID.sol. RISC Zero's router reaches it through the emergency-stop wrapper 0x5144A37e65fd032F628663Cb21E16490378a8630. Not submitted to Sourcify by the authors.",
                 )],
             ));
         }
-        blocks.push(Block::Dl(pairs));
+        // Every row is a value the tool read or computed: a table.
+        blocks.push(Block::Table {
+            caption: format!("{name}: what qed-verify checked"),
+            head: vec!["Check".into(), "Result".into()],
+            rows: pairs
+                .into_iter()
+                .map(|(check, value)| vec![vec![t(check)], value])
+                .collect(),
+        });
+        if !ours {
+            blocks.push(para(
+                "It is RISC Zero's plain verifier: no owner, pause or upgrade path. The vaults and the registry call it directly, so RISC Zero's emergency stop cannot stop them, and neither can the authors.",
+            ));
+        }
     }
     blocks
 }
@@ -2146,15 +2042,6 @@ pub fn verify(
             ]
         })
         .collect();
-    let source = match &i.software {
-        Software::OnRequest => {
-            "The source is not public yet; it is available on request.".to_owned()
-        }
-        Software::Planned { url } => {
-            format!("Source: to be published at {url} (not yet public).")
-        }
-        Software::Public { url } => format!("The source is at {url}."),
-    };
     let card_url = absolute(build, &format!("/{CARD_PATH}"));
     let host = build
         .site
@@ -2208,9 +2095,9 @@ pub fn verify(
             link("/abi/NucleusBoard.json", "board"),
             t(" and "),
             link("/abi/BaseRegistry.json", "registry"),
-            t(format!(
-                " ABIs list every function. State changes: vault fund, settle, refund, claim; board post, withdraw; registry register. No owner, pause or upgrade. {source}"
-            )),
+            t(
+                " ABIs list every function. State changes: vault fund, settle, refund, claim; board post, withdraw; registry register. No owner, pause or upgrade (section 4 reads the slots).",
+            ),
         ]),
     ]);
     blocks.extend(rebuilt_section(verified, &explorer));
@@ -2228,14 +2115,14 @@ pub fn verify(
             rows: program_rows,
         },
         para(
-            "The image ID is computed from the binary (vault3-image-of). These binaries rebuild from source byte for byte: the command below builds both guests from a commit inside RISC Zero's guest builder image, named by digest in contracts/proof-acceptance/program/REPRODUCIBLE, and exits 0 only if every image ID and every file matches (1 if not, 2 if it could not run). Intel and AMD x86-64 machines and a Mac under Rosetta built the same bytes. It needs Docker (or Apple container) on an x86-64 machine or under translation, and about 1.7 GB for the image.",
+            "The image ID is computed from the binary. This rebuilds both in RISC Zero's builder image, pinned by digest, and exits 0 only if every ID and file match (same bytes on Intel, AMD and Rosetta):",
         ),
         verification_command(
             "programs-rebuild",
             "git clone https://github.com/coproduct-opensource/qed && cd qed\n(cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)\ncontracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host verify-programs --runtime docker --commit HEAD".to_string(),
         ),
         para(
-            "What that does not show: that the source does what it says (read it, and its tests), and how RISC Zero built the toolchain inside its image. Earlier program pairs, still named by older deployments, rebuild only on the machine that published them; compare those by hash.",
+            "Not shown: that the source does what it says, or how RISC Zero built its toolchain. Earlier pairs rebuild only where they were built; compare them by hash.",
         ),
         h2("settlement", "6. A settlement"),
         Block::Ol(vec![
@@ -2249,7 +2136,7 @@ pub fn verify(
                 "Its Keccak-256 must equal the Settled log and artifactOf(orderDigest).",
             )],
             vec![t(
-                "Run a Lean 4 checker on statement + artifact with the policy's axioms (section 9 does this in your browser).",
+                "Run a Lean 4 checker on statement + artifact with the policy's axioms (section 9).",
             )],
         ]),
         h2("card", "7. The Agent Card's signature"),
@@ -2500,56 +2387,17 @@ fn mac_quickstart(m: &Mainnet) -> Vec<Block> {
     vec![
         h2("mac", "Mac QuickStart (Apple container)"),
         p(vec![
-            t("On a Mac with Apple silicon, with Apple's "),
+            t("Apple silicon and Apple's "),
             code("container"),
-            t(
-                " CLI (not Docker). It runs the image's arm64 build natively (the image is multi-architecture), each container in its own small VM. Every command below was run on 2026-11-14 with ",
-            ),
-            code("container"),
-            t(
-                " 1.4.1 from an empty volume: steps 1 to 8 with release v0.2.0, through to the seller watching the Base board and then stopping it (that run named its volume and container differently and added \"onlyPoster\" set to an address that never posts, so it could not take the bounty); step 9 with v0.2.2 and a new, empty wallet, where it stopped before signing with \"FAILED: nothing to sweep\". The steps are the same as the numbered sections after this one.",
-            ),
+            t(" 1.4.1, not Docker. Run on 2026-11-14 from an empty volume: steps 1 to 8 with v0.2.0, set to ignore the bounty's posts; step 9 with v0.2.2."),
         ]),
         verification_command("mac-quickstart", mac_quickstart_script(m)),
-        Block::Ul(vec![
-            vec![
-                strong("Memory."),
-                t(" "),
-                code("container run"),
-                t(
-                    " gives a container a small VM by default. Proving peaked near 10 GB, so give the seller ",
-                ),
-                code("--memory 16g"),
-                t(" and several CPUs; the measured trades used 8 CPUs and 16 GB."),
-            ],
-            vec![
-                strong("Volume ownership."),
-                t(" Without the "),
-                code("chown"),
-                t(" step, making the wallet stops with "),
-                code("FAILED: Permission denied (os error 13)"),
-                t(
-                    ": Docker copies the image's /data ownership into a new volume and container 1.4.1 does not.",
-                ),
-            ],
-            vec![
-                strong("Seeing it work."),
-                t(" "),
-                code("container ls"),
-                t(" lists it running; the log's "),
-                code("seller: watching board"),
-                t(
-                    " line names the board and the block it reads from. When a task is posted it logs each step: offer, fund, proof, settle and claim.",
-                ),
-            ],
-            vec![
-                strong("Checks."),
-                t(" "),
-                code("cosign"),
-                t(" verifies the release workflow's signature with no account; "),
-                code("gh attestation verify"),
-                t(" works only with gh signed in to GitHub."),
-            ],
+        p(vec![
+            t("Without step 4's "),
+            code("chown"),
+            t(": "),
+            code("FAILED: Permission denied (os error 13)"),
+            t(". A task's log shows offer, fund, proof, settle and claim."),
         ]),
         p(vec![
             strong("Questions."),
@@ -2585,47 +2433,30 @@ const FIRST_SWEEP: &str = "0x0c9ab94a7a6286a48dfef36573f3cefb32b18c2717546cf8565
 fn earnings() -> Vec<Block> {
     let r = &SELLER_RELEASE;
     let mut blocks = vec![
-        p(vec![
-            strong("Move your earnings without ETH."),
-            t(
-                " The vault pays your seller key's address. To send that USDC to your own wallet, run",
-            ),
-        ]),
+        p(vec![t(
+            "The vault pays your seller key's address. Step 9, or with the binaries the command below, sends that USDC to your wallet with no ETH and no fee:",
+        )]),
         verification_command(
             "seller-sweep",
             "nucleus-seller sweep seller.json 0xYOUR_WALLET".to_string(),
         ),
         p(vec![
-            t("or, with the image, "),
-            code(SWEEP_LINE),
-            t(". It signs one USDC transfer authorization (EIP-3009 "),
+            t("It signs one EIP-3009 "),
             code("transferWithAuthorization"),
-            t(") with your seller key, for your whole balance or for "),
+            t(" for your balance (or "),
             code("AMOUNT"),
-            t(" if you give one, valid for 15 minutes. The relayer sends it and pays the gas. "),
-            strong("It is free:"),
             t(
-                " there is no fee. The first sweep on Base cost the relayer 80,920 gas, 0.00000049 ETH (",
+                "), valid 15 minutes, which the relayer sends. The first cost the relayer 80,920 gas (",
             ),
             code_link(format!("{BASE_TX}{FIRST_SWEEP}"), "transaction"),
-            t(
-                "). Your seller then checks on chain that the transfer landed and prints both balances.",
-            ),
+            t(")."),
         ]),
         p(vec![
             t(
-                "The relayer can send your authorization or refuse it, but it cannot change where the money goes or how much: your signature binds both, and the token checks it. It relays only what the vaults paid you: up to the amounts in your claim transactions, less everything that has left your address since the earliest of them. It relays one transfer per address at a time, at most five per address a day. If it refuses and your seller has a little ETH, ",
+                "The relayer can refuse or delay it, not change payee or amount: your signature binds both. It relays only what the vaults paid you, five a day at most. Refused, ",
             ),
             code("sweep"),
-            t(
-                " sends the same signed transfer itself; that fallback has not been exercised on mainnet. Your seller finds its claims from ",
-            ),
-            code("startBlock"),
-            t(" in "),
-            code("seller.json"),
-            t(" (or name them with "),
-            code("--claim 0x…"),
-            t(")."),
+            t(" sends it itself if the seller holds a little ETH (untried on mainnet)."),
         ]),
     ];
     if !r.has_sweep {
@@ -2638,8 +2469,7 @@ fn earnings() -> Vec<Block> {
         ]));
     } else {
         blocks.push(p(vec![
-            code("sweep"),
-            t(" is in the seller from release v0.2.2 on. With nothing to move it stops before signing: "),
+            t("From release v0.2.2. With nothing to move it stops before signing: "),
             code("FAILED: nothing to sweep"),
             t(", exit 1."),
         ]));
@@ -2650,7 +2480,7 @@ fn earnings() -> Vec<Block> {
 /// "Run a seller": the released image and archives, how to check them, the
 /// steps that take the main-network bounty with them, the gas relayer,
 /// and what a first run costs.
-pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
+pub fn run_a_seller(mainnet: Option<&Mainnet>, repo: Option<&str>) -> Doc {
     let r = &SELLER_RELEASE;
     let image = format!("{}@{}", r.image, r.digest);
     let release = format!(
@@ -2662,49 +2492,43 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
         .iter()
         .map(|(step, place, measured)| vec![vec![t(*step)], vec![t(*place)], vec![t(*measured)]])
         .collect();
-    let mut blocks = vec![
-        p(vec![
-            t(format!(
-                "Release {} of the seller is published: an image for Linux on x86-64 and arm64, and archives for ",
-                r.tag
-            )),
-            code("x86_64-unknown-linux-gnu"),
-            t(", "),
-            code("aarch64-unknown-linux-gnu"),
-            t(" and "),
-            code("aarch64-apple-darwin"),
-            t(" ("),
-            code_link(release.clone(), "release page"),
-            t(
-                "). The release workflow built and signed them from the tag; the commands below check that.",
-            ),
-        ]),
-        p(if r.image_public {
-            vec![t(
-                "The registry serves the image to anyone; the pull needs no account.",
-            )]
+    let mut blocks = vec![p(vec![
+        t(format!(
+            "Release {}, built and signed from its tag by the release workflow: an image for Linux on x86-64 and arm64, and archives for ",
+            r.tag
+        )),
+        code("x86_64-unknown-linux-gnu"),
+        t(", "),
+        code("aarch64-unknown-linux-gnu"),
+        t(" and "),
+        code("aarch64-apple-darwin"),
+        t(" ("),
+        code_link(release.clone(), "release page"),
+        t(if r.image_public {
+            "). The image pulls with no account."
         } else {
-            vec![
-                strong("The image cannot be pulled yet."),
-                t(
-                    " The registry still asks for an account to fetch it. Until that changes, use an archive: the same steps work with the binaries, as in the repository README.",
-                ),
-            ]
+            ")."
         }),
-        p(vec![
-            strong("The seller needs no ETH."),
-            t(format!(
-                " The gas relayer at {RELAYER_URL} (below) sends fund, settle and claim and pays the gas. A little ETH lets your seller send them itself when the relayer is slow or refuses.",
-            )),
-        ]),
-    ];
+    ])];
+    if !r.image_public {
+        blocks.push(p(vec![
+            strong("The image cannot be pulled yet."),
+            t(" The registry asks for an account; use an archive."),
+        ]));
+    }
+    blocks.push(p(vec![
+        strong("The seller needs no ETH:"),
+        t(" the "),
+        link("/sellers/run#relayer", "gas relayer"),
+        t(" pays for its transactions."),
+    ]));
     if let Some(m) = mainnet {
         blocks.extend(mac_quickstart(m));
     }
     blocks.extend([
-        h2("check", "1. Check the image"),
+        h2("check", "Linux with Docker: 1. Check the image"),
         para(
-            "The image is signed keyless by the release workflow and carries a build-provenance attestation. Check both against the digest you will run, not a tag:",
+            "Keyless signature and build provenance, checked against the digest you will run:",
         ),
         verification_command(
             "seller-cosign",
@@ -2713,13 +2537,9 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ),
         ),
         p(vec![
-            t("For an archive instead, with "),
+            t("An archive instead ("),
             code("TARGET"),
-            t(
-                " one of the three above. The Linux archives need glibc 2.39 or newer (Ubuntu 24.04 or later); on Debian 12 they stop with ",
-            ),
-            code("GLIBC_2.39 not found"),
-            t("."),
+            t(" as above; Linux needs glibc 2.39, Ubuntu 24.04 or later):"),
         ]),
         verification_command(
             "seller-archive",
@@ -2729,9 +2549,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ),
         ),
         p(vec![
-            t(
-                "This shows who built the artifact and from which commit. It does not show the source is correct. The program the vault pays for is checked separately: ",
-            ),
+            t("That shows who built it, not that the source is right. "),
             code("nucleus-acceptance-host order2r-image"),
             t(" must print the program ID the order names:"),
         ]),
@@ -2740,48 +2558,30 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             format!("docker run --rm --entrypoint nucleus-acceptance-host {image} order2r-image"),
         ),
         h2("key", "2. Make a wallet"),
-        p(vec![
-            t("With Apple "),
-            code("container"),
-            t(" (use "),
-            code("container"),
-            t(" where this page says "),
-            code("docker"),
-            t("), a new named volume belongs to root, so make it the image user's first: "),
-            code(format!(
-                "container run --rm --user 0 -v qed:/data --entrypoint /bin/chown {image} 10001:999 /data"
-            )),
-            t(". Docker gives a new volume the image's ownership, so it needs nothing."),
-        ]),
         verification_command(
             "seller-keys",
             run(&format!(
                 "--entrypoint nucleus-vault-ops {image} keys /data/seller.keys"
             )),
         ),
-        para(
-            "It prints the wallet address. The key file stays in the volume, readable only by the image's user.",
-        ),
+        para("It prints the address; the key stays in the volume."),
     ]);
     let Some(m) = mainnet else {
         blocks.push(para(
             "Configure the seller for a deployment as in the repository README's seller section, with the paths of the image.",
         ));
-        blocks.extend(seller_tail(&image, rows));
+        blocks.extend(seller_tail(&image, rows, Vec::new()));
         return seller_doc(blocks);
     };
+    let source = repo.map(|repo| from_source(m, repo)).unwrap_or_default();
     blocks.extend([
-        p(vec![t(format!(
-            "With the relayer the wallet needs no ETH. To be able to send a call yourself when the relayer is slow, send it about 0.0002 ETH on {}: the three transactions of the first relayed trade there cost 0.0000035 ETH on 2026-11-13.",
-            m.network.name
-        ))]),
         h2("files", "3. Fetch the task's files and the Groth16 data"),
         p(vec![
             t("The "),
             link("/bounty", "bounty"),
-            t(" posts one fixed statement whose proof is public; "),
+            t("'s statement and its public proof, which "),
             code("nucleus-fixture-prover"),
-            t(" answers it with that proof. Fetch both, then RISC Zero's Groth16 data into the volume (a 2.4 GB download checked against a pinned SHA-256; 4.2 GB kept):"),
+            t(" answers with; then 2.4 GB of Groth16 data, checked by SHA-256:"),
         ]),
         verification_command(
             "seller-fetch",
@@ -2797,13 +2597,7 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
         verification_command("seller-json", seller_json(m)),
         p(vec![
             code("startBlock"),
-            t(" is the board's deployment block, so a post already open is seen. "),
-            code("price"),
-            t(format!(
-                " is the bounty's cap in the token's smallest unit; the seller receives {} {} after the fee. Copy the four files into the volume:",
-                amount(m.seller_receives(), m.token.decimals),
-                m.token.name
-            )),
+            t(" is the board's deployment block, so an open post is seen. Copy the four files into the volume:"),
         ]),
         verification_command(
             "seller-copy",
@@ -2814,8 +2608,68 @@ pub fn run_a_seller(mainnet: Option<&Mainnet>) -> Doc {
             ),
         ),
     ]);
-    blocks.extend(seller_tail(&image, rows));
+    blocks.extend(seller_tail(&image, rows, source));
     seller_doc(blocks)
+}
+
+/// Building and running the seller from the public source instead of the
+/// release (until 2026-11-14 these steps were on the bounty page).
+fn from_source(m: &Mainnet, repo: &str) -> Vec<Block> {
+    vec![
+        h2("source", "From source"),
+        p(vec![
+            t("From "),
+            code_link(repo, repo),
+            t(", each command at the checkout's root. Rust from "),
+            code("https://rustup.rs"),
+            t(", then RISC Zero's "),
+            code("r0vm"),
+            t(" 3.1.0 and Groth16 data (5.5 GB):"),
+        ]),
+        verification_command(
+            "install",
+            "curl -sSL https://risczero.com/install | bash\nrzup install r0vm 3.1.0 && rzup install risc0-groth16".into(),
+        ),
+        verification_command(
+            "build",
+            format!(
+                "git clone {repo} qed && cd qed\n(cd contracts/agents && cargo build --release --locked)\n(cd contracts/proof-acceptance/zkvm && cargo build --release --locked -p nucleus-acceptance-host)\ncontracts/agents/target/release/nucleus-vault-ops keys seller.keys"
+            ),
+        ),
+        p(vec![
+            t(format!(
+                "This configuration sends its own transactions: send the wallet about 0.0002 ETH on {}. ",
+                m.network.name
+            )),
+            code("base.json"),
+            t(":"),
+        ]),
+        verification_command("source-base-json", deployment_json(m)),
+        p(vec![code("seller.json"), t(":")]),
+        verification_command(
+            "source-seller-json",
+            format!(
+                "{{\n  \"deployment\": \"base.json\",\n  \"keys\": \"seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"contracts/agents/target/release/nucleus-fixture-prover\",\n             \"{BOUNTY_STATEMENT}\",\n             \"{BOUNTY_PROOF}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"expectedProvingSeconds\": 1200,\n  \"workDir\": \"seller-work\"\n}}",
+                m.board.address,
+                m.board.deploy_block.unwrap_or(0),
+                m.bounty.price,
+            ),
+        ),
+        p(vec![
+            t("Without Apple silicon set "),
+            code("expectedProvingSeconds"),
+            t(" to 3600. Run:"),
+        ]),
+        verification_command(
+            "source-run",
+            "contracts/agents/target/release/nucleus-seller watch seller.json".into(),
+        ),
+        para("If a claim fails, the share stays booked in the vault; claim it later:"),
+        verification_command(
+            "source-claim",
+            "contracts/agents/target/release/nucleus-vault-ops claim base.json seller.keys YOUR_WALLET_ADDRESS".into(),
+        ),
+    ]
 }
 
 /// The bounty's statement and proof, as the site serves them.
@@ -2829,8 +2683,14 @@ fn file_name(path: &str) -> &str {
 }
 
 /// Run, the gas relayer, a wrap service, and the measured times.
-fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
-    vec![
+fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>, from_source: Vec<Block>) -> Vec<Block> {
+    let relayed = |what: &str, tx: &str, gas: &str| {
+        vec![
+            vec![code_link(format!("{BASE_TX}{tx}"), what)],
+            vec![t(gas)],
+        ]
+    };
+    let mut blocks = vec![
         h2("run", "5. Run"),
         verification_command(
             "seller-run",
@@ -2839,62 +2699,58 @@ fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
             ),
         ),
         para(
-            "The seller watches the board, offers on tasks its prover can answer, and settles. It needs outbound network only. Setup takes minutes; a trade then takes 13 to 18 minutes on the machines below, nearly all of it proving.",
+            "It watches the board, offers, proves and settles, with outbound network only: 13 to 18 minutes a trade below.",
         ),
+    ];
+    blocks.extend(from_source);
+    blocks.extend([
         h2("relayer", "Gas relayer"),
         p(vec![
-            strong("Gas relayer."),
-            t(" The authors run one at "),
+            t("The authors run one at "),
             code(RELAYER_URL),
-            t(", for the Base vault. It sends "),
+            t(" for the Base vault; "),
+            code(format!("\"relayer\": \"{RELAYER_URL}\"")),
+            t(" in "),
+            code("seller.json"),
+            t(" uses it. It sends "),
             code("fund"),
             t(", "),
             code("settle"),
             t(" and "),
             code("claim"),
-            t(" for you and pays the gas, so a seller needs no ETH. Set "),
-            code(format!("\"relayer\": \"{RELAYER_URL}\"")),
-            t(" in "),
-            code("seller.json"),
-            t(". "),
-            strong(
-                "A seller with no ETH depends on the relayer's honesty for timeliness only, never for payment:",
-            ),
-            t(
-                " the contract pays the order's named seller whoever sends the transaction, and your seller checks every relayed transaction on chain against the call it built. A relayer can refuse or delay a call, and it sees a ",
-            ),
+            t(" and pays the gas. It can refuse or delay a call and sees a "),
             code("settle"),
             t(
-                "'s artifact before it is on chain. If nothing lands in time, your seller sends the call itself, which needs a little ETH.",
+                "'s artifact first. It cannot redirect payment: the vault pays the order's seller whoever sends, and your seller checks each relayed transaction. If nothing lands in time, the seller sends the call itself with about 0.0002 ETH.",
             ),
         ]),
-        p(vec![
-            t(
-                "Measured on Base, 2026-11-13, the first relayed trade (the authors' own buyer, and a new seller wallet that never held ETH): the relayer paid ",
-            ),
-            code_link(format!("{BASE_TX}{RELAYED_FUND}"), "fund"),
-            t(" 148,411 gas, "),
-            code_link(format!("{BASE_TX}{RELAYED_SETTLE}"), "settle"),
-            t(" 348,953 and "),
-            code_link(format!("{BASE_TX}{RELAYED_CLAIM}"), "claim"),
-            t(
-                " 82,203: 579,567 gas, 3,489,138,468,751 wei (0.0000035 ETH) with the L1 data fee, at 0.006 gwei. The seller's ETH balance was 0 before and after, and it was paid 0.9975 USDC. From post to claim took 5 minutes 48 seconds, 5 minutes 34 of it proving.",
-            ),
-        ]),
-        para(
-            "Measured on Arbitrum Sepolia: one trade relayed in full cost the relayer 545,391 gas (10,940,673,088,000 wei); the seller's balance stayed 0.",
-        ),
+        Block::Table {
+            caption: "The first relayed trade on Base, 2026-11-13: the authors' buyer, a seller wallet that never held ETH, paid 0.9975 USDC".into(),
+            head: vec!["Call".into(), "Gas the relayer paid".into()],
+            rows: vec![
+                relayed("fund", RELAYED_FUND, "148,411"),
+                relayed("settle", RELAYED_SETTLE, "348,953"),
+                relayed("claim", RELAYED_CLAIM, "82,203"),
+                vec![
+                    vec![t("total")],
+                    vec![t("579,567 gas, 3,489,138,468,751 wei (0.0000035 ETH) with the L1 data fee, at 0.006 gwei; post to claim 5 min 48 s, 5 min 34 s of it proving")],
+                ],
+                vec![
+                    vec![t("Arbitrum Sepolia, one trade")],
+                    vec![t("545,391 gas (10,940,673,088,000 wei)")],
+                ],
+            ],
+        },
         h2("wrap", "Wrapping without the Groth16 data"),
         p(vec![
-            t("Instead of the local data, "),
             code("\"groth16\": \"remote:https://WRAP-SERVICE\""),
-            t(" asks a wrap service. None is deployed by the authors; "),
+            t(" asks a "),
             code("qed-wrap"),
             t(
-                " runs one. The service sees the order's succinct proof, whose public output is hashes, not your artifact; it cannot redirect payment, and the seller checks its answer and derives the seal itself. With ",
+                " service instead (the authors run none). It sees the succinct proof, not your artifact, and cannot redirect payment. With ",
             ),
             code("groth16Data"),
-            t(" also set, a refusal or a wrong answer falls back to the local wrap."),
+            t(" set, a refusal falls back to the local wrap."),
         ]),
         h2("measured", "Measured"),
         Block::Table {
@@ -2902,7 +2758,8 @@ fn seller_tail(image: &str, rows: Vec<Vec<Vec<Inline>>>) -> Vec<Block> {
             head: vec!["Step".into(), "Where".into(), "Measured".into()],
             rows,
         },
-    ]
+    ]);
+    blocks
 }
 
 fn seller_doc(blocks: Vec<Block>) -> Doc {

@@ -478,7 +478,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         }
     };
     let mut blocks = vec![para(
-        "Every number on this page is read from the chain at one block. Each comes with the JSON-RPC call that reproduces it, so anyone can run the same query against any Base endpoint and compare.",
+        "Each number is read from Base at one block, with the call that reproduces it.",
     )];
     let Some(s) = snap else {
         blocks.push(para(
@@ -615,14 +615,14 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     let used = buyer_funded.len() - buyer_refunded.len().min(buyer_funded.len());
     let remaining_tasks = (b.tasks as usize).saturating_sub(used);
     blocks.push(h2("bounty", "The bounty"));
-    let mut line = vec![t("Posted by the bounty buyer, ")];
+    let mut line = vec![t("The bounty buyer, ")];
     line.extend(wallet(&st.buyer, st, "bounty buyer"));
     line.push(t(format!(
-        ", on the board {} in vault {}: {} per task, at most {} tasks, {} in all (the offer is the authors' configuration; the ",
-        m.board.address, m.vault.address, usdc(u128::from(b.price)), b.tasks, usdc(u128::from(b.budget))
+        ", posts on the board {} (vault {}); ",
+        m.board.address, m.vault.address
     )));
-    line.push(link("/bounty", "bounty page"));
-    line.push(t(" has the terms)."));
+    line.push(link("/bounty", "terms"));
+    line.push(t("."));
     blocks.push(p(line));
     let posts: Vec<Value> = s["posts"].as_array().cloned().unwrap_or_default();
     let rows: Vec<Vec<Line>> = posts
@@ -682,21 +682,26 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         ));
     }
     blocks.push(p(vec![
-        strong(format!("Remaining: {remaining_tasks} of {} tasks, {} of {}.", b.tasks, usdc(u128::from(b.budget).saturating_sub(spent)), usdc(u128::from(b.budget)))),
+        strong(format!(
+            "Remaining: {remaining_tasks} of {} tasks, {} of {}.",
+            b.tasks,
+            usdc(u128::from(b.budget).saturating_sub(spent)),
+            usdc(u128::from(b.budget))
+        )),
         t(format!(
-            " Derived, not read: the tasks the buyer has paid for are its Funded events on the vault less its Refunded events ({} funded, {} refunded); the budget left is {} less what those deposits total. The buyer's own count lives in its journal, which is not on chain.",
+            " Derived from the buyer's Funded less Refunded events on the vault ({} and {}).",
             buyer_funded.len(),
             buyer_refunded.len(),
-            usdc(u128::from(b.budget))
         )),
     ]));
     let mut fund = vec![
         strong(format!("Funding: {}", usdc(n(&s["buyerUsdc"])))),
-        t(" held by the bounty buyer (USDC balanceOf at block "),
-        t(format!("{block}).")),
+        t(" held by the bounty buyer."),
     ];
     if n(&s["buyerUsdc"]) < u128::from(b.price) {
-        fund.push(t(" That is less than one task's price, so the buyer cannot fund an order until it is topped up."));
+        fund.push(t(
+            " Less than one task's price: the buyer cannot fund an order.",
+        ));
     }
     blocks.push(p(fund));
     blocks.push(pre("buyer-usdc", curl(rpc_url, &read("buyer-usdc"), st)));
@@ -739,12 +744,12 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     let owed = books0.booked.saturating_sub(books0.claimed);
     let holds = n(&vault0["usdcHeld"]);
     blocks.push(Block::Ul(vec![
-        vec![t(format!("Deposits held for orders not yet settled or refunded: {} (Funded less the deposits of settled and refunded orders).", usdc(held_deposits)))],
-        vec![t(format!("Booked and not yet claimed: {} (each Settled event's seller, fee and royalty shares, plus refunds, less Claimed).", usdc(owed)))],
+        vec![t(format!("Deposits of open orders: {}.", usdc(held_deposits)))],
+        vec![t(format!("Booked, not yet claimed: {}.", usdc(owed)))],
         vec![t(format!(
             "USDC the vault holds: {}. {}",
             usdc(holds),
-            if holds == held_deposits + owed { "It equals the two lines above." } else { "It does not equal the two lines above: a transfer to the vault outside fund, or an event this page does not read." }
+            if holds == held_deposits + owed { "It equals the two lines above." } else { "It does not equal the two lines above: a transfer outside fund, or an event this page does not read." }
         ))],
     ]));
     for r in log_reads("vault0-logs") {
@@ -785,7 +790,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             Some(code) => format!("Answered {code} to a request without a proof (401 is what a running relayer answers)."),
             None => "No answer to a request without a proof.".to_string(),
         }),
-        t(format!(" Checked {} from the machine that built this page. Run it yourself; 401 means up:", date(reach["checkedAt"].as_u64().unwrap_or(0)))),
+        t(format!(" Checked {} by the build; 401 means up:", date(reach["checkedAt"].as_u64().unwrap_or(0)))),
     ]));
     blocks.push(pre(
         "relay-reach",
@@ -835,14 +840,14 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         .collect();
     let sent = s["relayerNonce"].as_u64().unwrap_or(0);
     blocks.push(p(vec![t(format!(
-        "Relayed transactions: {vault_events} events on the vaults the relayer serves ({}) and {} sweep(s) were in transactions sent by the relayer's wallet: {} transactions. Each event's transaction was read with eth_getTransactionByHash and its from field compared; a sweep is a USDC Transfer out of an address a vault paid (the payee of a Claimed event), from its first claim on. The wallet has sent {sent} transactions in all (eth_getTransactionCount at block {block}){}.",
+        "The relayer's wallet sent {} transactions: {vault_events} events on the vaults {} and {} sweep(s) out of addresses a vault paid. Its transaction count at block {block} is {sent}{}.",
+        found.len(),
         st.vaults.iter().map(|v| v.address.as_str()).collect::<Vec<_>>().join(", "),
         sweeps.len(),
-        found.len(),
         if sent as usize == found.len() {
-            ", so every one is listed here".to_string()
+            ", so every one is listed".to_string()
         } else {
-            format!("; {} are not identified on this page", (sent as usize).saturating_sub(found.len()))
+            format!("; {} are not identified here", (sent as usize).saturating_sub(found.len()))
         }
     ))]));
     blocks.push(pre(
@@ -874,7 +879,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     {
         let address = v["address"].as_str().unwrap_or("");
         let mut queries = vec![para(&format!(
-            "The earlier vault {address} holds {} at block {block}: shares booked there and not yet claimed. Its events, in ranges of at most {} blocks (what the endpoint answers in one call):",
+            "The earlier vault {address} holds {} unclaimed at block {block}. Its events, {} blocks a query:",
             usdc(n(&v["usdcHeld"])),
             m.network.log_range.unwrap_or(10_000)
         ))];
@@ -894,7 +899,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         });
     }
     blocks.push(para(
-        "Not shown as fact: how much of its per-restart gas budget the relayer has left. That counter lives in the relayer's memory, resets when it restarts, and is not on chain.",
+        "Not shown: the relayer's per-restart gas budget, which lives in its memory and is not on chain.",
     ));
     let data = json!({
         "status": {

@@ -780,3 +780,27 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
         "the seller page is not reachable from the index"
     );
 }
+
+/// The owner's limit (2026-11-14): the whole site under 3,000 words of prose,
+/// counted by `nucleus_site::words` (the rule is written there). Built from
+/// the committed inputs with the ledger, so every page the site serves,
+/// transaction pages included, is counted. The report prints with
+/// `--nocapture`.
+#[test]
+fn the_whole_site_has_at_most_3000_counted_words() {
+    let files = built(&input(), Some(SITE));
+    let count = nucleus_site::words::count(&files);
+    eprint!("{}", count.report());
+    let pages = files.iter().filter(|(p, _)| p.ends_with(".html")).count();
+    assert_eq!(
+        count.pages.len() + count.technical.len(),
+        pages + 1,
+        "every HTML page is counted or reported"
+    );
+    assert!(
+        count.total <= nucleus_site::words::LIMIT,
+        "{} counted words, over the limit of {}",
+        count.total,
+        nucleus_site::words::LIMIT
+    );
+}

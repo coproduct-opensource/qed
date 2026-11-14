@@ -19,6 +19,7 @@ pub mod schema;
 pub mod serving;
 pub mod signing;
 pub mod status;
+pub mod words;
 
 use nucleus_board_reference as board;
 use serde::{Deserialize, Serialize};
@@ -993,13 +994,20 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
         pages::verify(input, &programs, &build, verified.as_ref()),
         pages::test_vectors(),
         pages::source(input),
-        pages::run_a_seller(input.mainnet.as_ref()),
+        pages::run_a_seller(
+            input.mainnet.as_ref(),
+            match &input.software {
+                Software::Public { url } => Some(url.as_str()),
+                _ => None,
+            },
+        ),
         pages::a2a_binding(&spec),
     ];
-    // The bounty's steps build from the public source, so the page exists
-    // only when there is both a main-network bounty and public source.
-    if let (Some(m), Software::Public { url }) = (&input.mainnet, &input.software) {
-        docs_list.push(pages::bounty(m, url, &vectors, &programs));
+    // Taking part points to the seller page's steps, which include building
+    // from the public source, so the page exists only when there is both a
+    // main-network bounty and public source.
+    if let (Some(m), Software::Public { .. }) = (&input.mainnet, &input.software) {
+        docs_list.push(pages::bounty(m, &vectors, &programs));
     }
     if let Some(page) = status::page(input, status_snapshot.as_ref()) {
         docs_list.push(page);
