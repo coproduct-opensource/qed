@@ -1306,15 +1306,15 @@ pub struct SellerRelease {
     pub has_sweep: bool,
 }
 pub const SELLER_RELEASE: SellerRelease = SellerRelease {
-    tag: "v0.2.1",
+    tag: "v0.2.2",
     image: "ghcr.io/coproduct-opensource/qed-seller",
-    digest: "sha256:45ecedc5790a7134bd7100a5057b7d1a36766a15f35bb60ce6f932770071b522",
-    // 2026-11-14: cosign verify of the v0.2.1 digest with no registry
+    digest: "sha256:76c03c0300be9d326593f99c64a5fed5b2f8f5177ef1c0f255e436f563294a9f",
+    // 2026-11-14: cosign verify of the v0.2.2 digest with no registry
     // credentials passed (exit 0), and Apple `container` pulled it and ran
-    // `nucleus-acceptance-host order2r-image` (704bdf3b…42ed).
+    // `nucleus-seller sweep` against an empty wallet ("nothing to sweep").
     image_public: true,
-    // The sweep was added to the source after v0.2.1 (1d677dbe5).
-    has_sweep: false,
+    // v0.2.2 is the first release with `nucleus-seller sweep`.
+    has_sweep: true,
 };
 
 /// The standing bounty on the main network: the offer, how to take part,
@@ -2507,7 +2507,7 @@ fn mac_quickstart(m: &Mainnet) -> Vec<Block> {
             ),
             code("container"),
             t(
-                " 1.4.1 from an empty volume, through to the seller watching the Base board and then stopping it. That run named its volume and container differently and added \"onlyPoster\" set to an address that never posts, so it could not take the bounty. The steps are the same as the numbered sections after this one.",
+                " 1.4.1 from an empty volume: steps 1 to 8 with release v0.2.0, through to the seller watching the Base board and then stopping it (that run named its volume and container differently and added \"onlyPoster\" set to an address that never posts, so it could not take the bounty); step 9 with v0.2.2 and a new, empty wallet, where it stopped before signing with \"FAILED: nothing to sweep\". The steps are the same as the numbered sections after this one.",
             ),
         ]),
         verification_command("mac-quickstart", mac_quickstart_script(m)),
@@ -2551,11 +2551,28 @@ fn mac_quickstart(m: &Mainnet) -> Vec<Block> {
                 t(" works only with gh signed in to GitHub."),
             ],
         ]),
+        p(vec![
+            strong("Questions."),
+            t(" Ask in GitHub Discussions: "),
+            link(DISCUSSIONS, DISCUSSIONS),
+            t(" — security issues go to private vulnerability reporting ("),
+            code("SECURITY.md"),
+            t("), not Discussions."),
+        ]),
         h2("earnings", "Moving your earnings"),
     ]
     .into_iter()
     .chain(earnings())
     .collect()
+}
+
+/// Where sellers ask questions (owner decision, 2026-11-14).
+pub const DISCUSSIONS: &str = "https://github.com/coproduct-opensource/qed/discussions";
+/// The "Questions" line, as the README and the Agent Card carry it.
+pub fn questions() -> String {
+    format!(
+        "Ask in GitHub Discussions: {DISCUSSIONS} — security issues go to private vulnerability reporting (SECURITY.md), not Discussions."
+    )
 }
 
 /// The QuickStart's sweep, run as a one-off container.
@@ -2618,6 +2635,13 @@ fn earnings() -> Vec<Block> {
                 " The published {} image and archives have no sweep command: it was added to the source after that release and ships with the next one.",
                 r.tag
             )),
+        ]));
+    } else {
+        blocks.push(p(vec![
+            code("sweep"),
+            t(" is in the seller from release v0.2.2 on. With nothing to move it stops before signing: "),
+            code("FAILED: nothing to sweep"),
+            t(", exit 1."),
         ]));
     }
     blocks

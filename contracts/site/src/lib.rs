@@ -704,8 +704,9 @@ pub fn card(input: &Input, programs: &[Published], site: Option<&str>) -> Value 
                 "id": "run-seller-mac",
                 "name": "Run a seller on a Mac with Apple container",
                 "description": format!(
-                    "Instructions an agent can follow on a Mac with Apple silicon, using Apple's container CLI (not Docker), to run the released seller against the {} bounty: start the runtime, pull the image by digest, check its signature, make the wallet in a volume, fetch the task's files, write the configuration, run, watch the log, stop. The same steps, explained: {page}. {how}\n\n{}",
+                    "Instructions an agent can follow on a Mac with Apple silicon, using Apple's container CLI (not Docker), to run the released seller against the {} bounty: start the runtime, pull the image by digest, check its signature, make the wallet in a volume, fetch the task's files, write the configuration, run, watch the log, stop. The same steps, explained: {page}. {} {how}\n\n{}",
                     m.network.name,
+                    pages::questions(),
                     pages::mac_quickstart_script(m)
                 ),
                 "tags": ["seller", "macos", "apple-container", "quickstart"],

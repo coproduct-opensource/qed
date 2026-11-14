@@ -196,16 +196,18 @@ transactions cost 0.0000035 ETH on 2026-11-13, so 0.0002 ETH leaves room.
 On a Mac with Apple silicon, with Apple's `container` CLI (not Docker). It
 runs the image's arm64 build natively, each container in its own small VM.
 Every command was run on 2026-11-14 with `container` 1.4.1 from an empty
-volume, through to the seller watching the Base board (that run added
-`"onlyPoster"` set to an address that never posts, so it could not take the
-bounty). The release is named once, in `IMAGE`.
+volume: steps 1 to 8 with release v0.2.0, through to the seller watching the
+Base board (that run added `"onlyPoster"` set to an address that never
+posts, so it could not take the bounty); step 9 with v0.2.2 and a new, empty
+wallet, where it stopped before signing with `FAILED: nothing to sweep`. The
+release is named once, in `IMAGE`.
 
 ```sh
 # 1. Apple's container runtime (Apple silicon; https://github.com/apple/container/releases)
 container system start
 
-# 2. The seller release v0.2.1, named by digest
-IMAGE=ghcr.io/coproduct-opensource/qed-seller@sha256:45ecedc5790a7134bd7100a5057b7d1a36766a15f35bb60ce6f932770071b522
+# 2. The seller release v0.2.2, named by digest
+IMAGE=ghcr.io/coproduct-opensource/qed-seller@sha256:76c03c0300be9d326593f99c64a5fed5b2f8f5177ef1c0f255e436f563294a9f
 container image pull "$IMAGE"
 
 # 3. Check it. cosign needs no account; gh attestation needs gh signed in to GitHub.
@@ -268,8 +270,7 @@ container logs -f qed-seller
 container stop qed-seller && container rm qed-seller
 
 # 9. Move your earnings to your own wallet, with no ETH (see "Moving your earnings")
-#    Needs a seller release with sweep; v0.2.1 has none, so the line stays a comment until then.
-# container run --rm -v qed:/data --entrypoint nucleus-seller "$IMAGE" sweep /data/seller.json 0xYOUR_WALLET
+container run --rm -v qed:/data --entrypoint nucleus-seller "$IMAGE" sweep /data/seller.json 0xYOUR_WALLET
 ```
 
 - **Memory.** `container run` gives a container a small VM by default.
@@ -281,6 +282,8 @@ container stop qed-seller && container rm qed-seller
 - The same steps, explained, with measured times:
   https://qed.coproduct.dev/sellers/run#mac. The site's Agent Card carries
   them as the `run-seller-mac` skill.
+
+**Questions.** Ask in GitHub Discussions: https://github.com/coproduct-opensource/qed/discussions — security issues go to private vulnerability reporting (SECURITY.md), not Discussions.
 
 ### Moving your earnings
 
@@ -308,9 +311,8 @@ five per address a day. If it refuses and your seller has a little ETH,
 exercised on mainnet. Your seller finds its claims from `startBlock` in
 `seller.json` (or name them with `--claim 0x…`).
 
-**Needs the next seller release.** The seller in the published releases has
-no sweep command: it was added to the source after the latest one and ships
-with the next.
+`sweep` is in the seller from release v0.2.2 on. With nothing to move it
+stops before signing: `FAILED: nothing to sweep`, exit 1.
 
 Three ways to get the seller, from least setup to most:
 

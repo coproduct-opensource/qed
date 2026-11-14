@@ -1,6 +1,6 @@
 {
-  "block": 57162425,
-  "blockTimestamp": 1794622860,
+  "block": 57192532,
+  "blockTimestamp": 1794628882,
   "buyerUsdc": "100000000",
   "chainId": 8453,
   "posts": [
@@ -54,19 +54,19 @@
       "id": "block",
       "method": "eth_blockNumber",
       "params": [],
-      "result": "0x3683ab9",
+      "result": "0x368b054",
       "what": "the block every value below is read at"
     },
     {
       "id": "block-header",
       "method": "eth_getBlockByNumber",
       "params": [
-        "0x3683ab9",
+        "0x368b054",
         false
       ],
       "result": {
-        "number": "0x3683ab9",
-        "timestamp": "0x6af7c58c"
+        "number": "0x368b054",
+        "timestamp": "0x6af7dd12"
       },
       "what": "that block's timestamp"
     },
@@ -90,7 +90,7 @@
         {
           "address": "0xd968d5659b3c63cd74d7b4d09345ff3417711038",
           "fromBlock": "0x36828c9",
-          "toBlock": "0x3683ab9"
+          "toBlock": "0x368b054"
         }
       ],
       "result": "0 logs",
@@ -116,7 +116,7 @@
         {
           "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",
           "fromBlock": "0x368288e",
-          "toBlock": "0x3683ab9"
+          "toBlock": "0x368b054"
         }
       ],
       "result": "0 logs",
@@ -130,7 +130,7 @@
           "data": "0x70a08231000000000000000000000000952c31aa208dd129059f6065a26b57c930c6ab3c",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x3683ab9"
+        "0x368b054"
       ],
       "result": "0x00000000000000000000000000000000000000000000000000000000000009c4",
       "what": "USDC the vault holds"
@@ -233,7 +233,20 @@
         {
           "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
           "fromBlock": "0x367a0a9",
-          "toBlock": "0x3683ab9"
+          "toBlock": "0x36863f7"
+        }
+      ],
+      "result": "0 logs",
+      "what": "the vault's Funded, Settled, Refunded and Claimed events"
+    },
+    {
+      "id": "vault1-logs-8",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x8917c501755f966a5b5f20d6608e297e7066f13b",
+          "fromBlock": "0x36863f8",
+          "toBlock": "0x368b054"
         }
       ],
       "result": "0 logs",
@@ -247,7 +260,7 @@
           "data": "0x70a082310000000000000000000000008917c501755f966a5b5f20d6608e297e7066f13b",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x3683ab9"
+        "0x368b054"
       ],
       "result": "0x00000000000000000000000000000000000000000000000000000000000009c4",
       "what": "USDC the vault holds"
@@ -259,7 +272,7 @@
         {
           "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "fromBlock": "0x367f5c6",
-          "toBlock": "0x3683ab9",
+          "toBlock": "0x368b054",
           "topics": [
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
             "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
@@ -310,7 +323,24 @@
         {
           "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "fromBlock": "0x367a7c4",
-          "toBlock": "0x3683ab9",
+          "toBlock": "0x3686b12",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
+          ]
+        }
+      ],
+      "result": "0 logs",
+      "what": "USDC Transfer events out of a payee (PAYEE: the payee of a Claimed event above)"
+    },
+    {
+      "id": "sweeps1-3",
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "fromBlock": "0x3686b13",
+          "toBlock": "0x368b054",
           "topics": [
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
             "0x00000000000000000000000000000000000000000000000000000000000PAYEE"
@@ -325,7 +355,7 @@
       "method": "eth_getTransactionCount",
       "params": [
         "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
-        "0x3683ab9"
+        "0x368b054"
       ],
       "result": "0x7",
       "what": "transactions the relayer's wallet has sent"
@@ -338,7 +368,7 @@
           "data": "0x70a08231000000000000000000000000133c25a80fb323de143e8ad5c6c620bf8713edfd",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
         },
-        "0x3683ab9"
+        "0x368b054"
       ],
       "result": "0x0000000000000000000000000000000000000000000000000000000005f5e100",
       "what": "USDC the bounty buyer holds"
@@ -348,7 +378,7 @@
       "method": "eth_getBalance",
       "params": [
         "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
-        "0x3683ab9"
+        "0x368b054"
       ],
       "result": "0x3587eae46c19a3",
       "what": "ETH the relayer holds, in wei"
@@ -360,7 +390,7 @@
       "body": "DPoP proof missing",
       "status": 401
     },
-    "checkedAt": 1794622860,
+    "checkedAt": 1794628881,
     "url": "https://relay.qed.coproduct.dev/relay"
   },
   "relayerWei": "15067616690051491",
@@ -375,7 +405,7 @@
       "transaction": "0x0c9ab94a7a6286a48dfef36573f3cefb32b18c2717546cf856546950666c209d"
     }
   ],
-  "takenAt": 1794622860,
+  "takenAt": 1794628881,
   "vaults": [
     {
       "address": "0x952c31aa208dd129059f6065a26b57c930c6ab3c",

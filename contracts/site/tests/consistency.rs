@@ -292,11 +292,20 @@ fn the_mac_quickstart_is_the_same_on_the_page_in_the_card_and_in_the_readme() {
         readme.contains(&script),
         "the README's Mac QuickStart differs from the generated one:\n{script}"
     );
+    // The Questions line, the same on the page, in the card and the README.
+    let questions = nucleus_site::pages::questions();
+    assert!(page.contains(nucleus_site::pages::DISCUSSIONS));
+    assert!(skill["description"].as_str().unwrap().contains(&questions));
+    assert!(readme.contains(&questions), "the README's Questions line");
     // Until the published release has `sweep`, its line is a comment and
     // the page says the command needs the next release.
     let sweep = "container run --rm -v qed:/data --entrypoint nucleus-seller \"$IMAGE\" sweep";
     if nucleus_site::pages::SELLER_RELEASE.has_sweep {
         assert!(script.lines().any(|l| l.starts_with(sweep)));
+        for text in [page, readme.as_str()] {
+            assert!(!text.contains("Needs the next seller release."));
+            assert!(text.contains("FAILED: nothing to sweep"));
+        }
     } else {
         assert!(!script.lines().any(|l| l.starts_with(sweep)));
         assert!(script.contains(&format!("# {sweep}")));
