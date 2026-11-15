@@ -204,12 +204,25 @@ fn explorer(ledger: &LedgerInput, chain_id: u64) -> &str {
         .map_or("", |n| n.explorer.as_str())
 }
 
+/// How a receipt page shows a wallet the snapshot elides.
+pub const ELIDED_PARTY: &str =
+    "an authors' wallet (not listed here; it is in the funding transaction)";
+
 /// One settlement, from its receipt.
 pub fn receipt_summary(r: &Value, ledger: &LedgerInput) -> Vec<Block> {
     let net = &r["network"];
     let ex = explorer(ledger, net["chainId"].as_u64().unwrap_or(0));
     let tx_link = |hash: &str| code_link(format!("{ex}/tx/{hash}"), hash);
     let addr_link = |a: &str| code_link(format!("{ex}/address/{a}"), a);
+    // The public repository's snapshot elides the authors' wallets other
+    // than the bounty buyer and the relayer; the transactions carry them.
+    let party = |a: &str| {
+        if a == crate::status::ELIDED {
+            t(ELIDED_PARTY)
+        } else {
+            addr_link(a)
+        }
+    };
     let order = &r["order"];
     let token = &r["token"];
     let decimals = token["decimals"].as_u64().unwrap_or(0);
@@ -246,9 +259,9 @@ pub fn receipt_summary(r: &Value, ledger: &LedgerInput) -> Vec<Block> {
         (
             "Buyer → seller".into(),
             vec![
-                addr_link(s(order, "buyer")),
+                party(s(order, "buyer")),
                 t(" → "),
-                addr_link(s(order, "seller")),
+                party(s(order, "seller")),
             ],
         ),
         ("Verifier".into(), vec![addr_link(s(order, "verifier"))]),

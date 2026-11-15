@@ -1106,3 +1106,95 @@ fn the_status_page_shows_the_buyers_signed_delivery_counts_or_could_not_read() {
     let md = doc::markdown(&status::page(&bare, Some(&snap)).unwrap(), None);
     assert!(md.contains(COULD_NOT));
 }
+
+/// The public repository's snapshot elides the authors' wallets other than
+/// the bounty buyer and the relayer (the release tool's `redacted_snapshot`,
+/// owner decision 2026-11-15). Every party field of the snapshot here is an
+/// address or [`status::ELIDED`]; a build from an elided copy shows each
+/// elided party as not listed, links no explorer page for it, and says so
+/// in the receipt index; a build from the full snapshot (the live site) adds
+/// nothing. The published two stay as they are.
+#[test]
+fn elided_party_wallets_read_as_not_listed_and_nothing_else_changes() {
+    use nucleus_site::ledger::PARTY_FIELDS;
+    use nucleus_site::{ELIDED_PARTIES_NOTE, pages::ELIDED_PARTY, status::ELIDED};
+    let input = input();
+    let st = input
+        .mainnet
+        .as_ref()
+        .and_then(|m| m.status.as_ref())
+        .unwrap();
+    let published = [st.buyer.to_lowercase(), st.relayer.to_lowercase()];
+    let (l, s) = ledger();
+    let address = |v: &str| {
+        v.len() == 42 && v.starts_with("0x") && v[2..].bytes().all(|b| b.is_ascii_hexdigit())
+    };
+    for r in s.receipts() {
+        for (part, field) in PARTY_FIELDS {
+            match r[part][field].as_str() {
+                Some(v) => assert!(address(v) || v == ELIDED, "{part}.{field}: {v:?}"),
+                None => assert!(r[part][field].is_null(), "{part}.{field}"),
+            }
+        }
+    }
+    let index_note = |files: &[(String, Vec<u8>)]| {
+        let index: Value = serde_json::from_str(file(files, "receipts/index.json")).unwrap();
+        index["note"].as_str().unwrap().to_owned()
+    };
+    let key = test_key();
+    let build = |s: &Snapshot| {
+        let options = Options {
+            site_url: Some(SITE),
+            ledger: Some((&l, s)),
+            card_key: Some(&key),
+            source_commit: Some("0123456789ab"),
+        };
+        site(&input, repository(), &options).unwrap()
+    };
+    // The full snapshot (the private one): no note, every party linked.
+    let mut full = s.clone();
+    for r in full.value["receipts"].as_array_mut().unwrap() {
+        for (part, field) in PARTY_FIELDS {
+            if r[part][field] == ELIDED {
+                r[part][field] = json!(format!("0x{}", "d1".repeat(20)));
+            }
+        }
+    }
+    assert!(!full.elides_parties());
+    let files = build(&full);
+    assert!(!index_note(&files).contains(ELIDED_PARTIES_NOTE));
+    // The elided copy, made by the release tool's rule.
+    let mut elided = full.clone();
+    let mut changed = 0;
+    for r in elided.value["receipts"].as_array_mut().unwrap() {
+        for (part, field) in PARTY_FIELDS {
+            let Some(v) = r[part][field].as_str().map(str::to_lowercase) else {
+                continue;
+            };
+            if !v[2..].bytes().all(|b| b == b'0') && !published.contains(&v) {
+                r[part][field] = json!(ELIDED);
+                changed += 1;
+            }
+        }
+    }
+    assert!(changed > 0 && elided.elides_parties());
+    let files = build(&elided);
+    assert!(index_note(&files).contains(ELIDED_PARTIES_NOTE));
+    for r in elided.receipts() {
+        let id = r["id"].as_str().unwrap();
+        let page = file(&files, &format!("transactions/{id}/index.html"));
+        assert!(!page.contains("/address/elided"), "{id}");
+        let buyer_elided = r["order"]["buyer"] == ELIDED;
+        let seller_elided = r["order"]["seller"] == ELIDED;
+        if buyer_elided || seller_elided {
+            assert!(
+                page.contains(&nucleus_site::html::esc(ELIDED_PARTY)),
+                "{id}"
+            );
+        }
+        if !buyer_elided {
+            let buyer = r["order"]["buyer"].as_str().unwrap();
+            assert!(page.contains(&format!("/address/{buyer}")), "{id}");
+        }
+    }
+}

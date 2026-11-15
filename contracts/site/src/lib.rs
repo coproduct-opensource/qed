@@ -50,6 +50,9 @@ pub const X402_SCHEME: &str = "nucleus-vault";
 
 /// Said on the page and in the card for as long as it is true.
 pub const AUTHORS_ONLY: &str = "Every settlement so far was between the authors' own keys.";
+/// Added to the receipt index's note when a receipt's party wallet reads
+/// [`status::ELIDED`], as in the public repository's copy of the snapshot.
+pub const ELIDED_PARTIES_NOTE: &str = "A party address that reads \"elided\" is one of the authors' own wallets, which this copy does not list; the funding and settlement transactions carry it on chain.";
 pub const UNAUDITED: &str = "The contracts are unaudited.";
 /// The acceptance rule compiled for a browser
 /// (contracts/proof-acceptance/wasm-checker, built with
@@ -1155,12 +1158,16 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
                 "chainId": receipt["network"]["chainId"],
             }));
         }
+        let mut note = "A projection of chain state and of the authors' records. Each receipt's fields are read from the chain except those under asserted, and acceptance (the buyer's policy and statement), which is checkable: the policy hashes to order.policyHash and the statement to the policy's statementSha256. The vault is the authority for every settlement.".to_owned();
+        if snapshot.elides_parties() {
+            note.push_str(&format!(" {ELIDED_PARTIES_NOTE}"));
+        }
         files.push((
             "receipts/index.json".into(),
             ledger::receipt_bytes(&json!({
                 "schema": "qed-receipt-index/1",
                 "snapshot": { "takenAt": snapshot.value["takenAt"], "networks": snapshot.value["networks"] },
-                "note": "A projection of chain state and of the authors' records. Each receipt's fields are read from the chain except those under asserted, and acceptance (the buyer's policy and statement), which is checkable: the policy hashes to order.policyHash and the statement to the policy's statementSha256. The vault is the authority for every settlement.",
+                "note": note,
                 "receipts": index,
             }))?,
         ));

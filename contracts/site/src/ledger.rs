@@ -102,6 +102,14 @@ pub struct Recorded {
 /// The receipt note for a settlement whose buyer and seller keys were both
 /// the authors'.
 pub const AUTHORS_HELD: &str = "Buyer and seller keys were both held by the authors.";
+/// Where a receipt names a party's wallet. The release tool's
+/// `PARTY_FIELDS` elides the same four in the public copy.
+pub const PARTY_FIELDS: [(&str, &str); 4] = [
+    ("order", "buyer"),
+    ("order", "seller"),
+    ("settlement", "from"),
+    ("booked", "basePayee"),
+];
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -172,6 +180,16 @@ impl Snapshot {
 impl Snapshot {
     pub fn receipts(&self) -> &[Value] {
         self.value["receipts"].as_array().map_or(&[], Vec::as_slice)
+    }
+    /// Whether some receipt's party wallet reads [`crate::status::ELIDED`]:
+    /// the public repository's copy, where the release tool elides the
+    /// authors' wallets other than the bounty buyer and the relayer.
+    pub fn elides_parties(&self) -> bool {
+        self.receipts().iter().any(|r| {
+            PARTY_FIELDS
+                .iter()
+                .any(|(part, field)| r[*part][*field] == crate::status::ELIDED)
+        })
     }
     /// Who has traded, from the receipts' own counterparty notes. A note
     /// other than [`AUTHORS_HELD`] names an outside party: the earliest such
