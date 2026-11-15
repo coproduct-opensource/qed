@@ -186,31 +186,38 @@ theorem handle_refines (s : core.Day) (r : core.Request) :
 theorem publish_cell_refines (c g1 g2 : U32) :
     ∃ x, core.publish_cell c g1 g2 = ok x ∧
       absCell x = publish c.val ((g1.val : ℤ) - g2.val) := by
-  unfold core.publish_cell publish
-  by_cases hk : c < core.K
-  · have hkv : c.val < K := by
-      have := (UScalar.lt_equiv _ _).mp hk
-      simpa [K, core.K] using this
-    exact ⟨.Suppressed, by simp [hk], by simp [absCell, hkv]⟩
-  · have hkv : ¬ c.val < K := by
-      intro h; apply hk; apply (UScalar.lt_equiv _ _).mpr
-      simpa [K, core.K] using h
-    have hc := c.hBounds
-    have h1 := g1.hBounds
-    have h2 := g2.hBounds
-    obtain ⟨a, ha, hav⟩ := spec_imp_exists
-      (UScalar.hcast_inBounds_spec .I64 c (by simp [IScalar.max]; scalar_tac))
-    obtain ⟨b, hb, hbv⟩ := spec_imp_exists
-      (UScalar.hcast_inBounds_spec .I64 g1 (by simp [IScalar.max]; scalar_tac))
-    obtain ⟨e, he, hev⟩ := spec_imp_exists
-      (UScalar.hcast_inBounds_spec .I64 g2 (by simp [IScalar.max]; scalar_tac))
-    obtain ⟨f, hf, hfv⟩ := spec_imp_exists (IScalar.add_spec (x := a) (y := b)
-      (by simp [IScalar.min]; scalar_tac) (by simp [IScalar.max]; scalar_tac))
-    obtain ⟨g, hg, hgv⟩ := spec_imp_exists (IScalar.sub_spec (x := f) (y := e)
-      (by simp [IScalar.min]; scalar_tac) (by simp [IScalar.max]; scalar_tac))
-    refine ⟨.Count g, by simp [hk, ha, hb, he, hf, hg], ?_⟩
-    simp only [absCell, hkv, if_false, hgv, hfv, hav, hbv, hev]
-    ring_nf
+  have hc := c.hBounds
+  have h1 := g1.hBounds
+  have h2 := g2.hBounds
+  obtain ⟨a, ha, hav⟩ := spec_imp_exists
+    (UScalar.hcast_inBounds_spec .I64 c (by simp [IScalar.max]; scalar_tac))
+  obtain ⟨b, hb, hbv⟩ := spec_imp_exists
+    (UScalar.hcast_inBounds_spec .I64 g1 (by simp [IScalar.max]; scalar_tac))
+  obtain ⟨e, he, hev⟩ := spec_imp_exists
+    (UScalar.hcast_inBounds_spec .I64 g2 (by simp [IScalar.max]; scalar_tac))
+  obtain ⟨f, hf, hfv⟩ := spec_imp_exists (IScalar.add_spec (x := a) (y := b)
+    (by scalar_tac) (by simp [IScalar.max]; scalar_tac))
+  obtain ⟨g, hg, hgv⟩ := spec_imp_exists (IScalar.sub_spec (x := f) (y := e)
+    (by simp [IScalar.min]; scalar_tac) (by simp [IScalar.max]; scalar_tac))
+  obtain ⟨k, hk, hkv⟩ := spec_imp_exists
+    (UScalar.hcast_inBounds_spec .I64 core.K (by simp [IScalar.max, core.K]; scalar_tac))
+  have hkval : k.val = (K : ℤ) := by simp [hkv, core.K, K]
+  have hgval : g.val = (c.val : ℤ) + ((g1.val : ℤ) - g2.val) := by
+    rw [hgv, hfv, hav, hbv, hev]; ring
+  have hrun : core.publish_cell c g1 g2
+      = (if g < k then ok .Suppressed else ok (.Count g)) := by
+    simp [core.publish_cell, ha, hb, he, hf, hg, hk]
+  by_cases hlt : g < k
+  · have hv : (c.val : ℤ) + ((g1.val : ℤ) - g2.val) < K := by
+      have := (IScalar.lt_equiv _ _).mp hlt
+      rw [hgval, hkval] at this; exact this
+    refine ⟨.Suppressed, by rw [hrun, if_pos hlt], ?_⟩
+    simp [absCell, publish, hv]
+  · have hv : ¬ (c.val : ℤ) + ((g1.val : ℤ) - g2.val) < K := by
+      intro h; apply hlt; apply (IScalar.lt_equiv _ _).mpr
+      rw [hgval, hkval]; exact h
+    refine ⟨.Count g, by rw [hrun, if_neg hlt], ?_⟩
+    simp only [absCell, publish, hv, if_false, hgval]
 
 /-! ## The guarantees, over the translated code -/
 
@@ -227,16 +234,41 @@ theorem core_handle_total (s : core.Day) (r : core.Request) :
     ∃ t, core.handle s r = ok t ∧ absDay t = handle (absDay s) (absRequest r) :=
   handle_refines s r
 
-/-- **(b) The threshold, over the translated publisher.** A cell whose true
-count is under 10 is published as `Suppressed`, whatever the noise. -/
-theorem core_publish_suppresses (c g1 g2 : U32) (h : c.val < 10) :
+/-- **(b) The threshold, over the translated publisher.** A cell whose count
+plus noise `g1 - g2` is under 10 is published as `Suppressed`. -/
+theorem core_publish_suppresses (c g1 g2 : U32)
+    (h : (c.val : ℤ) + g1.val - g2.val < 10) :
     core.publish_cell c g1 g2 = ok .Suppressed := by
-  have hk : c < core.K := (UScalar.lt_equiv _ _).mpr (by simpa [core.K] using h)
-  simp [core.publish_cell, hk]
+  obtain ⟨x, hx, hax⟩ := publish_cell_refines c g1 g2
+  have hs : publish c.val ((g1.val : ℤ) - g2.val) = .suppressed :=
+    publish_suppresses _ _ (by simp only [K]; omega)
+  rw [hs] at hax
+  cases x with
+  | Suppressed => exact hx
+  | Count v => simp [absCell] at hax
 
-/-- **(c) The published value is the spec's**, true count plus `g1 - g2`, so
-the publisher's output law is `cellDensity` whenever `g1 - g2` has law `lap`
-(`difference_nonneg`, `difference_neg`), and `day_dp` applies to it. -/
+/-- **(b) No value under 10 is published, over the translated publisher.** -/
+theorem core_publish_at_least_k (c g1 g2 : U32) (v : I64)
+    (h : core.publish_cell c g1 g2 = ok (.Count v)) : 10 ≤ v.val := by
+  obtain ⟨x, hx, hax⟩ := publish_cell_refines c g1 g2
+  rw [h] at hx
+  cases hx
+  have := publish_at_least_k c.val _ _ hax.symm
+  simpa [K] using this
+
+/-- **(c) The translated publisher reads only the noisy value** `c + g1 - g2`:
+its output is `post` of it, so it is post-processing of the noisy day and
+`day_dp` applies to it whenever `g1 - g2` has law `lap` (`difference_nonneg`,
+`difference_neg`). -/
+theorem core_publish_is_post (c g1 g2 : U32) :
+    ∃ x, core.publish_cell c g1 g2 = ok x ∧
+      absCell x = post ((c.val : ℤ) + g1.val - g2.val) := by
+  obtain ⟨x, hx, hax⟩ := publish_cell_refines c g1 g2
+  refine ⟨x, hx, ?_⟩
+  rw [hax, publish_is_post, add_sub_assoc]
+
+/-- The published value is the spec's: `publish` of the true count and
+`g1 - g2`. -/
 theorem core_publish_is_spec (c g1 g2 : U32) :
     ∃ x, core.publish_cell c g1 g2 = ok x ∧
       absCell x = publish c.val ((g1.val : ℤ) - g2.val) :=

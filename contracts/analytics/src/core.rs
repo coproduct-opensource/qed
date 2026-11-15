@@ -21,7 +21,7 @@ pub const PATHS: usize = 16;
 pub const CELLS: usize = 2 * PATHS + 2;
 pub const MALFORMED: usize = 2 * PATHS;
 pub const LIMITED: usize = 2 * PATHS + 1;
-/// A cell whose true count is under `K` is published as suppressed.
+/// A cell whose count plus noise is under `K` is published as suppressed.
 pub const K: u32 = 10;
 
 /// The whole state: the day being counted (days since 1970-01-01, UTC) and
@@ -106,13 +106,17 @@ pub fn handle(s: Day, r: &Request) -> Day {
     step(s, path, first, day)
 }
 
-/// Publish one cell: suppressed under `K`, otherwise the true count plus the
-/// noise `g1 - g2` (two fair-coin counts, `noise::Coins::geometric`).
+/// Publish one cell: the true count plus the noise `g1 - g2` (two fair-coin
+/// counts, `noise::Coins::geometric`), suppressed when that noisy value is
+/// under `K`. Suppression reads only the noisy value (the spec's
+/// `publish_is_post`), so the differential-privacy theorem holds for every
+/// day. Until 2026-11-15 it read the true count (`lean/QedAnalytics/History.lean`).
 pub fn publish_cell(count: u32, g1: u32, g2: u32) -> Cell {
-    if count < K {
+    let noisy = count as i64 + g1 as i64 - g2 as i64;
+    if noisy < K as i64 {
         Cell::Suppressed
     } else {
-        Cell::Count(count as i64 + g1 as i64 - g2 as i64)
+        Cell::Count(noisy)
     }
 }
 
@@ -173,16 +177,32 @@ mod tests {
     }
 
     #[test]
-    fn under_k_is_suppressed_whatever_the_noise() {
-        for c in 0..K {
-            for (g1, g2) in [(0, 0), (u32::MAX, 0), (0, u32::MAX)] {
-                assert_eq!(publish_cell(c, g1, g2), Cell::Suppressed);
-            }
-        }
+    fn suppression_reads_the_noisy_value() {
+        // 9 lifted to 10 by its noise is shown; 12 lowered to 9 is not.
+        assert_eq!(publish_cell(9, 1, 0), Cell::Count(10));
+        assert_eq!(publish_cell(0, 10, 0), Cell::Count(10));
+        assert_eq!(publish_cell(12, 0, 3), Cell::Suppressed);
+        assert_eq!(publish_cell(K, 0, 0), Cell::Count(K as i64));
         assert_eq!(publish_cell(K, 3, 1), Cell::Count(K as i64 + 2));
+        assert_eq!(publish_cell(u32::MAX, 0, u32::MAX), Cell::Suppressed);
         assert_eq!(
             publish_cell(u32::MAX, u32::MAX, 0),
             Cell::Count(2 * u32::MAX as i64)
         );
+    }
+
+    #[test]
+    fn nothing_under_k_is_shown() {
+        for c in 0..3 * K {
+            for g1 in 0..2 * K {
+                for g2 in 0..2 * K {
+                    let noisy = c as i64 + g1 as i64 - g2 as i64;
+                    match publish_cell(c, g1, g2) {
+                        Cell::Count(v) => assert!(v >= K as i64 && v == noisy),
+                        Cell::Suppressed => assert!(noisy < K as i64),
+                    }
+                }
+            }
+        }
     }
 }

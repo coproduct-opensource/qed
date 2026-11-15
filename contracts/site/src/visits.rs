@@ -17,10 +17,14 @@ use std::{fs, path::Path};
 pub const INPUT_PATH: &str = "contracts/site/input/analytics.json";
 
 /// Source files the page names, with their SHA-256 computed at build time.
-pub const SOURCES: [(&str, &str); 5] = [
+pub const SOURCES: [(&str, &str); 6] = [
     (
         "contracts/analytics/lean/QedAnalytics/Spec.lean",
         "the meaning and the privacy theorems",
+    ),
+    (
+        "contracts/analytics/lean/QedAnalytics/History.lean",
+        "the rule until 2026-11-15, and why it was replaced",
     ),
     (
         "contracts/analytics/lean/QedAnalytics/Refines.lean",
@@ -38,7 +42,7 @@ pub const SOURCES: [(&str, &str); 5] = [
 ];
 
 /// The theorems shown, by file, in order.
-pub const THEOREMS: [(&str, &str, &str); 9] = [
+pub const THEOREMS: [(&str, &str, &str); 14] = [
     (
         "Refines.lean",
         "core_handle_noninterference",
@@ -50,12 +54,29 @@ pub const THEOREMS: [(&str, &str, &str); 9] = [
         "core_publish_suppresses",
         "(b) translated code",
     ),
-    ("Refines.lean", "core_publish_is_spec", "translated code"),
+    (
+        "Refines.lean",
+        "core_publish_at_least_k",
+        "(b) translated code",
+    ),
+    (
+        "Refines.lean",
+        "core_publish_is_post",
+        "(c) translated code",
+    ),
     ("Spec.lean", "sensitivity", "model"),
     ("Spec.lean", "difference_nonneg", "model of the sampler"),
+    ("Spec.lean", "postprocess", "model"),
     ("Spec.lean", "day_dp", "(c) model"),
     ("Spec.lean", "visit_dp", "(c) model"),
-    ("Spec.lean", "threshold_breaks_dp", "model"),
+    ("Spec.lean", "shown_below_k", "model"),
+    ("Spec.lean", "shown_zero", "model"),
+    ("Spec.lean", "shown_nine", "model"),
+    (
+        "History.lean",
+        "threshold_breaks_dp",
+        "the rule until 2026-11-15",
+    ),
 ];
 
 /// The statement of `theorem NAME` in a Lean source: from that line to the
@@ -164,10 +185,13 @@ pub fn page(input: &Input, repository: &Path) -> Res<Doc> {
             ],
         ],
         vec![
-            vec![t("A cell crossing 10")],
+            vec![t("A cell under 10 is never shown")],
             vec![
+                t("Not since 2026-11-15: a cell with true count c under 10 is shown with probability 1/(3 · 2^(9 − c)), 1/1536 at 0 and 1/3 at 9 ("),
+                code("shown_below_k"),
+                t("). The rule before it read the true count and never showed one, and was not differentially private between 9 and 10 ("),
                 code("threshold_breaks_dp"),
-                t(": suppressing on the true count is not differentially private where a cell moves between 9 and 10."),
+                t("). No day was published under it."),
             ],
         ],
         vec![
@@ -196,7 +220,7 @@ pub fn page(input: &Input, repository: &Path) -> Res<Doc> {
 today.json (replaced at most once a minute):\n\
 {\"record\":\"qed-visits-today/1\",\"day\":20772,\"cells\":[0,0,3,1,…34 counts]}\n\n\
 published.jsonl (one line per finished day, appended once):\n\
-{\"record\":\"qed-visits/1\",\"day\":20772,\"date\":\"2026-11-15\",\"k\":10,\n \"paths\":[[\"/\",null,12],[\"/status\",14,null],…],\"malformed\":null,\"limited\":null}";
+{\"record\":\"qed-visits/1\",\"day\":20772,\"date\":\"2026-11-15\",\"k\":10,\n \"suppressed\":\"count plus noise under k\",\n \"paths\":[[\"/\",null,12],[\"/status\",14,null],…],\"malformed\":null,\"limited\":null}";
     let blocks = vec![
         Block::Table {
             caption: "One beacon per page view, POST /analytics/beacon.".into(),
@@ -247,8 +271,8 @@ published.jsonl (one line per finished day, appended once):\n\
             caption: "Chosen 2026-11-15; the owner may change them.".into(),
             head: vec!["".into(), "Value".into()],
             rows: vec![
-                vec![vec![t("k")], vec![t("10: a cell under 10 beacons is suppressed. At noise standard deviation 2, a shown count is within ±2 of its true value with probability 5/6.")]],
-                vec![vec![t("ε")], vec![t("ln 2 per day per beacon: one beacon changes one cell by one, which changes any output's likelihood by at most a factor of 2. Days and cells hold disjoint beacons, so they compose in parallel.")]],
+                vec![vec![t("k")], vec![t("10: a cell whose count plus noise is under 10 is suppressed; nothing under 10 is published. A true count c under 10 is shown with probability 1/(3 · 2^(9 − c)): 1/1536 at 0, 1/3 at 9. At noise standard deviation 2, a shown count is within ±2 of its true value with probability 5/6.")]],
+                vec![vec![t("ε")], vec![t("ln 2 per day per beacon, on every day: one beacon changes one cell by one, which changes the noisy day's likelihood by at most a factor of 2, and suppression reads only the noisy value. Days and cells hold disjoint beacons, so they compose in parallel.")]],
                 vec![vec![t("Noise")], vec![t("P(z) = 2^-|z| / 3, drawn once per cell per day; a day is never published twice.")]],
                 vec![vec![t("Cells")], vec![t("16 paths × 2, plus malformed and rate-limited: 34 a day.")]],
                 vec![vec![t("Rate limit")], vec![t("600 at once, 5 a second, for all senders together; no address is kept.")]],
@@ -267,7 +291,7 @@ published.jsonl (one line per finished day, appended once):\n\
     Ok(Doc {
         path: "visits".into(),
         title: "Visits — QED".into(),
-        description: "Visit counts per day, path and first-visit bit, published with noise and suppression under 10; what is stored; the Lean theorems about the collector, and what they do not cover.".into(),
+        description: "Visit counts per day, path and first-visit bit, published with noise and suppressed when count plus noise is under 10; what is stored; the Lean theorems about the collector, and what they do not cover.".into(),
         heading: "Visits".into(),
         blocks,
         script: true,

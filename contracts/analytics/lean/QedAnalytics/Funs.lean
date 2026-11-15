@@ -113,18 +113,18 @@ def core.handle (s : core.Day) (r : core.Request) : Result core.Day := do
   core.step s path first day
 
 /-- [qed_analytics::core::publish_cell]:
-    Source: 'src/core.rs', lines 111:0-117:1
+    Source: 'src/core.rs', lines 114:0-121:1
     Visibility: public -/
 def core.publish_cell
   (count : Std.U32) (g1 : Std.U32) (g2 : Std.U32) : Result core.Cell := do
-  if count < core.K
+  let i ← lift (UScalar.hcast .I64 count)
+  let i1 ← lift (UScalar.hcast .I64 g1)
+  let i2 ← i + i1
+  let i3 ← lift (UScalar.hcast .I64 g2)
+  let noisy ← i2 - i3
+  let i4 ← lift (UScalar.hcast .I64 core.K)
+  if noisy < i4
   then ok core.Cell.Suppressed
-  else
-    let i ← lift (UScalar.hcast .I64 count)
-    let i1 ← lift (UScalar.hcast .I64 g1)
-    let i2 ← i + i1
-    let i3 ← lift (UScalar.hcast .I64 g2)
-    let i4 ← i2 - i3
-    ok (core.Cell.Count i4)
+  else ok (core.Cell.Count noisy)
 
 end qed_analytics

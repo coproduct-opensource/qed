@@ -1,6 +1,6 @@
 {
   "collector": {
-    "sha256": "40b5c8782af7dc80fac223107dedf93b071f111d4e859f9115d628ee06d37c13",
+    "sha256": "0de7d65ad6f5f87b2e6177af971ee0193b12b11157d5680e31a933bbcdb29369",
     "source": "this repository's root Cargo.toml, crates/nucleus-jsonl and contracts/analytics (digests above), placed at /tmp/qed",
     "built": "x86_64 Ubuntu 24.04, rustc 1.96.1, GNU ld 2.42",
     "command": "cd /tmp/qed/contracts/analytics && CARGO_HOME=/tmp/cargo-home RUSTFLAGS='--remap-path-prefix=/tmp/qed=/qed --remap-path-prefix=/tmp/cargo-home=/cargo' cargo +1.96.1 build --release --locked"

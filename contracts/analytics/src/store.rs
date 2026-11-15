@@ -40,8 +40,9 @@ pub const RECORD_TODAY: &str = "qed-visits-today/1";
 pub const RECORD_DAY: &str = "qed-visits/1";
 /// About eleven years of days; past it nothing more is published.
 pub const MAX_PUBLISHED: usize = 4000;
-/// Days with no beacons between two days with beacons are published as all
-/// suppressed, at most this many in a row.
+/// Days with no beacons between two days with beacons are published from
+/// zero counts like any other day (each cell shown with probability 1/1536,
+/// `shown_zero`), at most this many in a row.
 pub const MAX_GAP_DAYS: u32 = 31;
 /// Seconds between checkpoints while beacons arrive.
 pub const SAVE_EVERY: u64 = 60;
@@ -291,6 +292,7 @@ impl<R: Read> Collector<R> {
             "day": day.day,
             "date": date(day.day),
             "k": K,
+            "suppressed": "count plus noise under k",
             "noise": "g1 - g2, each a count of fair-coin heads before the first tail",
             "columns": ["path", "returning", "first visit today"],
             "paths": paths,
@@ -406,6 +408,7 @@ mod tests {
         assert_eq!(text.lines().count(), 1);
         let day: Value = serde_json::from_str(text.lines().next().unwrap()).unwrap();
         assert_eq!(day["date"], "2026-11-15");
+        assert_eq!(day["suppressed"], "count plus noise under k");
         assert_eq!(day["paths"][14], json!(["/status", 11, null]));
         assert_eq!(
             day["paths"][2],
@@ -428,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_days_between_are_published_suppressed_and_bounded() {
+    fn empty_days_between_are_published_and_bounded() {
         let dir = temp("gap");
         let t0 = 20_772 * DAY_MS;
         let mut c = Collector::open(&dir, coins(), t0).unwrap();

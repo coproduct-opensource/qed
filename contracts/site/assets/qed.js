@@ -394,7 +394,12 @@
       }
       var table = document.createElement("table");
       var caption = document.createElement("caption");
-      caption.textContent = "Published for " + day.date + " (UTC). Each value is the count plus noise; suppressed: under " + day.k + ".";
+      // Days published before 2026-11-15's rule change carry no
+      // "suppressed" field: they were suppressed on the true count.
+      var rule = day.suppressed === "count plus noise under k"
+        ? "suppressed: count plus noise under " + day.k
+        : "suppressed: true count under " + day.k + " (the rule before 2026-11-15)";
+      caption.textContent = "Published for " + day.date + " (UTC). Each value is the count plus noise; " + rule + ".";
       table.appendChild(caption);
       var head = document.createElement("tr");
       ["Path", "Returning", "First visit that day"].forEach(function (name) {

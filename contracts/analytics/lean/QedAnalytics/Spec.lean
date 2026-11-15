@@ -3,8 +3,12 @@ QED visit analytics: what the collector means, written before its code.
 
 The collector (contracts/analytics) counts beacons from qed.coproduct.dev
 per day, per site path and per "first visit today" bit, and once a day
-publishes every cell with discrete Laplace noise, suppressing cells whose
-true count is under `K`. This file is the meaning: a model of the state
+publishes every cell with discrete Laplace noise, suppressing a cell when
+its count plus its noise is under `K`. Suppression reads only the noisy
+value, so the differential-privacy theorems hold for every day with no
+condition on the counts (`day_dp`, `visit_dp`). The rule before 2026-11-15
+read the true count, and `History.lean` proves why it was replaced
+(`TrueCount.threshold_breaks_dp`). This file is the meaning: a model of the state
 machine and the publisher, and the theorems the site shows. The Rust core is
 translated by Charon and Aeneas into `generated/`, and `Refines.lean` proves
 that the translation computes these functions, so every theorem here holds
@@ -36,7 +40,7 @@ def CELLS : ℕ := 2 * PATHS + 2
 def MALFORMED : ℕ := 2 * PATHS
 def LIMITED : ℕ := 2 * PATHS + 1
 
-/-- A cell whose true count is under `K` is published as `suppressed`. -/
+/-- A cell whose count plus noise is under `K` is published as `suppressed`. -/
 def K : ℕ := 10
 
 /-- A count saturates at the largest `u32`. -/
@@ -188,25 +192,47 @@ theorem sensitivity (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) :
   calc _ ≤ ∑ j : Fin CELLS, (if j = e then 1 else 0) := Finset.sum_le_sum (fun j _ => hj j)
     _ = 1 := by simp
 
-/-! ## 5. (b) The threshold -/
+/-! ## 5. (b) The threshold, on the noisy count
+
+Owner decision 2026-11-15 ("go on rec"): suppress on the noisy count, so
+that suppression is a function of the published noisy value alone and the
+privacy theorem needs no condition on the counts. Until then the publisher
+suppressed on the true count; `History.lean` keeps that rule and
+`TrueCount.threshold_breaks_dp`, the proof that it is not differentially
+private between 9 and 10. -/
 
 inductive Cell where
   | suppressed
   | count (v : ℤ)
   deriving DecidableEq
 
-/-- One published cell: suppressed under `K`, otherwise the true count plus
-the noise `z`. -/
+/-- One published cell: with true count `c` and noise `z`, suppressed when
+`c + z` is under `K`, otherwise `c + z`. -/
 def publish (c : ℕ) (z : ℤ) : Cell :=
-  if c < K then .suppressed else .count (c + z)
+  if (c : ℤ) + z < K then .suppressed else .count (c + z)
 
-/-- **The threshold.** A cell whose true count is under `K` is suppressed,
-whatever the noise. -/
-theorem publish_suppresses (c : ℕ) (z : ℤ) (h : c < K) : publish c z = .suppressed := by
+/-- What is published from a noisy value `v`, reading nothing else. -/
+def post (v : ℤ) : Cell :=
+  if v < K then .suppressed else .count v
+
+/-- **The publisher reads only the noisy value.** -/
+theorem publish_is_post (c : ℕ) (z : ℤ) : publish c z = post ((c : ℤ) + z) := rfl
+
+/-- **The threshold.** A cell whose count plus noise is under `K` is
+suppressed. -/
+theorem publish_suppresses (c : ℕ) (z : ℤ) (h : (c : ℤ) + z < K) :
+    publish c z = .suppressed := by
   simp [publish, h]
 
-theorem publish_shows (c : ℕ) (z : ℤ) (h : K ≤ c) : publish c z = .count (c + z) := by
-  simp [publish, Nat.not_lt.mpr h]
+theorem publish_shows (c : ℕ) (z : ℤ) (h : (K : ℤ) ≤ c + z) :
+    publish c z = .count (c + z) := by
+  simp [publish, not_lt.mpr h]
+
+/-- **No value under `K` is ever published.** -/
+theorem publish_at_least_k (c : ℕ) (z v : ℤ) (h : publish c z = .count v) : (K : ℤ) ≤ v := by
+  unfold publish at h
+  split_ifs at h with hk
+  · cases h; omega
 
 /-! ## 6. (c) The noise and differential privacy -/
 
@@ -284,35 +310,6 @@ theorem difference_neg (n : ℕ) :
   have habs : (-((n : ℤ) + 1)).natAbs = n + 1 := by omega
   rw [lap, habs, mul_comm]
 
-/-- The law of one published cell with true count `c`: the noise's law pushed
-through `publish`. -/
-noncomputable def cellDensity (c : ℕ) (o : Cell) : ℝ≥0∞ :=
-  ∑' z : ℤ, if publish c z = o then lap z else 0
-
-theorem cellDensity_below (c : ℕ) (h : c < K) (o : Cell) :
-    cellDensity c o = if o = .suppressed then 1 else 0 := by
-  unfold cellDensity
-  simp only [publish_suppresses c _ h]
-  by_cases ho : o = .suppressed
-  · subst ho; simp [lap_total]
-  · simp [ho, Ne.symm ho]
-
-theorem cellDensity_above (c : ℕ) (h : K ≤ c) (o : Cell) :
-    cellDensity c o = match o with
-      | .suppressed => 0
-      | .count v => lap (v - c) := by
-  unfold cellDensity
-  simp only [publish_shows c _ h]
-  cases o with
-  | suppressed => simp
-  | count v =>
-    simp only [Cell.count.injEq]
-    rw [tsum_eq_single (v - c)]
-    · simp
-    · intro z hz
-      have : (c : ℤ) + z ≠ v := by omega
-      simp [this]
-
 theorem lap_shift (v c c' : ℤ) :
     lap (v - c) ≤ 2 ^ (c - c').natAbs * lap (v - c') := by
   unfold lap
@@ -328,73 +325,217 @@ theorem lap_shift (v c c' : ℤ) :
     _ = 2 ^ m * (3⁻¹ * 2⁻¹ ^ (a + m)) := by rw [pow_add]; ring
     _ ≤ 2 ^ m * (3⁻¹ * 2⁻¹ ^ b) := by gcongr
 
-/-- **One cell.** For true counts on the same side of `K`, the likelihood of
-any published value changes by at most `2 ^ |c - c'|`. -/
-theorem cell_ratio (c c' : ℕ) (hside : c < K ↔ c' < K) (o : Cell) :
-    cellDensity c o ≤ 2 ^ ((c - c') + (c' - c)) * cellDensity c' o := by
-  by_cases hc : c < K
-  · have hc' := hside.mp hc
-    rw [cellDensity_below c hc, cellDensity_below c' hc']
-    exact le_mul_of_one_le_left (zero_le) (one_le_pow₀ (by norm_num))
-  · have hc' : ¬ c' < K := fun h => hc (hside.mpr h)
-    rw [cellDensity_above c (Nat.not_lt.mp hc), cellDensity_above c' (Nat.not_lt.mp hc')]
-    cases o with
-    | suppressed => simp
-    | count v =>
-      have := lap_shift v c c'
-      have hm : ((c : ℤ) - c').natAbs = (c - c') + (c' - c) := by omega
-      simpa [hm] using this
+/-! ## 7. Post-processing
+
+A law on `α` pushed through a function `f`. Whatever `f` does, it reads only
+its argument, so a bound that holds for every set of arguments holds for
+every set of results. -/
+
+/-- The law of `f x` when `x` has law `p`. -/
+noncomputable def push {α β : Type} [DecidableEq β] (f : α → β) (p : α → ℝ≥0∞) (y : β) : ℝ≥0∞ :=
+  ∑' x, if f x = y then p x else 0
+
+/-- The mass `push f p` gives a set is the mass `p` gives its preimage. -/
+theorem push_mass {α β : Type} [DecidableEq β] (f : α → β) (p : α → ℝ≥0∞) (S : Set β) :
+    ∑' y, S.indicator (push f p) y = ∑' x, (f ⁻¹' S).indicator p x := by
+  have h : ∀ y, S.indicator (push f p) y
+      = ∑' x, if f x = y then (f ⁻¹' S).indicator p x else 0 := by
+    intro y
+    unfold push
+    by_cases hy : y ∈ S
+    · rw [Set.indicator_of_mem hy]
+      congr 1
+      funext x
+      by_cases hx : f x = y
+      · have hm : x ∈ f ⁻¹' S := by simp [hx, hy]
+        simp [hx, Set.indicator_of_mem hm]
+      · simp [hx]
+    · rw [Set.indicator_of_notMem hy]
+      symm
+      refine ENNReal.tsum_eq_zero.mpr fun x => ?_
+      by_cases hx : f x = y
+      · have hm : x ∉ f ⁻¹' S := by simp [hx, hy]
+        simp [hx, Set.indicator_of_notMem hm]
+      · simp [hx]
+  simp only [h]
+  rw [ENNReal.tsum_comm]
+  congr 1
+  funext x
+  simp only [@eq_comm _ (f x)]
+  exact tsum_ite_eq (f x) (fun _ => (f ⁻¹' S).indicator p x)
+
+/-- **Post-processing.** If every set of arguments is at most `r` times as
+likely under `p` as under `q`, every set of results of `f` is too. -/
+theorem postprocess {α β : Type} [DecidableEq β] (f : α → β) (p q : α → ℝ≥0∞) (r : ℝ≥0∞)
+    (h : ∀ T : Set α, ∑' x, T.indicator p x ≤ r * ∑' x, T.indicator q x) (S : Set β) :
+    ∑' y, S.indicator (push f p) y ≤ r * ∑' y, S.indicator (push f q) y := by
+  rw [push_mass, push_mass]
+  exact h _
+
+/-! ## 8. (c) Differential privacy of the published day -/
+
+/-- A day's noisy values, one per cell. -/
+abbrev Noisy := Fin CELLS → ℤ
 
 /-- A published day: one value per cell. -/
 abbrev Output := Fin CELLS → Cell
 
-/-- The law of a published day: each cell's noise drawn independently. -/
+/-- The noise of a day: one draw per cell, independent, each of law `lap`. -/
+noncomputable def noiseDensity (z : Noisy) : ℝ≥0∞ := ∏ j, lap (z j)
+
+/-- The law of the noisy day: each cell's true count plus its noise. -/
+noncomputable def noisyDensity (a : Counts) (v : Noisy) : ℝ≥0∞ := ∏ j, lap (v j - a j)
+
+/-- The law of a published day with true counts `a`: the day's noise pushed
+through `publish`, cell by cell. -/
 noncomputable def dayDensity (a : Counts) (o : Output) : ℝ≥0∞ :=
-  ∏ j, cellDensity (a j) (o j)
+  ∑' z : Noisy, if (fun j => publish (a j) (z j)) = o then noiseDensity z else 0
 
-/-- Every cell of `a` is on the same side of `K` as the same cell of `b`. -/
-def SameSide (a b : Counts) : Prop := ∀ j, (a j < K ↔ b j < K)
+/-- Publishing a day from its noisy values. -/
+def publishDay (v : Noisy) : Output := fun j => post (v j)
 
-/-- **A day.** For days whose cells sit on the same sides of `K`, the
-likelihood of any published day changes by at most `2 ^ dist`. -/
-theorem day_ratio (a b : Counts) (h : SameSide a b) (o : Output) :
-    dayDensity a o ≤ 2 ^ dist a b * dayDensity b o := by
-  unfold dayDensity dist
+/-- **The published day is a function of the noisy day.** Its law is the
+noisy day's law pushed through `publishDay`, which reads nothing else. -/
+theorem day_is_post (a : Counts) : dayDensity a = push publishDay (noisyDensity a) := by
+  funext o
+  unfold dayDensity push
+  let s : Noisy := fun j => (a j : ℤ)
+  symm
+  rw [← (Equiv.addRight s).tsum_eq]
+  congr 1
+  funext z
+  have h1 : publishDay (z + s) = fun j => publish (a j) (z j) := by
+    funext j
+    simp [publishDay, publish_is_post, s, add_comm]
+  have h2 : noisyDensity a (z + s) = noiseDensity z := by
+    simp [noisyDensity, noiseDensity, s]
+  simp only [Equiv.coe_addRight, h1, h2]
+
+/-- The noisy day: the likelihood of any noisy value changes by at most
+`2 ^ dist` between true counts `a` and `b` (group privacy). -/
+theorem noisy_ratio (a b : Counts) (v : Noisy) :
+    noisyDensity a v ≤ 2 ^ dist a b * noisyDensity b v := by
+  unfold noisyDensity dist
   rw [Finset.prod_pow_eq_pow_sum .. |>.symm, ← Finset.prod_mul_distrib]
-  exact Finset.prod_le_prod' (fun j _ => cell_ratio (a j) (b j) (h j) (o j))
+  refine Finset.prod_le_prod' fun j _ => ?_
+  have := lap_shift (v j) (a j) (b j)
+  have hm : ((a j : ℤ) - b j).natAbs = (a j - b j) + (b j - a j) := by omega
+  simpa [hm] using this
 
-/-- **ε = ln 2 per day, for any set of published days.** Two days at distance
-at most one, cells on the same sides of `K`: the probability of any set of
-outputs changes by at most a factor of 2. -/
-theorem day_dp (a b : Counts) (h : SameSide a b) (hd : dist a b ≤ 1) (S : Set Output) :
-    ∑' o, S.indicator (dayDensity a) o ≤ 2 * ∑' o, S.indicator (dayDensity b) o := by
+/-- **The noisy day is ε = ln 2.** Two days at distance at most one: any set
+of noisy days is at most twice as likely under one as under the other. -/
+theorem noisy_dp (a b : Counts) (hd : dist a b ≤ 1) (T : Set Noisy) :
+    ∑' v, T.indicator (noisyDensity a) v ≤ 2 * ∑' v, T.indicator (noisyDensity b) v := by
   rw [← ENNReal.tsum_mul_left]
-  refine ENNReal.tsum_le_tsum fun o => ?_
-  by_cases ho : o ∈ S
-  · simp only [Set.indicator_of_mem ho]
-    calc dayDensity a o ≤ 2 ^ dist a b * dayDensity b o := day_ratio a b h o
-      _ ≤ 2 ^ 1 * dayDensity b o := by gcongr; norm_num
-      _ = 2 * dayDensity b o := by ring
-  · simp [Set.indicator_of_notMem ho]
+  refine ENNReal.tsum_le_tsum fun v => ?_
+  by_cases hv : v ∈ T
+  · simp only [Set.indicator_of_mem hv]
+    calc noisyDensity a v ≤ 2 ^ dist a b * noisyDensity b v := noisy_ratio a b v
+      _ ≤ 2 ^ 1 * noisyDensity b v := by gcongr; norm_num
+      _ = 2 * noisyDensity b v := by ring
+  · simp [Set.indicator_of_notMem hv]
 
-/-- **One beacon, end to end.** Two days whose beacons differ by one beacon,
-with every cell on the same side of `K`: any set of published days is at most
-twice as likely under one as under the other. -/
-theorem visit_dp (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS)
-    (h : SameSide (run (fresh d) d (es₁ ++ e :: es₂)).cells (run (fresh d) d (es₁ ++ es₂)).cells)
-    (S : Set Output) :
+/-- **A day, any counts.** The likelihood of any published day changes by at
+most `2 ^ dist` between true counts `a` and `b`: `m` beacons, `m · ln 2`. -/
+theorem day_ratio (a b : Counts) (o : Output) :
+    dayDensity a o ≤ 2 ^ dist a b * dayDensity b o := by
+  rw [day_is_post, day_is_post]
+  unfold push
+  rw [← ENNReal.tsum_mul_left]
+  refine ENNReal.tsum_le_tsum fun v => ?_
+  split_ifs
+  · exact noisy_ratio a b v
+  · simp
+
+/-- **ε = ln 2 per day, for any set of published days, for any counts.** Two
+days at distance at most one: the probability of any set of published days
+changes by at most a factor of 2. By post-processing: suppression reads only
+the noisy value. -/
+theorem day_dp (a b : Counts) (hd : dist a b ≤ 1) (S : Set Output) :
+    ∑' o, S.indicator (dayDensity a) o ≤ 2 * ∑' o, S.indicator (dayDensity b) o := by
+  rw [day_is_post, day_is_post]
+  exact postprocess publishDay _ _ 2 (noisy_dp a b hd) S
+
+/-- **One beacon, end to end.** Two days whose beacons differ by one beacon:
+any set of published days is at most twice as likely under one as under the
+other. -/
+theorem visit_dp (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) (S : Set Output) :
     ∑' o, S.indicator (dayDensity (run (fresh d) d (es₁ ++ e :: es₂)).cells) o
       ≤ 2 * ∑' o, S.indicator (dayDensity (run (fresh d) d (es₁ ++ es₂)).cells) o :=
-  day_dp _ _ h (sensitivity d es₁ es₂ e) S
+  day_dp _ _ (sensitivity d es₁ es₂ e) S
 
-/-- **Where the guarantee stops: the threshold.** A cell at `K - 1` is
-suppressed with probability one, and at `K` never. Thresholding on the true
-count is not differentially private for any ε, which is why `day_dp` and
-`visit_dp` assume `SameSide`. -/
-theorem threshold_breaks_dp :
-    cellDensity (K - 1) .suppressed = 1 ∧ cellDensity K .suppressed = 0 := by
-  constructor
-  · rw [cellDensity_below _ (by unfold K; omega)]; simp
-  · rw [cellDensity_above _ le_rfl]
+/-! ## 9. What suppression no longer promises
+
+Under the true-count rule a cell under `K` was never shown. Under the noisy
+rule it is shown when its noise lifts it to `K`; these are the exact
+probabilities. -/
+
+/-- The probability that a cell with true count `c` is shown. -/
+noncomputable def shown (c : ℕ) : ℝ≥0∞ :=
+  ∑' z : ℤ, if publish c z = .suppressed then 0 else lap z
+
+theorem geometric_half : ∑' n : ℕ, (2⁻¹ : ℝ≥0∞) ^ n = 2 := by
+  rw [ENNReal.tsum_geometric, ENNReal.one_sub_inv_two, inv_inv]
+
+/-- **A cell under `K` is shown with probability `1 / (3 · 2^(K - 1 - c))`.**
+It is shown exactly when its noise is at least `K - c`. -/
+theorem shown_below_k (c : ℕ) (h : c < K) : shown c = (3 * 2 ^ (K - 1 - c))⁻¹ := by
+  obtain ⟨n, hn⟩ : ∃ n, K - c = n + 1 := ⟨K - c - 1, by omega⟩
+  have hn' : K - 1 - c = n := by omega
+  have hiff : ∀ z : ℤ, publish c z = .suppressed ↔ z < ((n + 1 : ℕ) : ℤ) := by
+    intro z
+    rw [← hn]
+    unfold publish
+    split_ifs with hk
+    · simp only [true_iff]; omega
+    · simp only [false_iff]; omega
+  have hpos : HasSum (fun i : ℕ => if publish c i = .suppressed then 0 else lap i)
+      (3⁻¹ * 2⁻¹ ^ (n + 1) * 2) := by
+    rw [ENNReal.summable.hasSum_iff]
+    rw [← Summable.sum_add_tsum_nat_add' (k := n + 1) ENNReal.summable]
+    have hfin : ∑ i ∈ Finset.range (n + 1),
+        (if publish c (i : ℤ) = .suppressed then 0 else lap i) = 0 := by
+      refine Finset.sum_eq_zero fun i hi => ?_
+      have : publish c (i : ℤ) = .suppressed := (hiff i).mpr (by simp at hi; omega)
+      simp [this]
+    have htail : ∀ i : ℕ,
+        (if publish c ((i + (n + 1) : ℕ) : ℤ) = .suppressed then 0
+          else lap ((i + (n + 1) : ℕ) : ℤ)) = 3⁻¹ * 2⁻¹ ^ (n + 1) * 2⁻¹ ^ i := by
+      intro i
+      have : ¬ publish c ((i + (n + 1) : ℕ) : ℤ) = .suppressed := by
+        rw [hiff]; omega
+      simp only [this, if_false, lap, Int.natAbs_natCast]
+      rw [pow_add]
+      ring
+    rw [hfin, zero_add]
+    simp only [htail]
+    rw [ENNReal.tsum_mul_left, geometric_half]
+  have hneg : HasSum (fun i : ℕ =>
+      if publish c (-((i : ℤ) + 1)) = .suppressed then 0 else lap (-((i : ℤ) + 1))) 0 := by
+    have : ∀ i : ℕ, publish c (-((i : ℤ) + 1)) = .suppressed := fun i => (hiff _).mpr (by omega)
+    simp only [this, if_true]
+    exact hasSum_zero
+  have hall := HasSum.of_nat_of_neg_add_one
+    (f := fun z : ℤ => if publish c z = .suppressed then 0 else lap z) hpos hneg
+  rw [shown, hall.tsum_eq, add_zero, hn', pow_succ, ENNReal.mul_inv (by simp) (by simp),
+    ENNReal.inv_pow]
+  rw [mul_assoc, mul_assoc, ENNReal.inv_mul_cancel (by norm_num) (by norm_num), mul_one]
+
+/-- **A cell with no visits is shown with probability 1/1536.** -/
+theorem shown_zero : shown 0 = 1536⁻¹ := by
+  rw [shown_below_k 0 (by unfold K; omega)]
+  norm_num [K]
+
+/-- **A cell with 9 visits is shown with probability 1/3.** -/
+theorem shown_nine : shown 9 = 3⁻¹ := by
+  rw [shown_below_k 9 (by unfold K; omega)]
+  norm_num [K]
+
+/-- **Every cell under `K` is shown with probability at most 1/3.** -/
+theorem shown_below_k_le (c : ℕ) (h : c < K) : shown c ≤ 3⁻¹ := by
+  rw [shown_below_k c h]
+  refine ENNReal.inv_le_inv.mpr ?_
+  calc (3 : ℝ≥0∞) = 3 * 1 := (mul_one 3).symm
+    _ ≤ 3 * 2 ^ (K - 1 - c) := by gcongr; exact one_le_pow₀ (by norm_num)
 
 end QedAnalytics
