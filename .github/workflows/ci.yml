@@ -40,6 +40,9 @@ jobs:
           - dir: contracts/deliveries
             packages: ""
             test: cargo test --locked
+          - dir: contracts/analytics
+            packages: ""
+            test: cargo test --locked
           - dir: contracts/proof-acceptance
             fmt: -p nucleus-proof-acceptance
             packages: -p nucleus-proof-acceptance --no-deps
@@ -128,3 +131,49 @@ jobs:
         run: curl --proto =https --tlsv1.2 -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh -o "$RUNNER_TEMP/elan-init.sh" && sh "$RUNNER_TEMP/elan-init.sh" -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: lake build
         run: lake build
+
+  # The visit collector's Lean: its meaning (Spec.lean), Aeneas's translation
+  # of its core (Types.lean, Funs.lean) and the proofs that the translation
+  # computes the meaning (Refines.lean). Mathlib comes prebuilt from its own
+  # cache; the Aeneas library is built here.
+  lean-analytics:
+    name: lean (contracts/analytics)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: contracts/analytics/lean
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: elan
+        run: curl --proto =https --tlsv1.2 -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh -o "$RUNNER_TEMP/elan-init.sh" && sh "$RUNNER_TEMP/elan-init.sh" -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Mathlib's prebuilt files
+        run: lake exe cache get
+      - name: lake build
+        run: lake build
+
+  # The committed translation is what Charon and Aeneas (release
+  # nightly-2026.06.10, SHA-256 pinned below) make of core.rs today.
+  aeneas-analytics:
+    name: aeneas (contracts/analytics translation)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: contracts/analytics
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Charon's toolchain
+        run: rustup toolchain install nightly-2026-06-01 --profile minimal --component rustc-dev,llvm-tools-preview,rust-src
+      - name: Charon and Aeneas
+        run: curl --proto =https --tlsv1.2 -sSfL -o "$RUNNER_TEMP/aeneas.tgz" https://github.com/AeneasVerif/aeneas/releases/download/nightly-2026.06.10/aeneas-linux-x86_64.tar.gz && echo "0d2e6682029b66a7f5f60f53b89e51e382fe95331bf051569509794abc69f86b  $RUNNER_TEMP/aeneas.tgz" | sha256sum -c - && mkdir "$RUNNER_TEMP/aeneas" && tar -xzf "$RUNNER_TEMP/aeneas.tgz" -C "$RUNNER_TEMP/aeneas"
+      - name: extract (Charon)
+        run: rustup run nightly-2026-06-01 "$RUNNER_TEMP/aeneas/charon" cargo --preset aeneas --start-from qed_analytics::core::handle --start-from qed_analytics::core::limit --start-from qed_analytics::core::publish_cell --start-from qed_analytics::core::fresh --dest-file "$RUNNER_TEMP/qed_analytics.llbc" -- --lib
+      - name: translate (Aeneas)
+        run: '"$RUNNER_TEMP/aeneas/aeneas" -backend lean -split-files "$RUNNER_TEMP/qed_analytics.llbc" -dest "$RUNNER_TEMP/out"'
+      - name: the committed translation is this one
+        run: cmp "$RUNNER_TEMP/out/Types.lean" lean/QedAnalytics/Types.lean && cmp "$RUNNER_TEMP/out/Funs.lean" lean/QedAnalytics/Funs.lean

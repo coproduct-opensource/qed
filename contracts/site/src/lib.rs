@@ -20,6 +20,7 @@ pub mod schema;
 pub mod serving;
 pub mod signing;
 pub mod status;
+pub mod visits;
 pub mod words;
 
 use nucleus_board_reference as board;
@@ -1128,6 +1129,7 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     if let Some(page) = status::page(input, status_snapshot.as_ref()) {
         docs_list.push(page);
     }
+    docs_list.push(visits::page(input, repository)?);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     if let Some((ledger_input, snapshot)) = options.ledger {
         let mut index = Vec::new();

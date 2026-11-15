@@ -42,6 +42,12 @@ pub const CHECKER_PAGE_PATHS: [&str; 4] = [
     "/verify/index.md",
 ];
 
+/// Paths answered by the visit collector (contracts/analytics), which the
+/// host forwards to it; no file is served there. The local preview has no
+/// collector, so the link check skips them and `check-live` reads
+/// `/analytics/published` from the host.
+pub const COLLECTOR_PATHS: [&str; 2] = ["/analytics/beacon", "/analytics/published"];
+
 /// Strict-Transport-Security. The whole `.dev` top-level domain is on
 /// browsers' preload list already, so `preload` adds nothing here.
 pub const HSTS: &str = "max-age=63072000; includeSubDomains";
@@ -240,10 +246,9 @@ pub fn caddy(host: &str, root: &str) -> String {
 \t\t\tstatus 404\n\
 \t\t}}\n\
 \t}}\n\
-\tlog {{\n\
-\t\toutput stderr\n\
-\t\tformat console\n\
-\t}}\n\
+\t# No `log` directive: Caddy writes no access log. Until 2026-11-15 this\n\
+\t# block had one, and every request's address and user agent went to\n\
+\t# the journal, syslog and the serial console (contracts/analytics/README.md).\n\
 }}\n",
         cross = cross.join(" "),
         cross_dirs = cross_dirs.join(" "),
@@ -343,6 +348,24 @@ mod tests {
         assert_eq!(candidates("/deployment.json?x", true)[1], "deployment.json");
         assert!(wants_markdown("text/markdown, text/html;q=0.9"));
         assert!(!wants_markdown("text/html,application/xhtml+xml,*/*;q=0.8"));
+    }
+
+    /// Caddy writes an access log only where a `log` directive asks for one.
+    /// The block once had one (2026-11-13 to 2026-11-15).
+    #[test]
+    fn the_site_block_asks_for_no_access_log() {
+        let block = caddy("qed.test", "/srv/x");
+        let directives: Vec<&str> = block
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.starts_with('#'))
+            .collect();
+        assert!(
+            !directives
+                .iter()
+                .any(|l| *l == "log" || l.starts_with("log ")),
+            "{block}"
+        );
     }
 
     #[test]

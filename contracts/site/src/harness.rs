@@ -483,6 +483,9 @@ pub fn internal_links_resolve(base: &str, paths: &[String]) -> Res<Vec<String>> 
             if !reference.starts_with('/') || reference.starts_with("//") {
                 continue;
             }
+            if crate::serving::COLLECTOR_PATHS.contains(&reference.as_str()) {
+                continue;
+            }
             let (target, fragment) = match reference.split_once('#') {
                 Some((t, f)) => (t.to_owned(), Some(f.to_owned())),
                 None => (reference.clone(), None),

@@ -232,7 +232,9 @@ fn every_document_has_html_and_markdown_and_the_markdown_says_the_same_facts() {
         let md = file(&files, &format!("{d}index.md"));
         assert!(md.starts_with("# "), "{d}");
         if !d.starts_with("protocol/a2a-iroh-binding") {
-            assert!(!md.contains("<"), "{d}: markup in Markdown");
+            // Outside code fences: a `<` in a fenced Lean statement is text.
+            let prose: String = md.split("```").step_by(2).collect::<Vec<_>>().join("");
+            assert!(!prose.contains("<"), "{d}: markup in Markdown");
         }
     }
     let home = file(&files, "index.md");
@@ -521,11 +523,17 @@ fn no_page_loads_anything_from_another_site() {
         assert!(!html.contains("<style"), "{path}: inline style");
     }
     let js = file(&files, "qed.js");
-    // Three network calls: the live list's and the status page's balance
-    // reads, each to the endpoint the reader sees and can edit; and the
+    // Five network calls: the live list's and the status page's balance
+    // reads, each to the endpoint the reader sees and can edit; the
     // checker's, only to paths on this site (its guard refuses anything
-    // else, and the /verify CSP admits only 'self').
-    assert_eq!(js.matches("fetch(").count(), 3);
+    // else, and the /verify CSP admits only 'self'); and the visit beacon
+    // and the /visits table, each to one fixed path on this site, without
+    // credentials.
+    assert_eq!(js.matches("fetch(").count(), 5);
+    assert_eq!(js.matches("fetch(\"/analytics/beacon\", {").count(), 1);
+    assert_eq!(js.matches("fetch(\"/analytics/published\", {").count(), 1);
+    assert_eq!(js.matches("credentials: \"omit\"").count(), 3);
+    assert!(!js.contains("document.cookie"));
     assert_eq!(js.matches("await fetch(url, {").count(), 2);
     assert_eq!(js.matches("return fetch(url, {").count(), 1);
     assert!(js.contains("var url = document.getElementById(\"status-rpc\").value.trim();"));
@@ -538,12 +546,26 @@ fn no_page_loads_anything_from_another_site() {
         "WebSocket",
         "EventSource",
         "document.cookie",
-        "localStorage",
         "sessionStorage",
         "eval(",
     ] {
         assert!(!js.contains(never), "{never}");
     }
+    // One stored value, by owner decision (2026-11-14, the "first visit
+    // today" bit is kept in the browser): the UTC date of the last beacon,
+    // under one key, read once and written once.
+    assert_eq!(js.matches("localStorage").count(), 2);
+    assert_eq!(
+        js.matches("localStorage.getItem(\"qed-beacon-day\") !== today")
+            .count(),
+        1
+    );
+    assert_eq!(
+        js.matches("localStorage.setItem(\"qed-beacon-day\", today)")
+            .count(),
+        1
+    );
+    assert!(js.contains("var today = new Date().toISOString().slice(0, 10);"));
     let css = file(&files, "qed.css");
     assert!(!css.contains("@import") && !css.contains("url("));
     // The scanner fires.

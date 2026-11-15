@@ -29,3 +29,6 @@ base64 = "0.23"
 # The bounty buyer's signed summary of delivery attempts, checked against
 # its key binding before the status page shows it.
 qed-deliveries = { path = "../deliveries" }
+# The visit collector's allow-list of page labels: a page sends a beacon
+# with its label only if the collector counts it (one list, theirs).
+qed-analytics = { path = "../analytics" }

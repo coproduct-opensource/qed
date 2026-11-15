@@ -3275,7 +3275,9 @@ fn seller_doc(blocks: Vec<Block>) -> Doc {
 
 /// The footer every page carries.
 pub fn footer() -> Vec<Block> {
-    vec![p(vec![t(
-        "The contracts decide. No cookies, analytics or third-party loads.",
-    )])]
+    vec![p(vec![
+        t("The contracts decide. No cookies or third-party loads. Visit counts: "),
+        link("/visits", "/visits"),
+        t("."),
+    ])]
 }

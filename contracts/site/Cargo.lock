@@ -712,6 +712,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleus-jsonl"
+version = "1.0.0"
+
+[[package]]
 name = "nucleus-site"
 version = "0.1.0"
 dependencies = [
@@ -722,6 +726,7 @@ dependencies = [
  "nucleus-board-reference",
  "p256",
  "pulldown-cmark",
+ "qed-analytics",
  "qed-deliveries",
  "serde",
  "serde_json",
@@ -879,6 +884,14 @@ name = "pulldown-cmark-escape"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
+
+[[package]]
+name = "qed-analytics"
+version = "0.1.0"
+dependencies = [
+ "nucleus-jsonl",
+ "serde_json",
+]
 
 [[package]]
 name = "qed-deliveries"

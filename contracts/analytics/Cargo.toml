@@ -1,0 +1,17 @@
+[package]
+name = "qed-analytics"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Visit counts for qed.coproduct.dev: a beacon collector whose state depends only on (path, first-visit bit, day), and a daily publisher that suppresses cells under 10 and adds discrete Laplace noise. Its core is translated to Lean by Charon and Aeneas and proved against lean/QedAnalytics/Spec.lean."
+
+[workspace]
+
+[dependencies]
+serde_json = "1"
+nucleus-jsonl = { path = "../../crates/nucleus-jsonl" }
+
+[[bin]]
+name = "qed-analytics"
+path = "src/main.rs"

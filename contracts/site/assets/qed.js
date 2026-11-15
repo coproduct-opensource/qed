@@ -1,9 +1,12 @@
-// QED's only script. Three progressive enhancements; every page reads in
-// full without it. (1) Copy buttons for preformatted text. (2) On /verify,
-// the acceptance rule run in this tab, downloaded only when asked for.
-// (3) On the ledger page, the live list of board posts, read in the browser
-// from a public RPC endpoint. Nothing here talks to a server of the site's
-// authors; the checker and its inputs are static files of this site.
+// QED's only script. Every page reads in full without it. (1) Copy buttons
+// for preformatted text. (2) On /verify, the acceptance rule run in this
+// tab, downloaded only when asked for. (3) On the ledger page, the live list
+// of board posts, read in the browser from a public RPC endpoint. (4) One
+// visit beacon per page view to this site's /analytics/beacon: the page's
+// label and whether this browser sent one earlier that UTC day (a date kept
+// in this browser's storage). No cookie, no identifier. (5) On /visits,
+// the last published day from /analytics/published. /visits shows what the
+// collector stores and the Lean theorems about it.
 "use strict";
 (function () {
   document.querySelectorAll("button[data-copy]").forEach(function (button) {
@@ -347,4 +350,69 @@
       : "Decoder self-test passed: " + site.vectors.length + " logs encoded by the Rust reference decode to the same values here.";
   }
   load();
+})();
+
+(function beacon() {
+  var meta = document.querySelector('meta[name="qed-beacon"]');
+  if (!meta || !window.fetch) return;
+  var today = new Date().toISOString().slice(0, 10);
+  var first = "0";
+  try {
+    if (localStorage.getItem("qed-beacon-day") !== today) {
+      localStorage.setItem("qed-beacon-day", today);
+      first = "1";
+    }
+  } catch (error) { /* no storage: counted as not first */ }
+  fetch("/analytics/beacon", {
+    method: "POST",
+    body: meta.getAttribute("content") + "\n" + first,
+    credentials: "omit",
+    keepalive: true,
+    cache: "no-store",
+    referrerPolicy: "no-referrer"
+  }).catch(function () { /* a lost beacon is a lost count */ });
+})();
+
+(function visits() {
+  var box = document.getElementById("visits");
+  if (!box || !window.fetch) return;
+  var status = document.getElementById("visits-status");
+  function cell(value) {
+    return value === null ? "suppressed" : String(value);
+  }
+  fetch("/analytics/published", { credentials: "omit", cache: "no-store" })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    })
+    .then(function (view) {
+      var days = view.days || [];
+      var day = days[days.length - 1];
+      if (!day) {
+        status.textContent = "No day published yet. Counting " + view.counting + " (UTC); it is published after midnight UTC.";
+        return;
+      }
+      var table = document.createElement("table");
+      var caption = document.createElement("caption");
+      caption.textContent = "Published for " + day.date + " (UTC). Each value is the count plus noise; suppressed: under " + day.k + ".";
+      table.appendChild(caption);
+      var head = document.createElement("tr");
+      ["Path", "Returning", "First visit that day"].forEach(function (name) {
+        var th = document.createElement("th"); th.textContent = name; head.appendChild(th);
+      });
+      table.appendChild(head);
+      day.paths.concat([["malformed", day.malformed, null], ["rate-limited", day.limited, null]]).forEach(function (row, n) {
+        var tr = document.createElement("tr");
+        var path = document.createElement("td"); path.textContent = row[0]; tr.appendChild(path);
+        var a = document.createElement("td"); a.textContent = cell(row[1]); tr.appendChild(a);
+        var b = document.createElement("td"); b.textContent = n < day.paths.length ? cell(row[2]) : ""; tr.appendChild(b);
+        table.appendChild(tr);
+      });
+      status.textContent = "";
+      box.insertBefore(table, status);
+    })
+    .catch(function (error) {
+      status.className = "bad";
+      status.textContent = "Could not read /analytics/published: " + error.message + ".";
+    });
 })();

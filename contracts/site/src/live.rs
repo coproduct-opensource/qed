@@ -51,6 +51,30 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
     if built.join(crate::CHECKER_PATH).is_file() {
         paths.push((crate::CHECKER_PATH.to_owned(), false));
     }
+    // The visit collector answers its published days (a GET; check-live
+    // never sends a beacon, which would count a visit).
+    if https {
+        let published = serving::COLLECTOR_PATHS[1];
+        match agent.get(format!("{base}{published}")).call() {
+            Ok(mut response) if response.status() == 200 => {
+                let body: Option<serde_json::Value> = response
+                    .body_mut()
+                    .read_to_string()
+                    .ok()
+                    .and_then(|t| serde_json::from_str(&t).ok());
+                if body.as_ref().map(|b| &b["record"]) != Some(&"qed-visits-published/1".into()) {
+                    findings.push((
+                        published.into(),
+                        "not a qed-visits-published/1 record".into(),
+                    ));
+                }
+            }
+            Ok(response) => {
+                findings.push((published.into(), format!("status {}", response.status())))
+            }
+            Err(error) => findings.push((published.into(), format!("no response: {error}"))),
+        }
+    }
     for (path, is_card) in &paths {
         let (path, is_card) = (path.as_str(), *is_card);
         let mut fail = |what: String| findings.push((format!("/{path}"), what));

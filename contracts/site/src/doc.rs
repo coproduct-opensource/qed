@@ -541,7 +541,14 @@ pub fn page(doc: &Doc, site: Option<&str>, footer: &[Block]) -> String {
         void("link", &[("rel", "icon"), ("href", "data:,")]),
         void("link", &[("rel", "stylesheet"), ("href", "/qed.css")]),
     ]);
-    if doc.script {
+    // The page's visit-beacon label (contracts/analytics, `paths::label`):
+    // every page on the collector's allow-list sends one, so it loads the
+    // script. The label is the only thing about the page the beacon sends.
+    let beacon = qed_analytics::paths::label(&doc.url());
+    if let Some(label) = beacon {
+        head.push(void("meta", &[("name", "qed-beacon"), ("content", label)]));
+    }
+    if doc.script || beacon.is_some() {
         head.push(el("script", &[("src", "/qed.js"), ("defer", "")], []));
     }
     let mut main = vec![tx("h1", &[], &doc.heading)];

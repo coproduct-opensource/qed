@@ -1,0 +1,20 @@
+{
+  "collector": {
+    "sha256": "40b5c8782af7dc80fac223107dedf93b071f111d4e859f9115d628ee06d37c13",
+    "source": "this repository's root Cargo.toml, crates/nucleus-jsonl and contracts/analytics (digests above), placed at /tmp/qed",
+    "built": "x86_64 Ubuntu 24.04, rustc 1.96.1, GNU ld 2.42",
+    "command": "cd /tmp/qed/contracts/analytics && CARGO_HOME=/tmp/cargo-home RUSTFLAGS='--remap-path-prefix=/tmp/qed=/qed --remap-path-prefix=/tmp/cargo-home=/cargo' cargo +1.96.1 build --release --locked"
+  },
+  "audit": {
+    "checked": "2026-11-15",
+    "rows": [
+      ["Caddy access log", "None: the site's Caddy block has no log directive. From 2026-11-13 01:31 UTC until this release it had one, and every request's address and user agent went to the journal, /var/log/syslog and the serial console."],
+      ["Caddy error log", "Caddy logs a request, address included, when a handler fails with a 5xx and no error route handles it. The site's error route handles every error at debug level, which is not written."],
+      ["The collector's own log", "Its start, each published day, and state-directory errors; nothing about a request."],
+      ["Load balancer, Cloud Armor, packet mirroring", "None in the project: the instance holds its address itself."],
+      ["VPC flow logs, firewall logging", "Off on the instance's subnet and on every firewall rule."],
+      ["Cloud Logging", "The instance has no service account, so nothing on it can write there, and serial-port output is not exported. The project's logs could not be read with the operator's credential to confirm it."],
+      ["DNS query logging", "Could not be read with the operator's credential."]
+    ]
+  }
+}
