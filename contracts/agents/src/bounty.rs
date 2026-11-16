@@ -44,6 +44,17 @@ pub struct Limits {
     pub tasks: u32,
     /// Seconds between one task ending and the next post.
     pub pause: u64,
+    /// The most posts this journal may ever make, counted by `posted`
+    /// lines. `None` for the standing bounty, which posts again after a
+    /// window ends; `Some(1)` for a ladder post (`tasks.rs`), which posts
+    /// once and never again (proofs/commerce/LadderPost.lean, `intent`'s
+    /// `first`).
+    pub posts: Option<u32>,
+    /// Gas units the wallet's ether must cover, at the price read before
+    /// posting, before a task is posted: the buyer's own transactions for
+    /// one task. `None` for the standing bounty (not checked); the ladder's
+    /// is `tasks::LADDER_GAS` (gap 3).
+    pub gas: Option<u128>,
 }
 
 /// What the journal is about. A journal is never continued against another.
@@ -618,6 +629,9 @@ pub trait Market {
     fn block(&mut self) -> Res<u64>;
     /// The buyer's balance of the token.
     fn wallet(&mut self) -> Res<u64>;
+    /// The buyer's ether in wei, and the wei per gas its transactions
+    /// would offer now. Asked only when `Limits::gas` is set.
+    fn ether(&mut self) -> Res<(u128, u128)>;
     /// Choose the next task's terms. No effect on anything outside.
     fn prepare(&mut self, price: u64) -> Res<TaskRef>;
     /// Open the desk for the prepared task and post it. Returns the transaction.
@@ -666,11 +680,25 @@ pub enum Stop {
     /// As many funded orders were refunded undelivered as the task limit:
     /// sellers keep taking the post and not proving (R-4, 2026-11-14).
     Refunds,
+    /// As many posts were made as `Limits::posts` allows.
+    PostLimit,
+    /// The wallet's ether does not cover `Limits::gas` at the price read
+    /// now: `have` and `need` in wei.
+    Gas {
+        have: u128,
+        need: u128,
+    },
 }
+impl std::error::Error for Stop {}
 impl std::fmt::Display for Stop {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TaskLimit => write!(f, "the task limit is reached"),
+            Self::PostLimit => write!(f, "the post limit is reached; nothing more is posted"),
+            Self::Gas { have, need } => write!(
+                f,
+                "the wallet holds {have} wei; its own post, withdrawal, refund and claim need {need} wei at today's price, with headroom"
+            ),
             Self::Failures => write!(
                 f,
                 "as many posts were withdrawn because this buyer could not resume them as the task limit; stopping for the operator"
@@ -687,6 +715,10 @@ impl std::fmt::Display for Stop {
 
 /// Seconds between looks at the chain while a task is open.
 const POLL: u64 = 15;
+/// `Limits::gas` is checked at this many times the price read before
+/// posting: the withdrawal or refund it pays for may be sent up to 16 days
+/// later, and a sender holds gas limit × price up front.
+pub const GAS_HEADROOM: u128 = 2;
 /// Seconds before a step that failed transiently runs again: doubled after
 /// each failure in a row, up to the most (R-2).
 const RETRY_FIRST: u64 = 15;
@@ -775,7 +807,7 @@ fn step(
     market: &mut dyn Market,
     first: bool,
 ) -> Res<Option<Stop>> {
-    let (open, spent, settled, refunded, failed) = {
+    let (open, spent, settled, refunded, failed, posted) = {
         let journal = locked(journal)?;
         let ledger = journal.ledger();
         (
@@ -784,6 +816,7 @@ fn step(
             ledger.settled,
             ledger.refunded,
             ledger.failures,
+            ledger.posted,
         )
     };
     let record = |entry: Entry| -> Res<()> { locked(journal)?.record(entry) };
@@ -798,10 +831,16 @@ fn step(
                 Some(Stop::Failures)
             } else if refunded >= limits.tasks {
                 Some(Stop::Refunds)
+            } else if limits.posts.is_some_and(|most| posted >= most) {
+                Some(Stop::PostLimit)
             } else if spent.saturating_add(limits.price) > limits.budget {
                 Some(Stop::Budget)
             } else if market.wallet()? < limits.price {
                 Some(Stop::Wallet)
+            } else if let Some(units) = limits.gas {
+                let (have, price) = market.ether()?;
+                let need = units.saturating_mul(price).saturating_mul(GAS_HEADROOM);
+                (have < need).then_some(Stop::Gas { have, need })
             } else {
                 None
             };
@@ -882,46 +921,153 @@ fn step(
                 })?;
             }
         }
-        Some(Open::Signed(_, order)) => match market.phase(&order)? {
-            Phase::Settled => {
-                let verdict = market.check_settled(&order)?;
-                let block = market.block()?;
-                record(Entry::Settled {
-                    digest: order.digest,
-                    paid: order.amount,
-                    checked: verdict.is_ok(),
-                    block,
-                })?;
-                if let Err(why) = verdict {
-                    let reason = format!("a settled artifact was refused: {why}");
-                    record(Entry::Stopped {
-                        reason: reason.clone(),
-                    })?;
-                    return Err(reason.into());
-                }
-            }
-            Phase::Funded if market.now()? > order.order.deliver_by => {
-                market.refund(&order)?;
-            }
-            Phase::Refunded => {
-                market.recover()?;
-                let block = market.block()?;
-                record(Entry::Refunded {
-                    digest: order.digest,
-                    block,
-                })?;
-            }
-            Phase::Empty if market.now()? > order.order.fund_by => {
-                let block = market.block()?;
-                record(Entry::Lapsed {
-                    digest: order.digest,
-                    block,
-                })?;
-            }
-            Phase::Funded | Phase::Empty => market.wait(POLL)?,
+        Some(Open::Signed(_, order)) => match follow(journal, market, &order)? {
+            Followed::Moved => {}
+            Followed::Waiting(_) => market.wait(POLL)?,
         },
     }
     Ok(None)
+}
+
+/// What one look at a signed order did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Followed {
+    /// It sent a transaction or journaled an outcome.
+    Moved,
+    /// Nothing is due yet: the order is funded before its delivery
+    /// deadline, or unfunded before its funding deadline (which, in seconds
+    /// since the epoch).
+    Waiting(Waiting),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Waiting {
+    Delivery { deliver_by: u64 },
+    Funding { fund_by: u64 },
+}
+
+/// The one decider for a signed order (rule 5, and gap 2 of the merge
+/// ladder): settled is checked and journaled; funded past its delivery
+/// deadline is refunded; refunded is claimed back and journaled; unfunded
+/// past its funding deadline is journaled lapsed. `step` and `finish` both
+/// come here.
+fn follow(journal: &Shared, market: &mut dyn Market, order: &OrderRef) -> Res<Followed> {
+    let record = |entry: Entry| -> Res<()> { locked(journal)?.record(entry) };
+    match market.phase(order)? {
+        Phase::Settled => {
+            let verdict = market.check_settled(order)?;
+            let block = market.block()?;
+            record(Entry::Settled {
+                digest: order.digest,
+                paid: order.amount,
+                checked: verdict.is_ok(),
+                block,
+            })?;
+            if let Err(why) = verdict {
+                let reason = format!("a settled artifact was refused: {why}");
+                record(Entry::Stopped {
+                    reason: reason.clone(),
+                })?;
+                return Err(reason.into());
+            }
+        }
+        Phase::Funded if market.now()? > order.order.deliver_by => {
+            market.refund(order)?;
+        }
+        Phase::Refunded => {
+            market.recover()?;
+            let block = market.block()?;
+            record(Entry::Refunded {
+                digest: order.digest,
+                block,
+            })?;
+        }
+        Phase::Empty if market.now()? > order.order.fund_by => {
+            let block = market.block()?;
+            record(Entry::Lapsed {
+                digest: order.digest,
+                block,
+            })?;
+        }
+        Phase::Funded => {
+            return Ok(Followed::Waiting(Waiting::Delivery {
+                deliver_by: order.order.deliver_by,
+            }));
+        }
+        Phase::Empty => {
+            return Ok(Followed::Waiting(Waiting::Funding {
+                fund_by: order.order.fund_by,
+            }));
+        }
+    }
+    Ok(Followed::Moved)
+}
+
+/// Why `finish` did not end a journal's signed order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unfinished {
+    /// The journal has no signed order open (what it has, in words).
+    NoSignedOrder(String),
+    /// The order is funded and its delivery deadline has not passed: the
+    /// vault refuses `refund` until then, and the seller may still settle.
+    NotYetRefundable { deliver_by: u64, now: u64 },
+    /// The order is not funded and its funding deadline has not passed: it
+    /// may still be funded.
+    NotYetLapsed { fund_by: u64, now: u64 },
+}
+impl std::fmt::Display for Unfinished {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoSignedOrder(open) => {
+                write!(f, "the journal has no signed order open (open: {open})")
+            }
+            Self::NotYetRefundable { deliver_by, now } => write!(
+                f,
+                "the order is funded and its delivery deadline {deliver_by} has not passed (now {now}); the vault refuses a refund until then"
+            ),
+            Self::NotYetLapsed { fund_by, now } => write!(
+                f,
+                "the order is not funded and its funding deadline {fund_by} has not passed (now {now})"
+            ),
+        }
+    }
+}
+impl std::error::Error for Unfinished {}
+
+/// `task-refund`: follow the journal's signed order to its end now, without
+/// posting or waiting: refund and claim a funded order past its delivery
+/// deadline, journal a settlement or a lapse. Refuses, changing nothing,
+/// when nothing is due yet.
+pub fn finish(journal: &Shared, market: &mut dyn Market) -> Res<()> {
+    attribute(journal, market)?;
+    let mut moved = false;
+    loop {
+        let open = locked(journal)?.ledger().open.clone();
+        let order = match open {
+            Some(Open::Signed(_, order)) => order,
+            // The order reached its end in this call.
+            None if moved => return Ok(()),
+            None => return Err(Unfinished::NoSignedOrder("nothing".into()).into()),
+            Some(Open::Intent(task)) => {
+                let open = format!("intent {}", hex(&task.id));
+                return Err(Unfinished::NoSignedOrder(open).into());
+            }
+            Some(Open::Posted(task)) => {
+                let open = format!("posted {}", hex(&task.id));
+                return Err(Unfinished::NoSignedOrder(open).into());
+            }
+        };
+        match follow(journal, market, &order)? {
+            Followed::Moved => moved = true,
+            Followed::Waiting(Waiting::Delivery { deliver_by }) => {
+                let now = market.now()?;
+                return Err(Unfinished::NotYetRefundable { deliver_by, now }.into());
+            }
+            Followed::Waiting(Waiting::Funding { fund_by }) => {
+                let now = market.now()?;
+                return Err(Unfinished::NotYetLapsed { fund_by, now }.into());
+            }
+        }
+    }
 }
 
 /// Close a bounty: leave nothing open on the board and say so in the
@@ -981,7 +1127,7 @@ pub fn close(journal: &Shared, market: &mut dyn Market) -> Res<()> {
 }
 
 /// The real market: a deployment, a board, this buyer's keys and its desk.
-struct Live {
+pub(crate) struct Live {
     world: World,
     board: Board,
     keys: Keys,
@@ -990,7 +1136,12 @@ struct Live {
     /// open post is withdrawn with this as the reason (R-3).
     statement: Result<Statement, String>,
     program: Hash,
-    post_window: u64,
+    /// Seconds from posting to the funding and the delivery deadline.
+    funding_window: u64,
+    delivery_window: u64,
+    /// Where a settled artifact that passes the checker is also written,
+    /// with its order (`post-tasks`). `None` for the standing bounty.
+    delivered: Option<PathBuf>,
     bind: String,
     relay: iroh_net::Relay,
     node: String,
@@ -1077,13 +1228,26 @@ impl Market for Live {
     fn wallet(&mut self) -> Res<u64> {
         units(self.world.balance(self.keys.address())?)
     }
+    fn ether(&mut self) -> Res<(u128, u128)> {
+        // What `Chain::send` offers per gas: the node's price plus 5 %.
+        let price = self
+            .world
+            .chain
+            .rpc("eth_gasPrice", json!([]))?
+            .as_str()
+            .and_then(|text| u128::from_str_radix(text.trim_start_matches("0x"), 16).ok())
+            .ok_or("eth_gasPrice: a quantity expected")?
+            .saturating_mul(21)
+            / 20;
+        Ok((self.world.chain.balance(self.keys.address())?, price))
+    }
     fn prepare(&mut self, price: u64) -> Res<TaskRef> {
         let now = wall_clock()?;
         let salt = random32()?;
         let task = self.task_with(
             price,
-            now + self.post_window,
-            now + self.post_window + DELIVERY_AFTER_FUNDING,
+            now + self.funding_window,
+            now + self.delivery_window,
             salt,
         )?;
         if let Some(refusal) = task.refusal(now) {
@@ -1295,6 +1459,14 @@ impl Market for Live {
                         artifact.len(),
                         accepted.proof
                     );
+                    if let Some(dir) = &self.delivered {
+                        fs::create_dir_all(dir)?;
+                        fs::write(dir.join("delivered.ndjson"), &artifact)?;
+                        fs::write(
+                            dir.join("order.json"),
+                            serde_json::to_vec_pretty(&WireOrder::from_order(&order.order))?,
+                        )?;
+                    }
                     Ok(())
                 }
                 Err(refusal) => Err(format!("{refusal:?}")),
@@ -1457,6 +1629,10 @@ pub fn bounty(args: &[String]) -> Res<()> {
         budget: budget.parse()?,
         tasks: tasks.parse()?,
         pause: pause.parse()?,
+        // The standing bounty posts again after a window ends, and does not
+        // check its ether (unchanged by the ladder's gaps, 2026-11-16).
+        posts: None,
+        gas: None,
     };
     if limits.price == 0 || limits.price > limits.budget {
         return Err("the price must be positive and within the budget".into());
@@ -1531,17 +1707,63 @@ fn live(
     post_window: &str,
     bind: &str,
 ) -> Res<(Live, Shared)> {
+    let statement_path = statement;
+    let statement = fs::read(statement_path)
+        .map_err(|error| format!("the statement file {statement_path} cannot be read: {error}"));
+    let post_window: u64 = post_window.parse()?;
+    let terms = Terms {
+        claim: "Nucleus.Claim".into(),
+        permitted_axioms: vec![],
+        maximum_artifact_bytes: 65_536,
+        program: unhex(program)?
+            .try_into()
+            .map_err(|_| "program id length")?,
+        funding_window: post_window,
+        delivery_window: post_window + DELIVERY_AFTER_FUNDING,
+    };
+    live_with(
+        deployment,
+        board_address,
+        keyfile,
+        statement,
+        terms,
+        Path::new(journal),
+        bind,
+        None,
+    )
+}
+
+/// What a post commits to beyond the statement: the policy's claim, axioms
+/// and artifact limit, the program, and the two windows from posting.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Terms {
+    pub claim: String,
+    pub permitted_axioms: Vec<String>,
+    pub maximum_artifact_bytes: u32,
+    pub program: Hash,
+    pub funding_window: u64,
+    pub delivery_window: u64,
+}
+
+/// The live market for a statement (or why it cannot be read) and terms,
+/// and the journal at `journal_path`. The standing bounty and the ladder
+/// post (`tasks.rs`) both start here.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn live_with(
+    deployment: &str,
+    board_address: &str,
+    keyfile: &str,
+    statement: Result<Vec<u8>, String>,
+    terms: Terms,
+    journal_path: &Path,
+    bind: &str,
+    delivered: Option<PathBuf>,
+) -> Res<(Live, Shared)> {
     let world = World::read(deployment)?;
     if !Path::new(keyfile).exists() {
         return Err("key file does not exist".into());
     }
     let keys = Keys::load_or_create(keyfile)?;
-    let statement_path = statement;
-    let statement = fs::read(statement_path)
-        .map_err(|error| format!("the statement file {statement_path} cannot be read: {error}"));
-    let program: Hash = unhex(program)?
-        .try_into()
-        .map_err(|_| "program id length")?;
     let board = Board {
         chain: world.chain.clone(),
         address: address_arg(board_address)?,
@@ -1549,7 +1771,6 @@ fn live(
     if board.vault()? != world.deployment.vault {
         return Err("the board is for another vault than this deployment's".into());
     }
-    let journal_path = Path::new(journal);
     let journal: Shared = Arc::new(Mutex::new(Journal::open(
         journal_path,
         Header {
@@ -1578,9 +1799,9 @@ fn live(
         Ok(bytes) => Ok(Statement {
             policy: Policy {
                 statement_sha256: Sha256::digest(&bytes).into(),
-                claim: "Nucleus.Claim".into(),
-                permitted_axioms: vec![],
-                maximum_artifact_bytes: 65_536,
+                claim: terms.claim.clone(),
+                permitted_axioms: terms.permitted_axioms.clone(),
+                maximum_artifact_bytes: terms.maximum_artifact_bytes,
             },
             blake3: runtime.block_on(crate::blobs::add(&store, bytes.clone()))?,
             bytes,
@@ -1653,8 +1874,10 @@ fn live(
         board,
         keys,
         statement,
-        program,
-        post_window: post_window.parse()?,
+        program: terms.program,
+        funding_window: terms.funding_window,
+        delivery_window: terms.delivery_window,
+        delivered,
         bind: bind.to_owned(),
         relay,
         node,

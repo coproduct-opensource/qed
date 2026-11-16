@@ -4,4 +4,4 @@ defaultTargets = ["Commerce"]
 
 [[lean_lib]]
 name = "Commerce"
-roots = ["Amounts", "Vault", "Vault3", "Board", "Registry"]
+roots = ["Amounts", "Vault", "Vault3", "Board", "Registry", "LadderPost"]

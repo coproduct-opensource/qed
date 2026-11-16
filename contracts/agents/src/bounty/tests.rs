@@ -68,6 +68,11 @@ struct World {
     statement_missing: bool,
     /// Waits for which a transaction from the buyer is still pending.
     pending: u32,
+    /// The buyer's ether and the price per gas it would offer (gap 3).
+    ether: u128,
+    gas_price: u128,
+    /// Posts ever made on the board (a withdrawn post still counts).
+    posts_ever: u32,
 }
 impl World {
     fn at_risk(&self) -> u64 {
@@ -216,6 +221,10 @@ impl Market for Fake {
     fn block(&mut self) -> Res<u64> {
         Ok(self.world.borrow().block)
     }
+    fn ether(&mut self) -> Res<(u128, u128)> {
+        let world = self.world.borrow();
+        Ok((world.ether, world.gas_price))
+    }
     fn wallet(&mut self) -> Res<u64> {
         let world = self.world.borrow();
         if self.broke_after.is_some_and(|n| world.withdrawals >= n) {
@@ -270,6 +279,7 @@ impl Market for Fake {
                 "a second task was posted while one was open"
             );
             world.posts += 1;
+            world.posts_ever += 1;
             world.board.insert(task.id, false);
         }
         self.desks.insert(task.id);
@@ -365,6 +375,8 @@ const LIMITS: Limits = Limits {
     budget: 250,
     tasks: 10,
     pause: 30,
+    posts: None,
+    gas: None,
 };
 
 /// A seller that answers every post it sees, at the cap.
@@ -1232,4 +1244,243 @@ fn unanswered_windows_do_not_stop_the_bounty_only_settlements_do() {
     assert_eq!(world.withdrawals, 5, "five windows ended unanswered");
     assert_eq!(world.paid, 200, "two tasks settled, the limit");
     assert!(world.peak_exposure <= LIMITS.budget);
+}
+
+// The ladder post (`tasks.rs`): the same journal run as a one-shot, with
+// gap 3's wallet check. proofs/commerce/LadderPost.lean is the model; each
+// test below is one of its theorems seen from outside, through the fake
+// chain. Red runs: docs/rfcs/qed-nucleus-merge-ladder-2026-11-14.md,
+// section 10, "Gaps 1 to 3: built".
+
+const ONE_SHOT: Limits = Limits {
+    price: 100,
+    budget: 100,
+    tasks: 1,
+    pause: 0,
+    posts: Some(1),
+    gas: Some(1_000),
+};
+/// A wallet that covers the cap and the gas: 1,000 gas at 1 wei, twice.
+fn ladder_chain() -> Chain {
+    let world = chain(1_000);
+    {
+        let mut w = world.borrow_mut();
+        w.ether = 2_000;
+        w.gas_price = 1;
+    }
+    world
+}
+
+/// Gap 1, a kill between the intent and the post: the restart finds nothing
+/// on the board and nothing pending, drops the intent, and posts once.
+#[test]
+fn a_ladder_post_killed_before_it_was_sent_is_dropped_and_posted_once() {
+    let (path, world) = (scratch(), ladder_chain());
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.kill = Some(("post", false));
+        assert!(run(ONE_SHOT, &journal, &mut fake).is_err());
+        assert!(matches!(
+            journal.lock().unwrap().ledger().open,
+            Some(Open::Intent(_))
+        ));
+    }
+    assert_eq!(world.borrow().posts_ever, 0);
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(eager());
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    assert_eq!(world.borrow().posts_ever, 1);
+    assert_eq!(world.borrow().paid, 100);
+    assert!(fs::read_to_string(&path).unwrap().contains("\"abandoned\""));
+}
+
+/// Gap 1, a kill after the post was sent: the restart finds it on the board
+/// and journals it posted; nobody answers, so it is withdrawn at its funding
+/// deadline, and nothing is ever posted again. Red with `posts: None` (the
+/// standing bounty's rule): the run posts again after the window.
+#[test]
+fn a_ladder_post_killed_after_it_was_sent_is_found_and_never_posted_again() {
+    let (path, world) = (scratch(), ladder_chain());
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.kill = Some(("post", true));
+        assert!(run(ONE_SHOT, &journal, &mut fake).is_err());
+    }
+    assert_eq!(world.borrow().posts_ever, 1);
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::PostLimit);
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.withdrawals, w.posts, w.paid), (1, 1, 0, 0));
+    // A third run of the same journal posts nothing either.
+    drop(w);
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::PostLimit);
+    assert_eq!(world.borrow().posts_ever, 1);
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("found on the board"), "{text}");
+}
+
+/// Gap 1, resume: a kill while the post is open, then a restart that
+/// reopens the desk; a seller still wins the same post.
+#[test]
+fn a_ladder_post_resumed_after_a_kill_can_still_settle() {
+    let (path, world) = (scratch(), ladder_chain());
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.kill = Some(("wait", false));
+        assert!(run(ONE_SHOT, &journal, &mut fake).is_err());
+        assert!(matches!(
+            journal.lock().unwrap().ledger().open,
+            Some(Open::Posted(_))
+        ));
+    }
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(eager());
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.withdrawals, w.paid), (1, 0, 100));
+}
+
+/// Gap 1, `task-withdraw`: an orphaned post (its process killed) is
+/// withdrawn from the journal, and a later `post-tasks` on that journal
+/// posts nothing.
+#[test]
+fn task_withdraw_ends_an_orphaned_post_and_nothing_is_posted_after() {
+    let (path, world) = (scratch(), ladder_chain());
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.kill = Some(("wait", false));
+        assert!(run(ONE_SHOT, &journal, &mut fake).is_err());
+    }
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    close(&journal, &mut fake).unwrap();
+    assert_eq!((world.borrow().withdrawals, world.borrow().posts), (1, 0));
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::PostLimit);
+    assert_eq!(world.borrow().posts_ever, 1);
+}
+
+/// Gap 2, `task-refund`: a funded order is refused a refund before its
+/// delivery deadline, with nothing written; after it, refunded and claimed
+/// back, journaled, and the journal posts nothing more.
+#[test]
+fn task_refund_refunds_a_funded_order_only_after_its_delivery_deadline() {
+    let (path, world) = (scratch(), ladder_chain());
+    {
+        let journal = open(&path);
+        let mut fake = Fake::new(&world, &journal);
+        fake.script = Some(Box::new(|fake: &mut Fake| {
+            if fake
+                .open_task()
+                .is_some_and(|task| fake.desks.contains(&task.id))
+            {
+                let digest = fake.sign(100);
+                fake.world.borrow_mut().fund(digest);
+                fake.kill = Some(("phase", false));
+            }
+        }));
+        assert!(run(ONE_SHOT, &journal, &mut fake).is_err());
+    }
+    let journal = open(&path);
+    let deliver_by = match journal.lock().unwrap().ledger().open.clone() {
+        Some(Open::Signed(_, order)) => order.order.deliver_by,
+        other => panic!("{other:?}"),
+    };
+    let before = fs::read_to_string(&path).unwrap();
+    let mut fake = Fake::new(&world, &journal);
+    let early = finish(&journal, &mut fake).unwrap_err();
+    assert!(
+        matches!(
+            early.downcast_ref::<Unfinished>(),
+            Some(Unfinished::NotYetRefundable { .. })
+        ),
+        "{early}"
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
+    assert_eq!(world.borrow().refunds, 0);
+
+    world.borrow_mut().clock = deliver_by + 1;
+    finish(&journal, &mut fake).unwrap();
+    {
+        let w = world.borrow();
+        assert_eq!((w.refunds, w.owed, w.wallet, w.paid), (1, 0, 1_000, 0));
+    }
+    assert!(fs::read_to_string(&path).unwrap().contains("\"refunded\""));
+    // Nothing more to refund, and nothing is posted again.
+    let again = finish(&journal, &mut fake).unwrap_err();
+    assert!(matches!(
+        again.downcast_ref::<Unfinished>(),
+        Some(Unfinished::NoSignedOrder(_))
+    ));
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::Refunds);
+    assert_eq!(world.borrow().posts_ever, 1);
+}
+
+/// Gap 2, the other end of a signed order: never funded, it lapses at its
+/// funding deadline, and the one-shot does not post again.
+#[test]
+fn a_ladder_order_that_is_never_funded_lapses_and_nothing_is_posted_after() {
+    let (path, world) = (scratch(), ladder_chain());
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(Box::new(|fake: &mut Fake| {
+        if fake
+            .open_task()
+            .is_some_and(|task| fake.desks.contains(&task.id))
+        {
+            fake.sign(100);
+            fake.world.borrow_mut().posts -= 1;
+        }
+    }));
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::PostLimit);
+    assert_eq!(world.borrow().posts_ever, 1);
+    assert!(fs::read_to_string(&path).unwrap().contains("\"lapsed\""));
+}
+
+/// Gap 3: no post from a wallet short of the cap in tokens, or of the gas
+/// in ether at twice the price; the typed stop says which and by how much.
+/// Red with the ether check removed: the short wallet posts.
+#[test]
+fn a_ladder_post_refuses_a_wallet_short_of_the_cap_or_the_gas() {
+    let (path, world) = (scratch(), ladder_chain());
+    world.borrow_mut().wallet = 99;
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::Wallet);
+    assert_eq!(world.borrow().posts_ever, 0);
+
+    let (path, world) = (scratch(), ladder_chain());
+    world.borrow_mut().ether = 1_999;
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(
+        run(ONE_SHOT, &journal, &mut fake).unwrap(),
+        Stop::Gas {
+            have: 1_999,
+            need: 2_000
+        }
+    );
+    assert_eq!(world.borrow().posts_ever, 0);
+    assert!(fs::read_to_string(&path).unwrap().contains("\"stopped\""));
+    // Funded, the same journal posts.
+    world.borrow_mut().ether = 2_000;
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(eager());
+    assert_eq!(run(ONE_SHOT, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+    assert_eq!(world.borrow().posts_ever, 1);
+    // The standing bounty's limits never ask for ether.
+    let (path, world) = (scratch(), chain(1_000));
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    fake.script = Some(eager());
+    let limits = Limits { tasks: 1, ..LIMITS };
+    assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
 }

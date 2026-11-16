@@ -109,6 +109,109 @@ pub fn parse(data: &[u8]) -> Result<Parsed, &'static str> {
     Ok(parsed)
 }
 
+/// A-4's cap on a call's gas limit (estimate plus 20 %). Raised from 600,000
+/// on 2026-11-16 (owner decision, "go on 1"), so that a seller with no ether
+/// can settle an artifact the size of the first ladder row's known proof
+/// (S0001, 12,745 bytes, `settle` at least 547,350 gas). The 600,000 cap was
+/// sized on settles of a few hundred bytes; under EIP-7623 a settle's gas
+/// grows by 40 per non-zero calldata byte, so every artifact over about
+/// 9.4 KB was refused (docs/rfcs/qed-nucleus-merge-ladder-2026-11-14.md,
+/// section 10). `relayed_artifact_bytes` gives the largest artifact this
+/// cap still relays, so the next row's size is read, not assumed.
+pub const MAXIMUM_GAS_PER_CALL: u128 = 1_750_000;
+
+/// EIP-7623's floor on a transaction's gas, which Base applies since its
+/// Isthmus upgrade: 21,000 plus 10 per calldata token, a token being a zero
+/// byte or a quarter of any other. Checked on Base on 2026-11-16: 10,000
+/// bytes of `0xff` to an account with no code estimated 425,509 gas; the
+/// floor is 421,000 and the old pricing 181,000.
+pub fn calldata_floor(data: &[u8]) -> u128 {
+    let zero = data.iter().filter(|b| **b == 0).count() as u128;
+    let other = data.len() as u128 - zero;
+    21_000 + 10 * (zero + 4 * other)
+}
+
+/// The seal's length: a RISC Zero Groth16 seal (selector and 256 bytes).
+pub const SEAL_BYTES: usize = 260;
+
+/// `settle` calldata on a third-form vault with an `artifact_bytes`-byte
+/// artifact of non-zero bytes (the worst case for EIP-7623's floor).
+pub fn settle_shaped(artifact_bytes: usize) -> Vec<u8> {
+    let order = vault::Order {
+        buyer: [0x11; 20],
+        seller: [0x22; 20],
+        asset: [0x33; 20],
+        amount: U256::from(1_000_000u64).to_be_bytes(),
+        verifier: [0x44; 20],
+        program: [0x55; 32],
+        policy_hash: [0x66; 32],
+        base: [0; 32],
+        fund_by: 1,
+        deliver_by: 2,
+        salt: [0x77; 32],
+        context: [0x88; 32],
+    };
+    crate::world::settle_data(
+        vault::Form::Third,
+        &order,
+        &vec![0xa5; artifact_bytes],
+        vec![0x5a; SEAL_BYTES],
+    )
+}
+
+/// Gas a third-form `settle` used beyond its calldata, measured on Base
+/// (relayed settle `0x44108783…b5c8` of 2026-11-13: 348,953 gas, 13,416 of
+/// them calldata).
+pub const SETTLE_EXECUTION: u128 = 314_537;
+/// Execution per artifact byte, an upper bound: hashing and copying cost
+/// about 0.4 gas a byte, and memory growth stays under 0.3 at 64 KiB.
+pub const SETTLE_EXECUTION_PER_BYTE: u128 = 2;
+/// How far above the true need a node's `eth_estimateGas` may answer
+/// (geth's search stops within 1.5 %; the probe above was 1.07 % over).
+pub const ESTIMATE_SLACK_PER_MILLE: u128 = 15;
+
+/// An upper bound on what `eth_estimateGas` answers for a `settle` of an
+/// `artifact_bytes`-byte artifact whose bytes are all non-zero (the worst
+/// case for the floor): the larger of the EIP-7623 floor and the old
+/// calldata price plus execution, plus the estimator's slack.
+pub fn settle_estimate_bound(artifact_bytes: usize) -> u128 {
+    let data = settle_shaped(artifact_bytes);
+    let zero = data.iter().filter(|b| **b == 0).count() as u128;
+    let other = data.len() as u128 - zero;
+    let priced = 21_000
+        + 4 * zero
+        + 16 * other
+        + SETTLE_EXECUTION
+        + SETTLE_EXECUTION_PER_BYTE * artifact_bytes as u128;
+    let need = calldata_floor(&data).max(priced);
+    need + need * ESTIMATE_SLACK_PER_MILLE / 1000
+}
+
+/// The gas limit A-4 sets for an estimate: the estimate plus 20 %.
+pub fn gas_limit(estimate: u128) -> u128 {
+    estimate.saturating_mul(12) / 10
+}
+
+/// The largest artifact, in bytes, whose `settle` fits a per-call cap of
+/// `cap` gas by `settle_estimate_bound`. A seller whose artifact is larger
+/// needs ether of its own to settle (R-4).
+pub fn relayed_artifact_bytes(cap: u128) -> usize {
+    let fits = |n: usize| gas_limit(settle_estimate_bound(n)) <= cap;
+    if !fits(0) {
+        return 0;
+    }
+    let (mut low, mut high) = (0usize, 1usize << 22);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        if fits(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    low
+}
+
 /// Limits that apply across chains.
 #[derive(Clone, Debug)]
 pub struct Limits {
@@ -128,7 +231,7 @@ impl Default for Limits {
             per_key_per_hour: 20,
             per_address_per_hour: 60,
             per_seller_per_day: 30,
-            maximum_gas_per_call: 600_000,
+            maximum_gas_per_call: MAXIMUM_GAS_PER_CALL,
             replace_after: Duration::from_secs(60),
             maximum_replacements: 3,
         }
@@ -280,7 +383,7 @@ impl Lane {
             .estimate(from, to, 0, data)
             .map_err(|e| chain_refusal(e.as_ref(), "gas estimate reverts"))?;
         // A-4.
-        let gas = estimate.saturating_mul(12) / 10;
+        let gas = gas_limit(estimate);
         if gas > limits.maximum_gas_per_call {
             return Err((
                 422,

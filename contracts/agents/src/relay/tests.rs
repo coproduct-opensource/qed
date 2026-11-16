@@ -253,11 +253,60 @@ fn a_call_whose_simulation_reverts_is_refused() {
 #[test]
 fn a_call_over_the_gas_cap_is_refused() {
     let ledger = Shared::default();
-    ledger.lock().unwrap().estimate = 600_000;
+    // The smallest estimate whose limit (plus 20 %) is over the cap.
+    ledger.lock().unwrap().estimate = MAXIMUM_GAS_PER_CALL * 10 / 12 + 10;
     let (_endpoint, relay) = relay(&ledger);
     let reply = relay.handle(peer(), &post(1, VAULT, "0", &settle()), now());
     assert_eq!(reply.status, 422, "{}", body(&reply));
+    assert!(body(&reply).to_string().contains("per-call cap"));
     assert!(ledger.lock().unwrap().raw.is_empty());
+}
+
+/// A-4, 2026-11-16: a settle of the first ladder row's known proof (12,745
+/// bytes) is relayed under the shipped cap. Red at the old cap of 600,000:
+/// the estimate's limit is over it, and a seller with no ether could not
+/// settle (docs/rfcs/qed-nucleus-merge-ladder-2026-11-14.md, section 10).
+#[test]
+fn a_settle_of_the_first_ladder_rows_proof_is_relayed() {
+    let estimate = settle_estimate_bound(12_745);
+    // The computed lower bound from the measured receipt holds.
+    assert!(estimate >= 547_350, "{estimate}");
+    let ledger = Shared::default();
+    ledger.lock().unwrap().estimate = estimate;
+    let (_endpoint, relay) = relay(&ledger);
+    let reply = relay.handle(peer(), &post(1, VAULT, "0", &settle()), now());
+    assert_eq!(reply.status, 202, "{}", body(&reply));
+    assert_eq!(ledger.lock().unwrap().raw.len(), 1);
+    // What the deployed relayer did before: refused with 422.
+    let old = Shared::default();
+    old.lock().unwrap().estimate = estimate;
+    let limits = Limits {
+        maximum_gas_per_call: 600_000,
+        ..Limits::default()
+    };
+    let (_endpoint, old_relay) = relay_with(&old, limits, 10u128.pow(17));
+    let refused = old_relay.handle(peer(), &post(1, VAULT, "0", &settle()), now());
+    assert_eq!(refused.status, 422, "{}", body(&refused));
+}
+
+/// The cap's reach, read from the derivation rather than assumed: it covers
+/// S0001's proof with room (about 35 KB), and not the row's 65,536-byte
+/// limit, which needs a cap of about 3.2 M gas under EIP-7623.
+#[test]
+fn the_cap_covers_artifacts_to_about_35_kb_not_the_rows_64_kib_limit() {
+    assert_eq!(calldata_floor(&[0xff; 10_000]), 421_000);
+    assert_eq!(calldata_floor(&[0; 10]), 21_100);
+    let reach = relayed_artifact_bytes(MAXIMUM_GAS_PER_CALL);
+    assert!((12_745..65_536).contains(&reach), "{reach}");
+    assert!((34_000..36_000).contains(&reach), "{reach}");
+    assert!(gas_limit(settle_estimate_bound(reach)) <= MAXIMUM_GAS_PER_CALL);
+    assert!(gas_limit(settle_estimate_bound(reach + 1)) > MAXIMUM_GAS_PER_CALL);
+    // The old cap reached about 8 KB by this bound (the ladder record's
+    // 9.4 KB took no estimator slack and no per-byte execution).
+    let old = relayed_artifact_bytes(600_000);
+    assert!((8_000..9_500).contains(&old), "{old}");
+    let full = gas_limit(settle_estimate_bound(65_536));
+    assert!((3_100_000..3_300_000).contains(&full), "{full}");
 }
 
 /// A-5: the budget, and the balance floor, are never crossed.

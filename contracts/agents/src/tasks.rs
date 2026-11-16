@@ -1,6 +1,10 @@
-//! A buyer posting several tasks from task files and waiting at one desk.
+//! A buyer posting one task from a task file, journaled, and waiting at its
+//! desk until the task ends; and the two commands that finish a task the
+//! process could not.
 //!
-//!   nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json...
+//!   nucleus-buyer post-tasks    DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
+//!   nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
+//!   nucleus-buyer task-refund   DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
 //!
 //! A task file says what `post` fixes in the binary: which statement, which
 //! declaration is the claim, which axioms the checker may admit, how large a
@@ -17,27 +21,45 @@
 //!    "fundingWindowSeconds": 1209600,
 //!    "deliveryWindowSeconds": 2592000}
 //!
-//! Both windows run from the moment of posting. One process serves every
-//! statement and signs for every task, from one iroh endpoint, so the posts
-//! go out one after another from one wallet and cannot collide on a nonce.
-//! A task can be answered only while this process is up.
+//! Both windows run from the moment of posting.
 //!
-//! For each task it signs for the first offer that passes review, then
-//! believes only the chain and the Lean checker, as `post` does. It withdraws
-//! a task whose funding deadline passes with nothing signed.
-use crate::board::{self, Board, Task};
-use crate::desk::{Desk, Outcome, Posted, Signed};
-use crate::iroh_net;
-use crate::post::{phase_of, settled_artifact};
+//! Since 2026-11-16 (the merge ladder's gaps 1 to 3, section 10 of
+//! docs/rfcs/qed-nucleus-merge-ladder-2026-11-14.md) a task is the standing
+//! bounty's journal run as a one-shot: `bounty::run` with `Limits { tasks: 1,
+//! posts: Some(1), gas: Some(LADDER_GAS) }` over `OUT_DIR/journal.jsonl`.
+//! The journal's moves are `Ledger::apply`'s; nothing here decides a move.
+//! The semantics, with the theorems, are proofs/commerce/LadderPost.lean:
+//! - the intent is journaled before the post, and a restart resolves it from
+//!   the board and the buyer's pending nonce, never by posting again: one
+//!   journal makes at most one post (`at_most_one_post`);
+//! - `task-withdraw` withdraws a journaled post nobody was signed for
+//!   (`bounty::close`; `journaled_post_is_withdrawable`);
+//! - `task-refund` refunds and claims back a funded order past its delivery
+//!   deadline (`bounty::finish`; `late_funded_order_is_refundable`), and
+//!   refuses before it;
+//! - nothing is posted unless the wallet holds the cap in tokens
+//!   (`Stop::Wallet`) and `LADDER_GAS` at twice today's price in ether
+//!   (`Stop::Gas`; `intent_only_when_covered`).
+//!
+//! One task per process and per journal: the journal holds one open task,
+//! and a restart attributes every deposit from this buyer to it (rule 8), so
+//! two ladder posts from one wallet at once are refused at the second's
+//! first deposit. Before 2026-11-16 the command took several task files and
+//! kept nothing on disk until a settlement.
+use crate::bounty::{self, Limits, Stop, Terms, live_with};
 use crate::prelude::*;
+use crate::relay::{MAXIMUM_GAS_PER_CALL, relayed_artifact_bytes};
 use crate::world::*;
-use nucleus_proof_acceptance::accept;
 use nucleus_proof_commerce::Hash;
-use std::{
-    sync::{Arc, Mutex},
-    thread::sleep,
-    time::Duration,
-};
+
+/// Gas the buyer's own transactions for one task can take, from measured
+/// receipts, each with `Chain::send`'s 10 % over its estimate: `post` 58,893
+/// (Base, 2026-11-13), `withdraw` 47,545 (Arbitrum Sepolia, 2026-11-16),
+/// `refund` REFUND_GAS and `claim` 82,203 (Base, 2026-11-13). A task never
+/// needs both a withdrawal and a refund, so the sum has room.
+pub const LADDER_GAS: u128 = (58_893 + 47_545 + REFUND_GAS + 82_203) * 11 / 10;
+/// `refund` on the third-form vault.
+pub const REFUND_GAS: u128 = 70_000;
 
 /// The shortest funding window a task file may ask for. The desk refuses an
 /// offer that leaves less than a minute to fund; a post shorter than this
@@ -193,261 +215,146 @@ impl Spec {
     }
 }
 
-/// Where one posted task stands for this process.
-enum Standing {
-    Open,
-    Signed(Box<Signed>),
-    Done,
-}
-
-struct Running {
-    spec: Spec,
-    id: Hash,
-    task: Task,
-    standing: Standing,
-}
-
-pub fn post_tasks(args: &[String]) -> Res<()> {
-    let [deployment, board_address, keyfile, bind, out, files @ ..] = args else {
-        return Err(
-            "usage: nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json..."
-                .into(),
-        );
-    };
-    if files.is_empty() {
-        return Err("no task file given".into());
-    }
+/// The journal, the live market and the task, for one task file.
+fn ladder(
+    deployment: &str,
+    board_address: &str,
+    keyfile: &str,
+    bind: &str,
+    out: &str,
+    file: &str,
+) -> Res<(Spec, bounty::Live, bounty::Shared)> {
+    let spec = Spec::read(file)?;
     let world = World::read(deployment)?;
-    let keys = Keys::load_or_create(keyfile)?;
-    let board = Board {
-        chain: world.chain.clone(),
-        address: address_arg(board_address)?,
-    };
-    if board.vault()? != world.deployment.vault {
-        return Err("the board is for another vault than this deployment's".into());
+    if !spec.fits(&world.deployment.rules) {
+        return Err(format!(
+            "{file}: the delivery window is longer than this vault's maximum term, so no seller could fund the order"
+        )
+        .into());
     }
-    // Every file is read and checked before anything is posted.
-    let mut specs = vec![];
-    for file in files {
-        let spec = Spec::read(file)?;
-        if !spec.fits(&world.deployment.rules) {
-            return Err(format!(
-                "{file}: the delivery window is longer than this vault's maximum term, so no seller could fund the order"
-            )
-            .into());
-        }
-        specs.push(spec);
+    fs::create_dir_all(out)?;
+    let out = Path::new(out);
+    let terms = Terms {
+        claim: spec.policy.claim.clone(),
+        permitted_axioms: spec.policy.permitted_axioms.clone(),
+        maximum_artifact_bytes: spec.policy.maximum_artifact_bytes,
+        program: spec.program,
+        funding_window: spec.funding_window,
+        delivery_window: spec.delivery_window,
+    };
+    let (market, journal) = live_with(
+        deployment,
+        board_address,
+        keyfile,
+        Ok(spec.statement.clone()),
+        terms,
+        &out.join("journal.jsonl"),
+        bind,
+        Some(out.join(&spec.name)),
+    )?;
+    Ok((spec, market, journal))
+}
+
+fn usage(command: &str) -> String {
+    format!("usage: nucleus-buyer {command} DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json")
+}
+
+/// The one-shot limits for a task: at most one post, one settlement, the
+/// cap as the whole budget, and the wallet checked in tokens and in ether.
+pub fn limits(spec: &Spec) -> Limits {
+    Limits {
+        price: spec.maximum,
+        budget: spec.maximum,
+        tasks: 1,
+        pause: 0,
+        posts: Some(1),
+        gas: Some(LADDER_GAS),
     }
+}
 
-    let relay = iroh_net::Relay::from_environment()?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-    let endpoint = runtime
-        .block_on(async { iroh_net::endpoint_in(keys.node, bind.parse()?, &relay).await })
-        .map_err(|e| e.to_string())?;
-    let node = endpoint.id().to_string();
-    let store = {
-        let _guard = runtime.enter();
-        crate::blobs::store()
+/// `post-tasks`: post the task once (or resume it from the journal) and
+/// follow it to its end. Exit 0 only for a settlement whose artifact the
+/// Lean checker accepted; any other end is the typed `Stop`.
+pub fn post_tasks(args: &[String]) -> Res<()> {
+    let [deployment, board_address, keyfile, bind, out, file] = args else {
+        return Err(format!(
+            "{} (one task file: one journal, OUT_DIR/journal.jsonl)",
+            usage("post-tasks")
+        )
+        .into());
     };
-
-    let from_block = board.latest_block()?;
-    let desk = Arc::new(Mutex::new({
-        let mut desk = Desk::new(
-            world.deployment.clone(),
-            world.domain.clone(),
-            keys.wallet.clone(),
-        );
-        desk.accept_bases(world.bases.clone());
-        desk
-    }));
-    let _router = {
-        let _guard = runtime.enter();
-        iroh_net::serve_with(endpoint, desk.clone(), Some(&store))
-    };
+    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
+    // The relayer's reach, on the post's face: a seller whose artifact is
+    // larger settles with its own ether (relay.rs, MAXIMUM_GAS_PER_CALL).
+    let reach = relayed_artifact_bytes(MAXIMUM_GAS_PER_CALL);
     println!(
-        "buyer: {} holds {}; node {node} at {bind} (relay {relay:?}); {} task file(s)",
-        hex(&keys.address()),
-        world.balance(keys.address())?,
-        specs.len()
+        "post-tasks: {}: artifacts up to {} bytes; the relayer's {} gas cap settles up to {reach} bytes{}",
+        spec.name,
+        spec.policy.maximum_artifact_bytes,
+        MAXIMUM_GAS_PER_CALL,
+        if spec.policy.maximum_artifact_bytes as usize > reach {
+            "; a seller with a larger artifact pays its own settle"
+        } else {
+            ""
+        }
     );
+    let stop = bounty::run(limits(&spec), &journal, &mut market)?;
+    let ledger = journal
+        .lock()
+        .map_err(|_| "journal poisoned")?
+        .ledger()
+        .clone();
+    println!(
+        "post-tasks: {}: stopped: {stop}; posted {}, settled {}, refunded {}, spent {}",
+        spec.name, ledger.posted, ledger.settled, ledger.refunded, ledger.spent
+    );
+    match stop {
+        Stop::TaskLimit => Ok(()),
+        other => Err(Box::new(other)),
+    }
+}
 
-    // Post one after another: each post is confirmed before the next is sent.
-    let mut running = vec![];
-    for spec in specs {
-        let blake3 = runtime.block_on(crate::blobs::add(&store, spec.statement.clone()))?;
-        let now = wall_clock()?;
-        let task = Task {
-            statement_sha256: spec.policy.statement_sha256,
-            statement_blake3: blake3,
-            policy_hash: spec.policy.hash(),
-            asset: world.token,
-            maximum_amount: U256::from(spec.maximum).to_be_bytes(),
-            verifier: world.verifier,
-            program: spec.program,
-            fund_by: now + spec.funding_window,
-            deliver_by: now + spec.delivery_window,
-            buyer_node: board::node_bytes(&node)?,
-            buyer_key_binding: keys.binding(),
-            salt: random32()?,
-            buyer_address: crate::watch::posted_hint(bind, &relay)?,
-        };
-        if let Some(refusal) = task.refusal(now) {
-            return Err(
-                format!("{}: the board would refuse this task: {refusal}", spec.name).into(),
-            );
-        }
-        let id = nucleus_board_reference::id(world.chain.id, board.address, keys.address(), &task);
-        // On the desk before it is on the board, so the first seller to see
-        // the post finds it.
-        desk.lock().map_err(|_| "desk poisoned")?.open(Posted::new(
-            id,
-            task.clone(),
-            spec.policy.clone(),
-        )?);
-        let (posted_id, receipt) = board.post(&keys.wallet, &task)?;
-        if posted_id != id {
-            return Err("the board gave the task another ID than the reference".into());
-        }
-        println!(
-            "buyer: {}: posted task {} in tx {} (gas {}); statement {} bytes, sha256 {}; cap {}; fund by {}, deliver by {}",
-            spec.name,
-            hex(&id),
-            receipt.transaction,
-            receipt.gas_used,
-            spec.statement.len(),
-            hex(&spec.policy.statement_sha256),
-            spec.maximum,
-            task.fund_by,
-            task.deliver_by
-        );
-        running.push(Running {
-            spec,
-            id,
-            task,
-            standing: Standing::Open,
-        });
-    }
+/// `task-withdraw`: withdraw the journal's post if nobody was signed for it
+/// (resolving an intent first, as a restart does), and end the journal. The
+/// `post-tasks` process for it must not be running.
+pub fn task_withdraw(args: &[String]) -> Res<()> {
+    let [deployment, board_address, keyfile, bind, out, file] = args else {
+        return Err(usage("task-withdraw").into());
+    };
+    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
+    bounty::close(&journal, &mut market)?;
+    let ledger = journal
+        .lock()
+        .map_err(|_| "journal poisoned")?
+        .ledger()
+        .clone();
+    println!(
+        "task-withdraw: {}: nothing open; posted {}, settled {}",
+        spec.name, ledger.posted, ledger.settled
+    );
+    Ok(())
+}
 
-    // Follow every task to its end.
-    let mut unsettled = 0usize;
-    while running
-        .iter()
-        .any(|r| !matches!(r.standing, Standing::Done))
-    {
-        for r in running.iter_mut() {
-            let now = wall_clock()?;
-            match &r.standing {
-                Standing::Done => {}
-                Standing::Open => {
-                    let signed = desk.lock().map_err(|_| "desk poisoned")?.signed(&r.id);
-                    if let Some(signed) = signed {
-                        println!(
-                            "buyer: {}: signed order {} for seller {} at {}; watching the vault",
-                            r.spec.name,
-                            hex(&signed.digest),
-                            hex(&signed.order.seller),
-                            U256::from_be_bytes(signed.order.amount)
-                        );
-                        r.standing = Standing::Signed(Box::new(signed));
-                    } else if now > r.task.fund_by {
-                        // Abandonment: nobody was signed for in time.
-                        if desk.lock().map_err(|_| "desk poisoned")?.withdraw(&r.id) {
-                            let withdrawn = board.withdraw(&keys.wallet, r.id)?;
-                            println!(
-                                "buyer: {}: no offer was signed for before the funding deadline; withdrawn in tx {}",
-                                r.spec.name, withdrawn.transaction
-                            );
-                            unsettled += 1;
-                            r.standing = Standing::Done;
-                        }
-                    }
-                }
-                Standing::Signed(signed) => {
-                    let outcome = match phase_of(&world, signed.digest)? {
-                        2 => Some(Outcome::Settled),
-                        1 if now > signed.order.deliver_by => Some(Outcome::Refundable),
-                        0 if now > signed.order.fund_by => Some(Outcome::Lapsed),
-                        _ => None,
-                    };
-                    let Some(outcome) = outcome else { continue };
-                    desk.lock()
-                        .map_err(|_| "desk poisoned")?
-                        .finish(&r.id, outcome);
-                    match outcome {
-                        Outcome::Settled => {
-                            // Trust nothing a seller said: the artifact comes
-                            // from the chain and the checker decides.
-                            let artifact = settled_artifact(
-                                world.deployment.rules.form(),
-                                &world.chain,
-                                world.deployment.vault,
-                                signed.digest,
-                                from_block,
-                            )?;
-                            let accepted = accept(&signed.policy, &r.spec.statement, &artifact)
-                                .map_err(|e| {
-                                    format!(
-                                        "{}: the settled artifact is refused by the checker: {e:?}",
-                                        r.spec.name
-                                    )
-                                })?;
-                            let recorded = world.chain.call(
-                                [0; 20],
-                                world.deployment.vault,
-                                &artifactOfCall {
-                                    d: signed.digest.into(),
-                                }
-                                .abi_encode(),
-                            )?;
-                            if recorded != keccak(&artifact) {
-                                return Err(
-                                    "the vault recorded another artifact for this order".into()
-                                );
-                            }
-                            let dir = Path::new(out).join(&r.spec.name);
-                            fs::create_dir_all(&dir)?;
-                            fs::write(dir.join("delivered.ndjson"), &artifact)?;
-                            fs::write(
-                                dir.join("order.json"),
-                                serde_json::to_vec_pretty(
-                                    &nucleus_proof_commerce::vault::wire::WireOrder::from_order(
-                                        &signed.order,
-                                    ),
-                                )?,
-                            )?;
-                            println!(
-                                "buyer: {}: settled; {} byte artifact passes the Lean checker ({})",
-                                r.spec.name,
-                                artifact.len(),
-                                accepted.proof
-                            );
-                        }
-                        Outcome::Refundable => {
-                            unsettled += 1;
-                            println!(
-                                "buyer: {}: funded but not delivered by the deadline; refund is open for order {}",
-                                r.spec.name,
-                                hex(&signed.digest)
-                            );
-                        }
-                        Outcome::Lapsed => {
-                            unsettled += 1;
-                            println!("buyer: {}: the seller never funded the order", r.spec.name);
-                        }
-                    }
-                    r.standing = Standing::Done;
-                }
-            }
-        }
-        sleep(Duration::from_secs(5));
-    }
-    if unsettled == 0 {
-        Ok(())
-    } else {
-        Err(format!("{unsettled} task(s) ended without a settlement").into())
-    }
+/// `task-refund`: end the journal's signed order now: refund and claim a
+/// funded order past its delivery deadline, or journal its settlement or
+/// lapse. Refuses (`bounty::Unfinished`) when nothing is due yet. The
+/// `post-tasks` process for it must not be running.
+pub fn task_refund(args: &[String]) -> Res<()> {
+    let [deployment, board_address, keyfile, bind, out, file] = args else {
+        return Err(usage("task-refund").into());
+    };
+    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
+    bounty::finish(&journal, &mut market)?;
+    let ledger = journal
+        .lock()
+        .map_err(|_| "journal poisoned")?
+        .ledger()
+        .clone();
+    println!(
+        "task-refund: {}: the order ended; refunded {}, settled {}, spent {}",
+        spec.name, ledger.refunded, ledger.settled, ledger.spent
+    );
+    Ok(())
 }
 
 #[cfg(test)]

@@ -2,8 +2,12 @@
 //!   asks one seller directly (`buyer.rs`).
 //! `nucleus-buyer post DEPLOYMENT BOARD KEYFILE STATEMENT PROGRAM_HEX MAXIMUM_PRICE BIND OUT_DIR`
 //!   posts a task on the board and waits at its desk (`post.rs`).
-//! `nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json...`
-//!   posts several tasks from task files and waits at one desk (`tasks.rs`).
+//! `nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
+//!   posts one task, journaled in OUT_DIR, and follows it to its end (`tasks.rs`).
+//! `nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
+//!   withdraws that journal's post if nobody was signed for it.
+//! `nucleus-buyer task-refund DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
+//!   refunds and claims back that journal's funded order past its delivery deadline.
 //! `nucleus-buyer deliveries-fetch NODE_ID OUT [BINDING]`
 //!   fetches a desk's signed summary of delivery attempts (`deliveries.rs`).
 fn main() -> std::process::ExitCode {
@@ -12,6 +16,12 @@ fn main() -> std::process::ExitCode {
         Some((command, rest)) if command == "post" => nucleus_commerce_agents::post::post(rest),
         Some((command, rest)) if command == "post-tasks" => {
             nucleus_commerce_agents::tasks::post_tasks(rest)
+        }
+        Some((command, rest)) if command == "task-withdraw" => {
+            nucleus_commerce_agents::tasks::task_withdraw(rest)
+        }
+        Some((command, rest)) if command == "task-refund" => {
+            nucleus_commerce_agents::tasks::task_refund(rest)
         }
         Some((command, rest)) if command == "bounty" => {
             nucleus_commerce_agents::bounty::bounty(rest)

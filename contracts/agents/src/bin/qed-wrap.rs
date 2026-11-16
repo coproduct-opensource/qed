@@ -75,7 +75,7 @@ fn request(args: &[String]) -> Res<()> {
 ///                           "name": "USD Coin", "version": "2",
 ///                           "perAddressPerDay": 5, "perDay": 100}}],
 ///  "perKeyPerHour": 20, "perAddressPerHour": 60, "perSellerPerDay": 30,
-///  "maximumGasPerCall": 600000, "replaceAfterSeconds": 60, "maximumReplacements": 3,
+///  "maximumGasPerCall": 1750000, "replaceAfterSeconds": 60, "maximumReplacements": 3,
 ///  "trustForwardedFor": false}
 /// ```
 /// The key file is created (mode 0600) on first start if absent; only its
@@ -113,6 +113,13 @@ fn relay(args: &[String]) -> Res<()> {
             u64::from(defaults.maximum_replacements),
         ) as u32,
     };
+    // A-4, on its face: the cap this process enforces and the largest
+    // artifact whose settle it relays (`relay::relayed_artifact_bytes`).
+    println!(
+        "qed-wrap relay: per-call gas cap {} (estimate plus 20 %); a settle relays artifacts up to {} bytes",
+        limits.maximum_gas_per_call,
+        nucleus_commerce_agents::relay::relayed_artifact_bytes(limits.maximum_gas_per_call)
+    );
     let keys = nucleus_commerce_agents::support::Keys::load_or_create(&text(&value, "key")?)?;
     let mut lanes = Vec::new();
     for entry in value["chains"].as_array().ok_or("chains missing")? {
