@@ -1692,14 +1692,15 @@ pub struct SellerRelease {
     pub has_sweep: bool,
 }
 pub const SELLER_RELEASE: SellerRelease = SellerRelease {
-    tag: "v0.2.2",
+    tag: "v0.2.3",
     image: "ghcr.io/coproduct-opensource/qed-seller",
-    digest: "sha256:76c03c0300be9d326593f99c64a5fed5b2f8f5177ef1c0f255e436f563294a9f",
-    // 2026-11-14: cosign verify of the v0.2.2 digest with no registry
-    // credentials passed (exit 0), and Apple `container` pulled it and ran
-    // `nucleus-seller sweep` against an empty wallet ("nothing to sweep").
+    digest: "sha256:c53560b36247373886874b8dda45cb2a7e4f5a701cf25884ffc678de0671be36",
+    // 2026-11-19: `gh attestation verify oci://…` of the v0.2.3 digest exit 0
+    // (SLSA provenance signed by release.yml at refs/tags/v0.2.3), and the
+    // registry served its manifest to an anonymous pull token (HTTP 200).
+    // cosign was not run (not installed on the checking machine).
     image_public: true,
-    // v0.2.2 is the first release with `nucleus-seller sweep`.
+    // v0.2.2 was the first release with `nucleus-seller sweep`; v0.2.3 keeps it.
     has_sweep: true,
 };
 
