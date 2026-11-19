@@ -115,7 +115,7 @@ mod tests {
                 vec!["0xYOUR_WALLET"],
             ),
             (
-                "gh release download v0.2.2 -p 'qed-TARGET.tar.gz' -p SHA256SUMS",
+                "gh release download v0.2.3 -p 'qed-TARGET.tar.gz' -p SHA256SUMS",
                 vec!["TARGET"],
             ),
             (
