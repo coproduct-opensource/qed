@@ -1,0 +1,8 @@
+{
+  "claim": "QedVisits.claim",
+  "maximumArtifactBytes": 1048576,
+  "permittedAxioms": [
+    "propext"
+  ],
+  "statementSha256": "bee7b8f8c113f913439daa8d5f752748574d0b7948bceea3dcab4c2a3056da7e"
+}

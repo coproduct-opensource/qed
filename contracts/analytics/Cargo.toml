@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "Visit counts for qed.coproduct.dev: a beacon collector whose state depends only on (path, first-visit bit, day), and a daily publisher that adds discrete Laplace noise and suppresses a cell when its noisy count is under 10. Its core is translated to Lean by Charon and Aeneas and proved against lean/QedAnalytics/Spec.lean."
+description = "Visit counts for qed.coproduct.dev: a beacon collector whose state depends only on (path, first-visit bit, day), and a weekly publisher that adds discrete Laplace noise and suppresses a cell when its noisy count is under 10. Its core is translated to Lean by Charon and Aeneas and proved against lean/QedAnalytics/Spec.lean."
 
 [workspace]
 

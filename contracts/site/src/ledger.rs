@@ -283,17 +283,18 @@ pub(crate) fn rpc(url: &str, method: &str, params: Value) -> Res<Value> {
         .build()
         .into();
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
-    // Public endpoints rate-limit (HTTP 429); that and only that is retried,
-    // with backoff. Any other failure is reported as it is.
+    // Transient failures (see `transient`) are retried with backoff: 2, 4, ...
+    // 64 seconds, about two minutes in all. Any other failure is reported as it is.
     let mut wait = 2;
     let reply: Value = loop {
-        match agent
+        let attempt = agent
             .post(url)
             .header("content-type", "application/json")
             .send_json(&body)
-        {
-            Ok(mut response) => break response.body_mut().read_json()?,
-            Err(ureq::Error::StatusCode(429)) if wait <= 64 => {
+            .and_then(|mut response| response.body_mut().read_json::<Value>());
+        match attempt {
+            Ok(reply) => break reply,
+            Err(error) if transient(&error) && wait <= 64 => {
                 std::thread::sleep(std::time::Duration::from_secs(wait));
                 wait *= 2;
             }
@@ -304,6 +305,23 @@ pub(crate) fn rpc(url: &str, method: &str, params: Value) -> Res<Value> {
         return Err(format!("{method}: {error}").into());
     }
     Ok(reply["result"].clone())
+}
+
+/// Whether a failed RPC call may succeed if sent again unchanged: the endpoint's
+/// rate limit (429), a gateway's 502/503/504, or the connection failing
+/// (reset, refused, timed out, stalled). A JSON-RPC `error`, any other status,
+/// a malformed reply or a TLS failure is an answer, not a network fault, and is
+/// never retried. 2026-11-18 the status reader failed a whole run on one
+/// `Connection reset by peer` from base-rpc.publicnode.com.
+fn transient(error: &ureq::Error) -> bool {
+    match error {
+        ureq::Error::StatusCode(code) => matches!(code, 429 | 502 | 503 | 504),
+        ureq::Error::Io(_)
+        | ureq::Error::Timeout(_)
+        | ureq::Error::ConnectionFailed
+        | ureq::Error::BodyStalled => true,
+        _ => false,
+    }
 }
 
 fn quantity(v: &Value) -> Res<u64> {
@@ -607,4 +625,30 @@ pub fn receipt_bytes(receipt: &Value) -> Res<Vec<u8>> {
     let mut text = jcs(receipt)?;
     text.push('\n');
     Ok(text.into_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::transient;
+    use std::io::{Error, ErrorKind};
+
+    #[test]
+    fn network_faults_are_retried_and_answers_are_not() {
+        // The 2026-11-18 failure, and its kin.
+        assert!(transient(&ureq::Error::Io(Error::from(
+            ErrorKind::ConnectionReset
+        ))));
+        assert!(transient(&ureq::Error::ConnectionFailed));
+        assert!(transient(&ureq::Error::BodyStalled));
+        for code in [429, 502, 503, 504] {
+            assert!(transient(&ureq::Error::StatusCode(code)), "{code}");
+        }
+        // An answer is final: a client error, a server error that is not a gateway's,
+        // a bad request, a missing host.
+        for code in [400, 401, 403, 404, 500] {
+            assert!(!transient(&ureq::Error::StatusCode(code)), "{code}");
+        }
+        assert!(!transient(&ureq::Error::BadUri("x".into())));
+        assert!(!transient(&ureq::Error::HostNotFound));
+    }
 }

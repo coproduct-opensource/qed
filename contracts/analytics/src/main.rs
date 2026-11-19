@@ -1,7 +1,7 @@
 //! qed-analytics serve STATE_DIR [ADDRESS]
 //!
 //! Count beacons forwarded by Caddy on `ADDRESS` (default `127.0.0.1:4462`),
-//! keep the state in `STATE_DIR`, and publish each finished day there.
+//! keep the state in `STATE_DIR`, and publish each finished week there.
 //! contracts/analytics/README.md.
 use qed_analytics::{noise::Coins, server, store::Collector};
 use std::net::TcpListener;

@@ -190,6 +190,29 @@ fn the_fixture_cases_agree() {
         .unwrap();
     let refused = both("kernel refused", &p, STATEMENT, &line(claim_declaration));
     assert_eq!(refused["refusal"], "KernelRefused");
+    // The proof, then `def Nat.gcd : Nat := Nat.zero`: a kernel-reserved name
+    // the statement does not declare. In the fixture, name 1 is `Nat`,
+    // expression 1 is `Nat` and expression 6 is `Nat.zero`.
+    let next_name = std::str::from_utf8(&[STATEMENT, ARTIFACT].concat())
+        .unwrap()
+        .lines()
+        .filter_map(|l| l.strip_prefix(r#"{"in":"#))
+        .map(|rest| rest.split(',').next().unwrap().parse::<u32>().unwrap())
+        .max()
+        .unwrap()
+        + 1;
+    let reserved = [
+        ARTIFACT.to_vec(),
+        line(&format!(
+            r#"{{"in":{next_name},"str":{{"pre":1,"str":"gcd"}}}}"#
+        )),
+        line(&format!(
+            r#"{{"def":{{"all":[{next_name}],"hints":{{"regular":1}},"levelParams":[],"name":{next_name},"safety":"safe","type":1,"value":6}}}}"#
+        )),
+    ]
+    .concat();
+    let refused = both("reserved name", &p, STATEMENT, &reserved);
+    assert_eq!(refused["refusal"], "ArtifactDeclaresReservedName");
 }
 
 #[test]
@@ -233,4 +256,40 @@ fn every_settled_artifact_on_the_site_agrees() {
     // Distinct (policy, artifact) pairs; the sixth is the first trade on the
     // reproducible programs (task on the toy base, 2026-11-13).
     assert_eq!(seen.len(), 6);
+}
+
+/// `/visits` runs the shipped module on the analytics claim
+/// (`contracts/analytics/browser-check`, exported by `examples/visits_claim.rs`
+/// into `contracts/site/input/visits-check`). Both runtimes accept it, and
+/// both refuse it with one byte of the artifact changed or the statement of
+/// another claim.
+#[test]
+fn the_visits_claim_is_accepted_and_tampering_is_refused() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../site/input/visits-check");
+    let read = |name: &str| std::fs::read(dir.join(name)).unwrap();
+    let (statement, artifact) = (read("statement.v2"), read("artifact.v2"));
+    let policy = qed_wasm_checker::policy_from_json(&read("policy.json")).unwrap();
+    let record: Value = serde_json::from_slice(&read("record.json")).unwrap();
+    let accepted = both("visits claim", &policy, &statement, &artifact);
+    assert_eq!(accepted["verdict"], "accepted");
+    assert_eq!(accepted["proof"], "QedVisits.proof");
+    assert_eq!(accepted["declarations"], record["declarations"]);
+    assert_eq!(accepted["policyHash"], record["policyHash"]);
+    assert_eq!(policy.permitted_axioms, ["propext"]);
+    // Red: one byte of the proof changed, at its last record.
+    let mut tampered = artifact.clone();
+    let at = tampered.len() - 2;
+    tampered[at] ^= 1;
+    let refused = both("visits claim, tampered", &policy, &statement, &tampered);
+    assert_eq!(refused["verdict"], "refused");
+    // Red: the same proof against another claim's statement.
+    let mut other = policy.clone();
+    other.statement_sha256 = sha256(STATEMENT);
+    let refused = both(
+        "visits claim, other statement",
+        &other,
+        STATEMENT,
+        &artifact,
+    );
+    assert_eq!(refused["verdict"], "refused");
 }

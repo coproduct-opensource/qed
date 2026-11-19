@@ -551,20 +551,30 @@ pub fn checker_on_demand(base: &str, paths: &[String]) -> Res<Vec<String>> {
         }
     }
     let js = text(&get(base, "/qed.js", None)?);
-    match (
-        js.find("run.addEventListener(\"click\""),
-        js.find("WebAssembly.compile("),
-    ) {
-        (Some(click), Some(compile)) if compile > click => {}
-        _ => out.push("qed.js compiles a module outside the checker's click handler".into()),
+    // Every compile (one per checker: /verify, /visits) comes after a click
+    // handler, and the module's hash is checked between that handler and
+    // the compile; nothing compiles straight from the network.
+    let compiles: Vec<usize> = js
+        .match_indices("WebAssembly.compile(")
+        .map(|(at, _)| at)
+        .collect();
+    if compiles.is_empty() {
+        out.push("qed.js compiles no checker".into());
     }
-    // The module's hash is checked before it is compiled, and nothing
-    // compiles straight from the network past that check.
-    let hashed_first = matches!(
-        (js.find("crypto.subtle.digest("), js.find("WebAssembly.compile(")),
-        (Some(h), Some(c)) if h < c
-    );
-    if !hashed_first || js.contains("Streaming(") {
+    for compile in compiles {
+        let before = &js[..compile];
+        match before.rfind("run.addEventListener(\"click\"") {
+            None => out.push("qed.js compiles a module outside the checker's click handler".into()),
+            Some(click) => {
+                if !before[click..].contains("crypto.subtle.digest(") {
+                    out.push(
+                        "qed.js compiles the checker without first checking its SHA-256".into(),
+                    );
+                }
+            }
+        }
+    }
+    if js.contains("Streaming(") {
         out.push("qed.js compiles the checker without first checking its SHA-256".into());
     }
     let verify = text(&get(base, "/verify", None)?);
@@ -594,6 +604,24 @@ pub fn checker_on_demand(base: &str, paths: &[String]) -> Res<Vec<String>> {
         || module.body.len().to_string() != bytes
     {
         out.push(format!("{wasm} is not the module /verify names"));
+    }
+    // /visits runs the same module on the analytics claim (2026-11-18): it
+    // names the same bytes, and its controls are hidden without scripts.
+    let visits = text(&get(base, "/visits", None)?);
+    if visits.contains("id=\"visits-check\"") {
+        let tag = visits
+            .split("id=\"visits-check\"")
+            .nth(1)
+            .and_then(|r| r.split('>').next())
+            .unwrap_or("");
+        if !tag.contains(&format!("data-sha256=\"{sha}\""))
+            || !tag.contains(&format!("data-wasm=\"{wasm}\""))
+        {
+            out.push("/visits names another checker module than /verify".into());
+        }
+        if !tag.contains(" hidden") {
+            out.push("/visits shows the checker's controls before the script runs".into());
+        }
     }
     // Without scripts: the controls stay hidden and the fallback is there.
     let checker_div = verify.split("id=\"checker\"").nth(1).unwrap_or("");

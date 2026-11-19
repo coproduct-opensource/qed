@@ -51,7 +51,7 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
     if built.join(crate::CHECKER_PATH).is_file() {
         paths.push((crate::CHECKER_PATH.to_owned(), false));
     }
-    // The visit collector answers its published days (a GET; check-live
+    // The visit collector answers its published weeks (a GET; check-live
     // never sends a beacon, which would count a visit).
     if https {
         let published = serving::COLLECTOR_PATHS[1];
@@ -62,10 +62,12 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
                     .read_to_string()
                     .ok()
                     .and_then(|t| serde_json::from_str(&t).ok());
-                if body.as_ref().map(|b| &b["record"]) != Some(&"qed-visits-published/1".into()) {
+                if body.as_ref().map(|b| &b["record"])
+                    != Some(&qed_analytics::store::RECORD_PUBLISHED.into())
+                {
                     findings.push((
                         published.into(),
-                        "not a qed-visits-published/1 record".into(),
+                        format!("not a {} record (the weekly collector, which this site's script reads)", qed_analytics::store::RECORD_PUBLISHED),
                     ));
                 }
             }
@@ -194,6 +196,15 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
             }
         }
     }
+    // The status page, rewritten by the host between releases: checked for
+    // its frame, structure, age and addresses, not its bytes. Until
+    // 2026-11-17 check-live did not fetch it at all.
+    if built
+        .join(format!("{}/index.html", crate::status::STATUS_PATH))
+        .is_file()
+    {
+        findings.extend(check_status(&agent, base, built, https)?);
+    }
     // A missing path: status 404, the built not-found page, as HTML. An
     // empty body with no media type is what Safari offered to download.
     let missing = "no-such-page-check-live";
@@ -224,6 +235,85 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
             }
         }
         Err(error) => fail(format!("no response: {error}")),
+    }
+    Ok(findings)
+}
+
+/// `/status`, which the web host rewrites every 10 minutes between releases
+/// (docs/rfcs/qed-status-refresh-2026-11-17.md §7): the same headers as any
+/// document, and `status::check_served` in place of a byte comparison.
+fn check_status(agent: &ureq::Agent, base: &str, built: &Path, https: bool) -> Res<Vec<Finding>> {
+    let path = crate::status::STATUS_PATH;
+    let mut findings = Vec::new();
+    let mut fail = |what: String| findings.push((format!("/{path}"), what));
+    let built_html = fs::read_to_string(built.join(format!("{path}/index.html")))?;
+    let built_md = fs::read_to_string(built.join(format!("{path}/index.md")))?;
+    let mut served = Vec::new();
+    for markdown in [false, true] {
+        let mut request = agent.get(format!("{base}/{path}"));
+        if markdown {
+            request = request.header("accept", "text/markdown");
+        }
+        let mut response = match request.call() {
+            Ok(r) => r,
+            Err(error) => {
+                fail(format!("no response: {error}"));
+                return Ok(findings);
+            }
+        };
+        if response.status() != 200 {
+            fail(format!("status {}", response.status()));
+            return Ok(findings);
+        }
+        let header = |name: &str| -> Option<String> {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned)
+        };
+        let (media, cors, hsts, cache, vary) = (
+            header("content-type").unwrap_or_default(),
+            header("access-control-allow-origin"),
+            header("strict-transport-security"),
+            header("cache-control"),
+            header("vary").unwrap_or_default(),
+        );
+        let file = format!("{path}/index.{}", if markdown { "md" } else { "html" });
+        let want = serving::media_type(&file);
+        if !media
+            .to_ascii_lowercase()
+            .starts_with(want.split(';').next().unwrap_or(""))
+        {
+            fail(format!("content-type {media:?}, expected {want}"));
+        }
+        if cors.is_some() {
+            fail(format!(
+                "access-control-allow-origin {cors:?}, expected none"
+            ));
+        }
+        if https && hsts.as_deref() != Some(serving::HSTS) {
+            fail(format!("strict-transport-security {hsts:?}"));
+        }
+        if cache.as_deref() != Some(serving::cache_control(&file)) {
+            fail(format!("cache-control {cache:?}"));
+        }
+        if !serving::varies_on_accept(&vary.to_ascii_lowercase()) {
+            fail("no Vary: Accept".into());
+        }
+        let body = response.body_mut().read_to_string()?;
+        if !markdown {
+            for marker in serving::fetching_markers(&body) {
+                fail(format!("loads an outside resource: {marker}"));
+            }
+        }
+        served.push(body);
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    for what in crate::status::check_served(&built_html, &built_md, &served[0], &served[1], now) {
+        fail(what);
     }
     Ok(findings)
 }

@@ -3213,6 +3213,7 @@ dependencies = [
  "iroh-blobs",
  "k256",
  "lzma-rs",
+ "nanoda_lib",
  "nucleus-a2a-iroh-card",
  "nucleus-board-reference",
  "nucleus-jsonl",

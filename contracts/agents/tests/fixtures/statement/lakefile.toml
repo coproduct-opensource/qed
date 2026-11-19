@@ -1,0 +1,5 @@
+name = "fixture"
+
+[[lean_lib]]
+name = "Statements"
+globs = ["Statements.+"]

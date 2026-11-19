@@ -49,6 +49,7 @@
 use crate::bounty::{self, Limits, Stop, Terms, live_with};
 use crate::prelude::*;
 use crate::relay::{MAXIMUM_GAS_PER_CALL, relayed_artifact_bytes};
+use crate::statement::{PERMITTED_AXIOMS, Row};
 use crate::world::*;
 use nucleus_proof_commerce::Hash;
 
@@ -70,6 +71,10 @@ pub const MINIMUM_FUNDING_WINDOW: u64 = 300;
 #[derive(Clone, Debug)]
 pub struct Spec {
     pub name: String,
+    /// A ladder row (`"row": "S0001"`): the claim is then
+    /// `Statements.S<id>.claim`, the axioms exactly the three, and the
+    /// proof's module path follows from the row (`statement.rs`).
+    pub row: Option<Row>,
     pub statement: Vec<u8>,
     pub policy: Policy,
     pub program: Hash,
@@ -99,6 +104,9 @@ pub enum SpecError {
     /// The funding window is shorter than `MINIMUM_FUNDING_WINDOW`, or the
     /// delivery window does not end after it.
     Windows,
+    /// The row is not `S` and digits, or the claim is not the row's, or the
+    /// axioms are not exactly the ladder's three.
+    Row,
 }
 impl std::fmt::Display for SpecError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -116,6 +124,10 @@ impl std::fmt::Display for SpecError {
             Self::Windows => write!(
                 f,
                 "the funding window is under {MINIMUM_FUNDING_WINDOW} s or delivery does not end after it"
+            ),
+            Self::Row => write!(
+                f,
+                "the row is malformed, or its claim is not Statements.<row>.claim, or its axioms are not the three"
             ),
         }
     }
@@ -169,8 +181,22 @@ impl Spec {
         if funding_window < MINIMUM_FUNDING_WINDOW || delivery_window <= funding_window {
             return Err(SpecError::Windows);
         }
+        let row = match value.get("row") {
+            None | Some(Value::Null) => None,
+            Some(row) => {
+                let row = row
+                    .as_str()
+                    .and_then(|text| Row::parse(text).ok())
+                    .ok_or(SpecError::Row)?;
+                if claim != row.claim() || permitted_axioms != PERMITTED_AXIOMS {
+                    return Err(SpecError::Row);
+                }
+                Some(row)
+            }
+        };
         Ok(Self {
             name: text("name")?.to_owned(),
+            row,
             policy: Policy {
                 statement_sha256: Sha256::digest(&statement).into(),
                 claim: claim.to_owned(),
@@ -467,6 +493,44 @@ mod tests {
             Spec::parse(&file(), vec![0x13, 0x07]).unwrap_err(),
             SpecError::Statement
         );
+    }
+
+    #[test]
+    fn a_ladder_task_names_its_row_and_the_rows_claim_and_axioms() {
+        let mut ladder = file();
+        ladder["row"] = json!("S0001");
+        ladder["claim"] = json!("Statements.S0001.claim");
+        let spec = Spec::parse(&ladder, statement()).unwrap();
+        assert_eq!(spec.row, Some(Row::parse("S0001").unwrap()));
+        // The proof's path is part of the terms, derived from the row.
+        assert_eq!(
+            spec.row.as_ref().unwrap().proof_path(),
+            Path::new("Statements/S0001/Proof.lean")
+        );
+        // A row whose claim is another name, or another row's.
+        for claim in ["Nucleus.Claim", "Statements.S0002.claim"] {
+            let mut other = ladder.clone();
+            other["claim"] = json!(claim);
+            assert_eq!(
+                Spec::parse(&other, statement()).unwrap_err(),
+                SpecError::Row
+            );
+        }
+        // A ladder row permits exactly the three axioms, in order.
+        let mut fewer = ladder.clone();
+        fewer["permittedAxioms"] = json!(["propext"]);
+        assert_eq!(
+            Spec::parse(&fewer, statement()).unwrap_err(),
+            SpecError::Row
+        );
+        let mut malformed = ladder.clone();
+        malformed["row"] = json!("s1");
+        assert_eq!(
+            Spec::parse(&malformed, statement()).unwrap_err(),
+            SpecError::Row
+        );
+        // A task file with no row is not a ladder task, as before.
+        assert_eq!(Spec::parse(&file(), statement()).unwrap().row, None);
     }
 
     #[test]

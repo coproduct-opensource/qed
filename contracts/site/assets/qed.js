@@ -2,11 +2,12 @@
 // for preformatted text. (2) On /verify, the acceptance rule run in this
 // tab, downloaded only when asked for. (3) On the ledger page, the live list
 // of board posts, read in the browser from a public RPC endpoint. (4) One
-// visit beacon per page view to this site's /analytics/beacon: the page's
-// label and whether this browser sent one earlier that UTC day (a date kept
-// in this browser's storage). No cookie, no identifier. (5) On /visits,
-// the last published day from /analytics/published. /visits shows what the
-// collector stores and the Lean theorems about it.
+// visit beacon per page label per UTC day to this site's /analytics/beacon:
+// the page's label and whether this browser sent one earlier that UTC day
+// (the date and today's labels, kept in this browser's storage). No cookie,
+// no identifier. (5) On /visits, the published weeks (and earlier days)
+// from /analytics/published. (6) On /visits, the acceptance rule run on the
+// analytics claim, downloaded only when asked for.
 "use strict";
 (function () {
   document.querySelectorAll("button[data-copy]").forEach(function (button) {
@@ -113,7 +114,7 @@
   })();
 
   // The status page: re-read the balances at the latest block, and say
-  // which values are shown (the build-time snapshot, or a live read).
+  // which values are shown (the page's own reading, or a live read).
   (function status() {
     var form = document.getElementById("status-form");
     var node = document.getElementById("site-data");
@@ -121,6 +122,7 @@
     var s = JSON.parse(node.textContent).status;
     if (!s) return;
     var source = document.getElementById("status-source");
+    var own = source.textContent;
     function call(url, method, params) {
       return fetch(url, {
         method: "POST",
@@ -160,9 +162,9 @@
         if (s.buyer) put("buyer-usdc", scaled(await balanceOf(s.buyer), s.decimals, "USDC"));
         if (s.relayer) put("relayer-eth", scaled(await call(url, "eth_getBalance", [s.relayer, block]), 18, "ETH"));
         source.textContent = "Showing live values: block " + Number(block) + ", read from " + url + " at " +
-          new Date().toISOString().replace(/\.\d+Z$/, "Z") + ". The sections below are still the build-time snapshot.";
+          new Date().toISOString().replace(/\.\d+Z$/, "Z") + ". The rest of the page is still: " + own;
       } catch (error) {
-        source.textContent = "Live read failed (" + error.message + "); still showing the build-time snapshot.";
+        source.textContent = "Live read failed (" + error.message + "); still showing: " + own;
       }
     });
   })();
@@ -355,17 +357,24 @@
 (function beacon() {
   var meta = document.querySelector('meta[name="qed-beacon"]');
   if (!meta || !window.fetch) return;
+  var label = meta.getAttribute("content");
   var today = new Date().toISOString().slice(0, 10);
-  var first = "0";
+  // One stored value: today's UTC date and the labels this browser sent a
+  // beacon for today, "2026-11-18 / /status". At most one beacon per label
+  // per UTC day (a convention of this script; the collector cannot tell
+  // browsers apart). Without storage, no beacon at all.
+  var first;
   try {
-    if (localStorage.getItem("qed-beacon-day") !== today) {
-      localStorage.setItem("qed-beacon-day", today);
-      first = "1";
-    }
-  } catch (error) { /* no storage: counted as not first */ }
+    var stored = String(localStorage.getItem("qed-beacon-day") || "").split(" ");
+    first = stored[0] !== today;
+    var sent = first ? [] : stored.slice(1);
+    if (sent.indexOf(label) >= 0) return;
+    sent.push(label);
+    localStorage.setItem("qed-beacon-day", today + " " + sent.join(" "));
+  } catch (error) { return; /* no storage: nothing is sent */ }
   fetch("/analytics/beacon", {
     method: "POST",
-    body: meta.getAttribute("content") + "\n" + first,
+    body: label + "\n" + (first ? "1" : "0"),
     credentials: "omit",
     keepalive: true,
     cache: "no-store",
@@ -380,44 +389,138 @@
   function cell(value) {
     return value === null ? "suppressed" : String(value);
   }
+  // Newest first. A week line ("qed-visits-week/1") since 2026-11-18; a day
+  // line ("qed-visits/1") before it, kept as history.
+  function caption(line) {
+    if (line.record === "qed-visits-week/1") {
+      var span = "The week " + line.from + " to " + line.to + " (UTC)";
+      if (line.days < 7) span += ", counted from " + line.from + " only (" + line.days + " days): its earlier days were published day by day before 2026-11-18";
+      return span + ". Each value is the count plus noise; suppressed: count plus noise under " + line.k + ".";
+    }
+    var rule = line.suppressed === "count plus noise under k"
+      ? "suppressed: count plus noise under " + line.k
+      : "suppressed: true count under " + line.k + " (the rule before 2026-11-15)";
+    return "The day " + line.date + " (UTC), published day by day as until 2026-11-18. Each value is the count plus noise; " + rule + ".";
+  }
   fetch("/analytics/published", { credentials: "omit", cache: "no-store" })
     .then(function (response) {
       if (!response.ok) throw new Error("HTTP " + response.status);
       return response.json();
     })
     .then(function (view) {
-      var days = view.days || [];
-      var day = days[days.length - 1];
-      if (!day) {
-        status.textContent = "No day published yet. Counting " + view.counting + " (UTC); it is published after midnight UTC.";
+      var lines = (view.lines || []).slice().reverse();
+      var counting = view.counting ? "Counting the week " + view.counting.from + " to " + view.counting.to + " (UTC); it is published after it ends." : "";
+      if (!lines.length) {
+        status.textContent = "Nothing published yet. " + counting;
         return;
       }
-      var table = document.createElement("table");
-      var caption = document.createElement("caption");
-      // Days published before 2026-11-15's rule change carry no
-      // "suppressed" field: they were suppressed on the true count.
-      var rule = day.suppressed === "count plus noise under k"
-        ? "suppressed: count plus noise under " + day.k
-        : "suppressed: true count under " + day.k + " (the rule before 2026-11-15)";
-      caption.textContent = "Published for " + day.date + " (UTC). Each value is the count plus noise; " + rule + ".";
-      table.appendChild(caption);
-      var head = document.createElement("tr");
-      ["Path", "Returning", "First visit that day"].forEach(function (name) {
-        var th = document.createElement("th"); th.textContent = name; head.appendChild(th);
+      lines.forEach(function (line) {
+        var table = document.createElement("table");
+        var c = document.createElement("caption");
+        c.textContent = caption(line);
+        table.appendChild(c);
+        var head = document.createElement("tr");
+        ["Path", "Returning", "First visit that day"].forEach(function (name) {
+          var th = document.createElement("th"); th.textContent = name; head.appendChild(th);
+        });
+        table.appendChild(head);
+        line.paths.concat([["malformed", line.malformed, null], ["rate-limited", line.limited, null]]).forEach(function (row, n) {
+          var tr = document.createElement("tr");
+          var path = document.createElement("td"); path.textContent = row[0]; tr.appendChild(path);
+          var a = document.createElement("td"); a.textContent = cell(row[1]); tr.appendChild(a);
+          var b = document.createElement("td"); b.textContent = n < line.paths.length ? cell(row[2]) : ""; tr.appendChild(b);
+          table.appendChild(tr);
+        });
+        box.insertBefore(table, status);
       });
-      table.appendChild(head);
-      day.paths.concat([["malformed", day.malformed, null], ["rate-limited", day.limited, null]]).forEach(function (row, n) {
-        var tr = document.createElement("tr");
-        var path = document.createElement("td"); path.textContent = row[0]; tr.appendChild(path);
-        var a = document.createElement("td"); a.textContent = cell(row[1]); tr.appendChild(a);
-        var b = document.createElement("td"); b.textContent = n < day.paths.length ? cell(row[2]) : ""; tr.appendChild(b);
-        table.appendChild(tr);
-      });
-      status.textContent = "";
-      box.insertBefore(table, status);
+      status.textContent = counting;
     })
     .catch(function (error) {
       status.className = "bad";
       status.textContent = "Could not read /analytics/published: " + error.message + ".";
     });
+})();
+
+// On /visits: the acceptance rule (the module /verify runs) on the
+// analytics claim, downloaded only when asked for.
+(function visitsCheck() {
+  var box = document.getElementById("visits-check");
+  if (!box || !window.WebAssembly || !window.crypto || !crypto.subtle) return;
+  box.hidden = false;
+  var run = document.getElementById("visits-check-run");
+  var status = document.getElementById("visits-check-status");
+  var out = document.getElementById("visits-check-verdict");
+  function hex(buffer) {
+    return Array.prototype.map.call(new Uint8Array(buffer), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+  async function fetchBytes(url) {
+    if (!/^\/[^\/\\]/.test(url)) throw new Error(url + ": not a path on this site");
+    var response = await fetch(url, { credentials: "omit" });
+    if (!response.ok) throw new Error(url + ": HTTP " + response.status);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  function row(term, text, cls) {
+    var dt = document.createElement("dt"); dt.textContent = term;
+    var dd = document.createElement("dd"); dd.textContent = text;
+    if (cls) dd.className = cls;
+    out.appendChild(dt); out.appendChild(dd);
+  }
+  var compiled = null;
+  run.addEventListener("click", async function () {
+    run.disabled = true;
+    out.hidden = true;
+    out.textContent = "";
+    status.className = "";
+    try {
+      if (!compiled) {
+        status.textContent = "Downloading the checker (" + box.getAttribute("data-bytes") + " bytes)…";
+        var wasm = await fetchBytes(box.getAttribute("data-wasm"));
+        var got = hex(await crypto.subtle.digest("SHA-256", wasm));
+        if (got !== box.getAttribute("data-sha256")) throw new Error("the checker's SHA-256 is " + got + ", not the one this page names");
+        compiled = await WebAssembly.compile(wasm);
+      }
+      status.textContent = "Fetching the statement, proof and policy…";
+      var policy = await fetchBytes(box.getAttribute("data-policy"));
+      var statement = await fetchBytes(box.getAttribute("data-statement"));
+      var artifact = await fetchBytes(box.getAttribute("data-artifact"));
+      status.textContent = "Checking in this tab…";
+      await new Promise(function (resolve) { setTimeout(resolve, 30); });
+      var started = performance.now();
+      var verdict;
+      try {
+        var e = (await WebAssembly.instantiate(compiled, {})).exports;
+        var put = function (bytes) {
+          var p = e.qed_alloc(bytes.length);
+          new Uint8Array(e.memory.buffer, p, bytes.length).set(bytes);
+          return [p, bytes.length];
+        };
+        var pl = put(policy);
+        var st = put(statement);
+        var ar = put(artifact);
+        var packed = e.qed_check(pl[0], pl[1], st[0], st[1], ar[0], ar[1]);
+        var ptr = Number(packed >> 32n), len = Number(packed & 0xffffffffn);
+        verdict = JSON.parse(new TextDecoder().decode(new Uint8Array(e.memory.buffer, ptr, len)));
+      } catch (trap) {
+        if (trap instanceof WebAssembly.RuntimeError && /unreachable/i.test(trap.message)) {
+          verdict = { verdict: "refused", refusal: "KernelRefused", detail: "the checker aborted on a kernel refusal" };
+        } else {
+          throw new Error("the browser could not finish the check (" + trap.message + "). This is not a verdict");
+        }
+      }
+      var seconds = ((performance.now() - started) / 1000).toFixed(1);
+      var ok = verdict.verdict === "accepted";
+      row("Verdict", ok ? "Accepted: " + verdict.proof + " proves QedVisits.claim (" + verdict.declarations + " declarations checked)" : "Refused: " + verdict.refusal + (verdict.detail ? " — " + verdict.detail : ""), ok ? "ok" : "bad");
+      var want = box.getAttribute("data-policy-hash");
+      if (verdict.policyHash) row("Policy hash", verdict.policyHash === want ? "equals the one this page names" : "DIFFERS from the one this page names, " + want, verdict.policyHash === want ? "ok" : "bad");
+      row("What this covers", "The four clauses of QedVisits.claim above: the pointwise ratio, post-processing, and finite sets of noisy values. Not the Mathlib proofs in the table below.");
+      row("Time", seconds + " s in this tab");
+      out.hidden = false;
+      status.textContent = "";
+    } catch (error) {
+      status.className = "bad";
+      status.textContent = "No verdict: " + error.message + ".";
+    } finally {
+      run.disabled = false;
+    }
+  });
 })();

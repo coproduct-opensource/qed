@@ -4,7 +4,8 @@
 //! - `POST /analytics/beacon`: the body (at most `paths::MAX_BODY` bytes) is
 //!   the beacon. 204 counted, 400 malformed (counted as malformed), 429
 //!   refused by the rate limit (counted as limited).
-//! - `GET /analytics/published`: the last published days, JSON.
+//! - `GET /analytics/published`: the last published lines (weeks, and days
+//!   published before 2026-11-18), JSON.
 //! - anything else: 404, not counted.
 //!
 //! The only header read is `Content-Length`. Nothing about a request is
@@ -165,8 +166,8 @@ pub fn handle<R: Read>(mut stream: TcpStream, collector: &Mutex<Collector<R>>) {
     }
 }
 
-/// Serve until the process is stopped; a second thread rolls the day over at
-/// midnight UTC even when no beacon arrives.
+/// Serve until the process is stopped; a second thread rolls the window over
+/// at Monday 00:00 UTC even when no beacon arrives.
 pub fn serve<R: Read + Send + 'static>(
     listener: TcpListener,
     collector: Arc<Mutex<Collector<R>>>,
@@ -238,7 +239,7 @@ mod tests {
         assert!(other.starts_with("HTTP/1.1 404"), "{other}");
         let view = exchange(addr, b"GET /analytics/published HTTP/1.1\r\n\r\n");
         assert!(view.starts_with("HTTP/1.1 200"), "{view}");
-        assert!(view.contains("\"days\":[]"), "{view}");
+        assert!(view.contains("\"lines\":[]"), "{view}");
         let state = *collector.lock().unwrap().state();
         assert_eq!(state.cells[29], 1);
         assert_eq!(state.cells[crate::core::MALFORMED], 2);

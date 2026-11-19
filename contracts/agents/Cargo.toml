@@ -38,6 +38,10 @@ path = "src/bin/qed-groth16-data.rs"
 [dependencies]
 p256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
 nucleus-proof-acceptance = { path = "../proof-acceptance/core" }
+# The checker the acceptance rule uses, for screening a generated statement
+# (src/statement.rs): its entry list and kernel check. Already in the lock
+# through the acceptance core.
+nanoda_lib = { path = "../proof-acceptance/vendor/nanoda_lib" }
 nucleus-proof-commerce = { path = "../../crates/nucleus-proof-commerce", features = ["x402-wire"] }
 k256 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
 sha3 = { version = "0.10.9", default-features = false }

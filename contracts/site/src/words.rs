@@ -35,8 +35,11 @@
 //! pages counts twice.
 use std::collections::BTreeSet;
 
-/// The most counted words the whole site may have.
-pub const LIMIT: usize = 3000;
+/// The most counted words the whole site may have. 3,000 from 2026-11-14;
+/// 3,500 from 2026-11-19 (owner decision). Counting tables too was weighed
+/// the same day and not done: 3,000 counted plus 5,278 words in tables is
+/// 8,278, so the table rule stays and each page reports its table words.
+pub const LIMIT: usize = 3500;
 
 /// Routes not counted under rule 2.
 pub const TECHNICAL_DOCUMENTS: [&str; 1] = [crate::SPEC_PATH];

@@ -427,15 +427,26 @@ fn the_checker_is_fetched_only_on_request_and_is_the_parity_tested_module() {
             .replace("<noscript>", "<div>")
             .replace("</noscript>", "</div>")
     });
+    s.edit("visits/index.html", |t| {
+        assert!(
+            t.contains("<div id=\"visits-check\" hidden"),
+            "/visits has the check"
+        );
+        t.replace(
+            "<div id=\"visits-check\" hidden",
+            "<div id=\"visits-check\"",
+        )
+    });
     let mut module = shipped.clone();
     *module.last_mut().unwrap() ^= 1;
     std::fs::write(s.dir.join("checker/qed-checker.wasm"), module).unwrap();
     let found = harness::checker_on_demand(&s.base, &docs).unwrap();
-    assert_eq!(found.len(), 4, "{found:?}");
+    assert_eq!(found.len(), 5, "{found:?}");
     for (finding, cause) in found.iter().zip([
         "/ names the checker in <link href>",
         "is not the module /verify names",
-        "shows the checker's controls",
+        "/visits shows the checker's controls",
+        "/verify shows the checker's controls",
         "has no text for readers without scripts",
     ]) {
         assert!(finding.contains(cause), "{finding} vs {cause}");

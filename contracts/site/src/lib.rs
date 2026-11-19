@@ -15,6 +15,7 @@ pub mod html;
 pub mod ledger;
 pub mod live;
 pub mod pages;
+pub mod post;
 pub mod preview;
 pub mod schema;
 pub mod serving;
@@ -60,9 +61,10 @@ pub const UNAUDITED: &str = "The contracts are unaudited.";
 /// Fetched only when a reader asks for an in-browser check.
 pub const CHECKER_PATH: &str = "checker/qed-checker.wasm";
 pub const CHECKER_WASM: &[u8] = include_bytes!("../assets/qed-checker.wasm");
-/// The only page that runs the checker; the host grants it
+/// The pages that run the checker: `/verify` (a settlement) and, since
+/// 2026-11-18, `/visits` (the analytics claim). The host grants them
 /// `'wasm-unsafe-eval'` and nothing else does.
-pub const CHECKER_PAGE: &str = "verify";
+pub const CHECKER_PAGES: [&str; 2] = ["verify", "visits"];
 /// The page every missing path is answered with, status 404
 /// (`doc::not_found`; the host's `handle_errors`, the local preview).
 pub const NOT_FOUND_PATH: &str = "404.html";
@@ -177,6 +179,12 @@ pub struct StatusInput {
     /// queries that need them carry a placeholder.
     #[serde(default)]
     pub publish_wallets: bool,
+    /// The ladder buyer's wallet: it posts Nucleus's open statements (S0001
+    /// on 2026-11-18). Named on the status page only with `publish_wallets`
+    /// (owner decision, 2026-11-19: publish this one address as the poster
+    /// of record). Absent: its posts show as another poster.
+    #[serde(default)]
+    pub ladder_buyer: Option<String>,
     /// The bounty buyer's record of delivery attempts: which key signs its
     /// summary, and the authors' notes on it (docs/rfcs/qed-deliveries-2026-11-14.md).
     #[serde(default)]
@@ -1128,11 +1136,12 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     // main-network bounty and public source.
     if let (Some(m), Software::Public { .. }) = (&input.mainnet, &input.software) {
         docs_list.push(pages::bounty(m, &vectors, &programs));
+        docs_list.push(post::page(m, fee_bps));
     }
     if let Some(page) = status::page(input, status_snapshot.as_ref()) {
         docs_list.push(page);
     }
-    docs_list.push(visits::page(input, repository)?);
+    docs_list.push(visits::page(input, repository, options.ledger.is_some())?);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     if let Some((ledger_input, snapshot)) = options.ledger {
         let mut index = Vec::new();
@@ -1178,6 +1187,7 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
             files.push((format!("statements/{file}"), bytes.clone()));
         }
         files.push((CHECKER_PATH.into(), CHECKER_WASM.to_vec()));
+        files.extend(visits::check_files(repository)?);
     }
     let footer = pages::footer();
     for d in &docs_list {

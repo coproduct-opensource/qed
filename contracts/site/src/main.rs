@@ -11,6 +11,12 @@
 //!     Read the main network's bounty, vaults and relayer at the latest
 //!     block (read-only JSON-RPC, and one POST without a proof to the
 //!     relayer) and write input/status.snapshot.json for the status page.
+//! nucleus-site refresh-status INPUT STATE_DIR SITE_URL
+//!     The web host's reader, every 10 minutes: the same reads as
+//!     snapshot-status, now, then only the status page (HTML and Markdown)
+//!     written atomically under STATE_DIR/site/status/. On a failed read,
+//!     the last good values are shown with their age, and it exits 1.
+//!     Needs no key. docs/rfcs/qed-status-refresh-2026-11-17.md.
 //! nucleus-site card-key-create FILE
 //!     Make a new ES256 card-signing key file (mode 0600); refuses to overwrite.
 //! nucleus-site preview DIR 127.0.0.1:PORT
@@ -67,7 +73,9 @@ fn run(args: &[String]) -> Res<()> {
                 println!("FAIL {path}: {what}");
             }
             if findings.is_empty() {
-                println!("ok: every checked path matches the built files and the serving table");
+                println!(
+                    "ok: every checked path matches the built files and the serving table; /status by frame, structure, age and addresses"
+                );
                 Ok(())
             } else {
                 Err(format!("{} finding(s)", findings.len()).into())
@@ -95,6 +103,43 @@ fn run(args: &[String]) -> Res<()> {
                 out.display()
             );
             Ok(())
+        }
+        [command, input_file, state, site_url] if command == "refresh-status" => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs();
+            let pass = nucleus_site::status::refresh(
+                Path::new(input_file),
+                Path::new(state),
+                site_url,
+                now,
+            )?;
+            if let Some(snap) = &pass.snapshot {
+                println!(
+                    "block {} (timestamp {}); wrote {}",
+                    snap["block"],
+                    snap["blockTimestamp"],
+                    Path::new(state).join(nucleus_site::status::LAST_GOOD).display()
+                );
+            }
+            if pass.pages.is_some() {
+                println!(
+                    "wrote {} and {}",
+                    Path::new(state).join(nucleus_site::status::SERVED_MD).display(),
+                    Path::new(state).join(nucleus_site::status::SERVED_HTML).display()
+                );
+            }
+            match (pass.failure, pass.pages.is_some()) {
+                (None, _) => Ok(()),
+                (Some(why), true) => Err(format!(
+                    "the read failed ({why}); the page shows the last good values and their age"
+                )
+                .into()),
+                (Some(why), false) => Err(format!(
+                    "the read failed ({why}) and there is no earlier read; nothing written, the release's page is served"
+                )
+                .into()),
+            }
         }
         [command, ledger_file, now] if command == "snapshot" => {
             let path = Path::new(ledger_file);
@@ -163,7 +208,7 @@ fn run(args: &[String]) -> Res<()> {
             }
             Ok(())
         }
-        _ => Err("usage: nucleus-site build OUT_DIR --input FILE --repository DIR [--site-url URL] [--ledger input/ledger.json] [--card-key FILE] [--source-commit HASH] | snapshot input/ledger.json NOW | snapshot-status input/arbitrum-sepolia.json NOW | card-key-create FILE | preview DIR 127.0.0.1:PORT | caddy HOST ROOT | check-live URL BUILT_SITE_DIR | keccak-hex FILE".into()),
+        _ => Err("usage: nucleus-site build OUT_DIR --input FILE --repository DIR [--site-url URL] [--ledger input/ledger.json] [--card-key FILE] [--source-commit HASH] | snapshot input/ledger.json NOW | snapshot-status input/arbitrum-sepolia.json NOW | refresh-status INPUT STATE_DIR SITE_URL | card-key-create FILE | preview DIR 127.0.0.1:PORT | caddy HOST ROOT | check-live URL BUILT_SITE_DIR | keccak-hex FILE".into()),
     }
 }
 

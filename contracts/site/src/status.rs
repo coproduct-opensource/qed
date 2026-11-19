@@ -9,8 +9,12 @@
 //! network; the page's script can re-read the balances live and says which
 //! it shows.
 //!
-//! Addresses other than the contracts, the bounty buyer and the relayer are
-//! not written to the snapshot: they are stored as "elided". The queries
+//! `nucleus-site refresh-status` (`refresh`) runs the same snapshot on the
+//! web host every 10 minutes and rewrites only this page, rendered by the
+//! same `page_from` (docs/rfcs/qed-status-refresh-2026-11-17.md).
+//!
+//! Addresses other than the contracts, the bounty buyer, the relayer and
+//! the ladder buyer (when the input names one) are not written to the snapshot: they are stored as "elided". The queries
 //! return them to anyone who runs them.
 use crate::doc::{Block, Doc, Line, code, code_link, h2, link, p, para, strong, t};
 use crate::html::{self, Html};
@@ -19,9 +23,30 @@ use crate::pages::{date, short};
 use crate::{Input, Mainnet, Res, StatusInput, amount, hex, unhex};
 use alloy_primitives::keccak256;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
+use std::path::Path;
 
 pub const SNAPSHOT_PATH: &str = "contracts/site/input/status.snapshot.json";
+/// The page's path on the site (`doc`), which the host's reader rewrites.
+pub const STATUS_PATH: &str = "status";
 pub const ELIDED: &str = "elided";
+
+/// How often the host's reader runs (its timer), and the oldest a served
+/// page's block may be before `check-live` reports it: three periods.
+pub const REFRESH_SECONDS: u64 = 600;
+pub const MAX_AGE_SECONDS: u64 = 1_800;
+/// How far a page's read time may be ahead of the checker's clock.
+pub const CLOCK_SKEW_SECONDS: u64 = 300;
+
+/// Where the values on the page come from. The page says which.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// The snapshot the release was built from; never refreshed.
+    Build,
+    /// The host's reader. `failed_at`: the time of a read that failed after
+    /// this snapshot, which the page then names with the values' age.
+    Refreshed { failed_at: Option<u64> },
+}
 
 fn topic(signature: &str) -> String {
     format!("0x{}", hex(keccak256(signature.as_bytes()).as_slice()))
@@ -116,7 +141,7 @@ impl Reader<'_> {
 
 fn published(address: &str, st: &StatusInput) -> String {
     let a = address.to_ascii_lowercase();
-    if a == st.buyer || a == st.relayer {
+    if a == st.buyer || a == st.relayer || st.ladder_buyer.as_deref() == Some(a.as_str()) {
         a
     } else {
         ELIDED.into()
@@ -423,28 +448,47 @@ pub fn deliveries(st: &StatusInput, snap: &Value) -> Deliveries {
     }
 }
 
-/// The section's blocks, and the line for the compact summary.
-fn deliveries_section(st: &StatusInput, snap: &Value) -> (Vec<Block>, Line) {
+/// The section's blocks, and the line for the compact summary. A refreshed
+/// page carries the build's record and says so: the host's reader reads the
+/// chain only (docs/rfcs/qed-status-refresh-2026-11-17.md §8).
+fn deliveries_section(st: &StatusInput, snap: &Value, source: Source) -> (Vec<Block>, Line) {
     let mut blocks = vec![h2("deliveries", "Delivery attempts")];
+    // The reread covers the chain only; this record is the build's.
+    let as_of = match (source, snap["deliveries"]["readAt"].as_u64()) {
+        (Source::Build, _) => String::new(),
+        (Source::Refreshed { .. }, Some(at)) => format!(" As of the build ({}).", date(at)),
+        (Source::Refreshed { .. }, None) => " Not reread.".into(),
+    };
+    let as_of_line = match source {
+        Source::Build => "",
+        Source::Refreshed { .. } => " As of the build.",
+    };
     let s = match deliveries(st, snap) {
         Deliveries::CouldNotRead(why) => {
             blocks.push(para(&format!(
-                "Could not read the bounty buyer's record of delivery attempts: {why}."
+                "Could not read the bounty buyer's record of delivery attempts: {why}.{as_of}"
             )));
             return (
                 blocks,
-                vec![strong("Delivery attempts:"), t(" could not read.")],
+                vec![
+                    strong("Delivery attempts:"),
+                    t(format!(" could not read.{as_of_line}")),
+                ],
             );
         }
         Deliveries::Read(s) => s,
     };
     blocks.push(para(&format!(
-        "Off-chain offers, signed by the bounty buyer, {}.",
+        "Off-chain offers, signed by the bounty buyer, {}.{as_of}",
         date(s.signed_at)
     )));
     let line = vec![
         strong("Delivery attempts:"),
-        t(format!(" {}, signed {}.", s.records, date(s.signed_at))),
+        t(format!(
+            " {}, signed {}.{as_of_line}",
+            s.records,
+            date(s.signed_at)
+        )),
     ];
     if s.records == 0 && s.unreadable == 0 && s.unrecorded == 0 {
         blocks.push(para(&format!(
@@ -604,7 +648,47 @@ fn tx_link(m: &Mainnet, tx: &str) -> crate::doc::Inline {
     code_link(format!("{}/tx/{tx}", m.network.explorer), short(tx))
 }
 
+/// The page as the build writes it, from the build-time snapshot.
 pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
+    page_from(input, snap, Source::Build)
+}
+
+/// The sentence that says which values the page shows, with their block,
+/// that block's time and the time they were read.
+fn source_sentence(m: &Mainnet, s: &Value, source: Source) -> String {
+    let block = s["block"].as_u64().unwrap_or(0);
+    let made = date(s["blockTimestamp"].as_u64().unwrap_or(0));
+    let read = s["takenAt"].as_u64().unwrap_or(0);
+    let rpc_url = s["rpc"].as_str().unwrap_or("");
+    // Short on purpose: the site's prose limit counts these words, and the
+    // refreshed page must fit it as the built one does.
+    let block = format!(
+        "block {block} on {} (chain {}), made {made}",
+        m.network.name, m.network.chain_id
+    );
+    let read = date(read);
+    match source {
+        Source::Build => {
+            format!("Read at {read} from {rpc_url} by the build: {block}. Not refreshed.")
+        }
+        Source::Refreshed { failed_at: None } => format!(
+            "Read at {read} from {rpc_url}: {block}. Reread every {} minutes; stale after {} minutes.",
+            REFRESH_SECONDS / 60,
+            MAX_AGE_SECONDS / 60
+        ),
+        Source::Refreshed {
+            failed_at: Some(failed),
+        } => format!(
+            "Read at {read} from {rpc_url}: {block}. Reread failed at {}, {} minutes later.",
+            date(failed),
+            failed.saturating_sub(s["takenAt"].as_u64().unwrap_or(0)) / 60,
+        ),
+    }
+}
+
+/// The page, from a snapshot taken by the build or by the host's reader.
+/// The one renderer of the status page: `refresh` calls it too.
+pub fn page_from(input: &Input, snap: Option<&Value>, source: Source) -> Option<Doc> {
     let m = input.mainnet.as_ref()?;
     let st = m.status.as_ref()?;
     let usdc = |units: u128| {
@@ -624,9 +708,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             format!("{}.{frac} ETH", wei / ONE)
         }
     };
-    let mut blocks = vec![para(
-        "Each number is read from Base at one block, with the call that reproduces it.",
-    )];
+    let mut blocks = vec![para("Each value comes with the call that reproduces it.")];
     let Some(s) = snap else {
         blocks.push(para(
             "This build was made without a status snapshot, so no values are shown.",
@@ -653,13 +735,14 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             .collect()
     };
 
-    // Which values the reader is looking at.
-    let source = format!(
-        "Showing the build-time snapshot: block {block} on {} (chain {}), {}, read from {rpc_url}.",
-        m.network.name,
-        m.network.chain_id,
-        date(now)
-    );
+    // Which values the reader is looking at, and how old they are.
+    let source_kind = source;
+    let source = source_sentence(m, s, source_kind);
+    let stamp = [
+        block.to_string(),
+        now.to_string(),
+        s["takenAt"].as_u64().unwrap_or(0).to_string(),
+    ];
     let live_rows = [
         (
             "buyer-usdc",
@@ -708,7 +791,13 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         html: Html::join([
             html::tx(
                 "p",
-                &[("id", "status-source"), ("aria-live", "polite")],
+                &[
+                    ("id", "status-source"),
+                    ("aria-live", "polite"),
+                    ("data-block", &stamp[0]),
+                    ("data-block-time", &stamp[1]),
+                    ("data-read-at", &stamp[2]),
+                ],
                 &source,
             ),
             html::el("div", &[("class", "scroll")], [table]),
@@ -774,6 +863,11 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     )));
     line.push(link("/bounty", "terms"));
     line.push(t("."));
+    if let (true, Some(ladder)) = (st.publish_wallets, st.ladder_buyer.as_deref()) {
+        line.push(t(" The ladder buyer, "));
+        line.push(code(ladder.to_owned()));
+        line.push(t(", posts Nucleus's open statements on the same board."));
+    }
     blocks.push(p(line));
     let posts: Vec<Value> = s["posts"].as_array().cloned().unwrap_or_default();
     let rows: Vec<Vec<Line>> = posts
@@ -789,6 +883,10 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
             };
             let poster = if p["poster"] == st.buyer.as_str() {
                 "the bounty buyer"
+            } else if st.publish_wallets
+                && st.ladder_buyer.as_deref().is_some_and(|l| p["poster"] == l)
+            {
+                "the ladder buyer"
             } else {
                 "another poster (not listed here)"
             };
@@ -860,7 +958,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     blocks.push(queries(bounty_queries));
 
     // Delivery attempts: what the chain does not show.
-    let (delivery_blocks, delivery_line) = deliveries_section(st, s);
+    let (delivery_blocks, delivery_line) = deliveries_section(st, s, source_kind);
     blocks.extend(delivery_blocks);
     summary.push(delivery_line);
 
@@ -951,7 +1049,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     let mut relayer_queries = pre("relayer-eth", curl(rpc_url, &read("relayer-eth"), st));
     let reach = &s["relayerReach"];
     let up = match reach["answer"]["status"].as_u64() {
-        Some(401) => "Up: a request without a proof was refused with 401.".to_string(),
+        Some(401) => "Up: 401 to a request without a proof.".to_string(),
         Some(code) => format!(
             "Answered {code} to a request without a proof (401 is what a running relayer answers)."
         ),
@@ -960,7 +1058,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
     summary.push(vec![
         strong("Relayer."),
         t(format!(
-            " {up} Checked {} by the build. It holds {}.",
+            " {up} Checked {}. It holds {}.",
             date(reach["checkedAt"].as_u64().unwrap_or(0)),
             eth(wei)
         )),
@@ -1093,7 +1191,7 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
         });
     }
     blocks.push(para(
-        "Not shown: the relayer's gas budget, kept in its memory, not on chain.",
+        "Not shown: the relayer's gas budget, in memory, not on chain.",
     ));
     blocks.insert(summary_at, Block::Ul(summary));
     let data = json!({
@@ -1112,12 +1210,699 @@ pub fn page(input: &Input, snap: Option<&Value>) -> Option<Doc> {
 
 fn doc(blocks: Vec<Block>, data: Option<Value>) -> Doc {
     Doc {
-        path: "status".into(),
+        path: STATUS_PATH.into(),
         title: "Status — QED".into(),
         description: "The bounty, the vault's books and the gas relayer on Base, each number read from the chain at one block with the query that reproduces it.".into(),
         heading: "Status".into(),
         blocks,
         script: data.is_some(),
         data: data.map(|d| ("site-data".into(), d.to_string())),
+    }
+}
+
+// ---- What a served page must keep -------------------------------------------
+
+/// Element ids every status page carries: its sections and the reads that
+/// reproduce its values. `check-live` requires each on the served page.
+pub const REQUIRED_IDS: [&str; 13] = [
+    "status-source",
+    "source",
+    "bounty",
+    "deliveries",
+    "payouts",
+    "relayer",
+    "q-block",
+    "q-board-logs-0",
+    "q-buyer-usdc",
+    "q-vault0-usdc",
+    "q-relayer-eth",
+    "q-relayer-nonce",
+    "q-relay-reach",
+];
+/// The balance cells (`data-read`), which the page's script also fills.
+pub const REQUIRED_CELLS: [&str; 3] = ["buyer-usdc", "relayer-eth", "vault0-usdc"];
+
+/// Every address in a text, lower case without `0x`: a run of exactly 40
+/// hex digits, or a 32-byte word (in a run of words, after a 4-byte
+/// selector or not) whose first 12 bytes are zero, which is how calldata
+/// and log topics carry one.
+pub fn addresses(text: &str) -> BTreeSet<String> {
+    let lower = text.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let mut out = BTreeSet::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if !bytes[i].is_ascii_hexdigit() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() && bytes[i].is_ascii_hexdigit() {
+            i += 1;
+        }
+        let run = &lower[start..i];
+        if run.len() == 40 {
+            out.insert(run.to_owned());
+            continue;
+        }
+        let words = match run.len() % 64 {
+            _ if run.len() < 64 => continue,
+            0 => run,
+            8 => &run[8..],
+            _ => continue,
+        };
+        for k in 0..words.len() / 64 {
+            let word = &words[k * 64..(k + 1) * 64];
+            let (zeros, tail) = word.split_at(24);
+            if zeros.bytes().all(|b| b == b'0') && !tail.bytes().all(|b| b == b'0') {
+                out.insert(tail.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// The addresses a status page may name: the main network's contracts, and
+/// the bounty buyer and the relayer when the input publishes them (owner
+/// decision, 2026-11-14: "publish buyer and relayer only").
+pub fn allowed_addresses(input: &Input) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let Some(m) = input.mainnet.as_ref() else {
+        return out;
+    };
+    let mut add = |a: &str| {
+        out.insert(a.trim_start_matches("0x").to_ascii_lowercase());
+    };
+    for a in [
+        &m.board.address,
+        &m.vault.address,
+        &m.registry.address,
+        &m.verifier.address,
+        &m.token.address,
+    ] {
+        add(a);
+    }
+    if let Some(st) = m.status.as_ref() {
+        for v in &st.vaults {
+            add(&v.address);
+        }
+        if st.publish_wallets {
+            add(&st.buyer);
+            add(&st.relayer);
+            if let Some(ladder) = &st.ladder_buyer {
+                add(ladder);
+            }
+        }
+    }
+    out
+}
+
+/// Addresses in `text` that a status page may not name.
+pub fn foreign_addresses(input: &Input, text: &str) -> Vec<String> {
+    let allowed = allowed_addresses(input);
+    addresses(text)
+        .into_iter()
+        .filter(|a| !allowed.contains(a))
+        .collect()
+}
+
+const MAIN_OPEN: &str = "<main id=\"main\">";
+const MAIN_CLOSE: &str = "</main>";
+
+/// (before `<main>`, inside, from `</main>`), when the page has one main.
+fn html_frame(page: &str) -> Option<(&str, &str, &str)> {
+    let open = page.find(MAIN_OPEN)? + MAIN_OPEN.len();
+    let close = page.rfind(MAIN_CLOSE)?;
+    (open <= close && page.matches(MAIN_OPEN).count() == 1)
+        .then(|| (&page[..open], &page[open..close], &page[close..]))
+}
+
+/// (heading and description, body, closing index line) of a document's
+/// Markdown (`doc::markdown`).
+fn markdown_frame(md: &str) -> Option<(&str, &str, &str)> {
+    let mut paragraphs = md.match_indices("\n\n");
+    paragraphs.next()?;
+    let head = paragraphs.next()?.0 + 2;
+    let foot = md.rfind("\n---\n\n")?;
+    (head <= foot).then(|| (&md[..head], &md[head..foot], &md[foot..]))
+}
+
+fn unescape(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}
+
+/// The stamp a page carries: (block, block time, read time, sentence).
+pub fn stamp(html: &str) -> Option<(u64, u64, u64, String)> {
+    let at = html.find("id=\"status-source\"")?;
+    let tag_start = html[..at].rfind('<')?;
+    let tag_end = at + html[at..].find('>')?;
+    let tag = &html[tag_start..tag_end];
+    let attr = |name: &str| -> Option<u64> {
+        let key = format!(" {name}=\"");
+        let from = tag.find(&key)? + key.len();
+        tag[from..].split('"').next()?.parse().ok()
+    };
+    let text_end = tag_end + 1 + html[tag_end + 1..].find("</p>")?;
+    Some((
+        attr("data-block")?,
+        attr("data-block-time")?,
+        attr("data-read-at")?,
+        unescape(&html[tag_end + 1..text_end]),
+    ))
+}
+
+/// What is wrong with a served status page (HTML and Markdown) against the
+/// release's built one, at `now`: the frame must be the build's byte for
+/// byte, every required section and read present, the values at most
+/// `MAX_AGE_SECONDS` old, and no address the built page does not name.
+/// The values themselves are not compared: each carries its query
+/// (docs/rfcs/qed-status-refresh-2026-11-17.md §7).
+pub fn check_served(
+    built_html: &str,
+    built_md: &str,
+    served_html: &str,
+    served_md: &str,
+    now: u64,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let main = match (html_frame(built_html), html_frame(served_html)) {
+        (Some((bp, _, bs)), Some((sp, sm, ss))) => {
+            if bp != sp {
+                out.push("the head or masthead is not the release's".into());
+            }
+            if bs != ss {
+                out.push("the footer or data block is not the release's".into());
+            }
+            sm
+        }
+        (None, _) => {
+            out.push("the built page has no single <main>".into());
+            served_html
+        }
+        (_, None) => {
+            out.push("the served page has no single <main id=\"main\">".into());
+            served_html
+        }
+    };
+    match (markdown_frame(built_md), markdown_frame(served_md)) {
+        (Some((bh, _, bf)), Some((sh, _, sf))) => {
+            if bh != sh {
+                out.push("the Markdown heading or description is not the release's".into());
+            }
+            if bf != sf {
+                out.push("the Markdown index line is not the release's".into());
+            }
+        }
+        _ => out.push("the Markdown has no heading, description and index line".into()),
+    }
+    for id in REQUIRED_IDS {
+        if !main.contains(&format!("id=\"{id}\"")) {
+            out.push(format!("no element with id {id}"));
+        }
+    }
+    for cell in REQUIRED_CELLS {
+        if !main.contains(&format!("data-read=\"{cell}\"")) {
+            out.push(format!("no balance cell {cell}"));
+        }
+    }
+    match stamp(main) {
+        None => out.push("no stamp (data-block, data-block-time, data-read-at)".into()),
+        Some((block, made, read, sentence)) => {
+            if made + MAX_AGE_SECONDS < now {
+                out.push(format!(
+                    "the values are from block {block}, {} minutes old; the limit is {}",
+                    (now - made) / 60,
+                    MAX_AGE_SECONDS / 60
+                ));
+            }
+            if read > now + CLOCK_SKEW_SECONDS {
+                out.push(format!("read time {read} is in the future"));
+            }
+            if !served_md.contains(&sentence) {
+                out.push("the Markdown does not carry the HTML's stamp sentence".into());
+            }
+        }
+    }
+    let built: BTreeSet<String> = addresses(built_html)
+        .union(&addresses(built_md))
+        .cloned()
+        .collect();
+    for a in addresses(served_html).union(&addresses(served_md)) {
+        if !built.contains(a) {
+            out.push(format!(
+                "an address the built page does not name: 0x{}…",
+                &a[..8]
+            ));
+        }
+    }
+    out
+}
+
+// ---- The host's reader --------------------------------------------------------
+
+/// The snapshot `refresh` keeps beside the pages, and the pages it writes,
+/// relative to its state directory.
+pub const LAST_GOOD: &str = "status.snapshot.json";
+pub const SERVED_MD: &str = "site/status/index.md";
+pub const SERVED_HTML: &str = "site/status/index.html";
+
+/// What one pass decided.
+#[derive(Debug)]
+pub struct Pass {
+    /// The new snapshot to keep, after a successful read.
+    pub snapshot: Option<Value>,
+    /// (Markdown, HTML) to serve; none when there is nothing good to show.
+    pub pages: Option<(String, String)>,
+    /// The read's error, when it failed.
+    pub failure: Option<String>,
+}
+
+fn render(input: &Input, snap: &Value, source: Source, site_url: &str) -> Res<(String, String)> {
+    let d = page_from(input, Some(snap), source).ok_or("the input has no status page")?;
+    let site = site_url.trim_end_matches('/');
+    let html = crate::doc::page(&d, Some(site), &crate::pages::footer());
+    let md = crate::doc::markdown(&d, Some(site));
+    let foreign = foreign_addresses(input, &format!("{md}\n{html}"));
+    if !foreign.is_empty() {
+        return Err(format!(
+            "refused: the page would name {} address(es) the input does not publish",
+            foreign.len()
+        )
+        .into());
+    }
+    Ok((md, html))
+}
+
+/// One pass of the reader, without effects: `read` is `snapshot`'s result.
+/// A good read is rendered and kept; a failed one re-renders the last good
+/// snapshot saying the read failed and how old the values were; with
+/// neither, nothing is served (Caddy falls back to the release's page). The
+/// build's signed delivery record is carried with its own read time.
+pub fn pass(
+    input: &Input,
+    site_url: &str,
+    build: Option<&Value>,
+    last_good: Option<&Value>,
+    read: Res<Value>,
+    now: u64,
+) -> Res<Pass> {
+    match read {
+        Ok(mut snap) => {
+            snap["deliveries"] = build
+                .map(|b| b["deliveries"].clone())
+                .filter(|d| d.is_object())
+                .unwrap_or_else(|| json!({"jws": null, "readAt": null}));
+            let pages = render(
+                input,
+                &snap,
+                Source::Refreshed { failed_at: None },
+                site_url,
+            )?;
+            Ok(Pass {
+                snapshot: Some(snap),
+                pages: Some(pages),
+                failure: None,
+            })
+        }
+        Err(e) => {
+            let pages = last_good
+                .map(|s| {
+                    render(
+                        input,
+                        s,
+                        Source::Refreshed {
+                            failed_at: Some(now),
+                        },
+                        site_url,
+                    )
+                })
+                .transpose()?;
+            Ok(Pass {
+                snapshot: None,
+                pages,
+                failure: Some(e.to_string()),
+            })
+        }
+    }
+}
+
+/// Write `bytes` to `path` by a synced temporary file in the same directory
+/// and a rename, so a reader sees the old file or the new one.
+pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> Res<()> {
+    use std::io::Write;
+    let dir = path.parent().ok_or("no parent directory")?;
+    std::fs::create_dir_all(dir)?;
+    let name = path.file_name().ok_or("no file name")?.to_string_lossy();
+    let tmp = dir.join(format!(".{name}.tmp"));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(mode);
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    let mut file = options.open(&tmp)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(std::fs::Permissions::from_mode(mode))?;
+    }
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+fn read_json(path: &Path) -> Res<Option<Value>> {
+    match std::fs::read(path) {
+        Ok(bytes) => Ok(Some(
+            serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?,
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display()).into()),
+    }
+}
+
+/// `nucleus-site refresh-status INPUT STATE_DIR SITE_URL`: read the chain
+/// now, and write `STATE_DIR/status.snapshot.json` (0600) and the page's
+/// Markdown, then HTML, under `STATE_DIR/site/status/` (0644). The build's
+/// snapshot beside INPUT supplies only the delivery record. Returns the
+/// read's failure, if any, after writing what `pass` decided.
+pub fn refresh(input_path: &Path, state: &Path, site_url: &str, now: u64) -> Res<Pass> {
+    if !site_url.starts_with("https://") {
+        return Err("SITE_URL must be an https URL".into());
+    }
+    let input = Input::read(input_path)?;
+    let build = read_json(
+        &input_path
+            .parent()
+            .ok_or("input path")?
+            .join("status.snapshot.json"),
+    )?;
+    let last_good = read_json(&state.join(LAST_GOOD))?;
+    let read = snapshot(&input, now, None);
+    let decided = pass(
+        &input,
+        site_url,
+        build.as_ref(),
+        last_good.as_ref(),
+        read,
+        now,
+    )?;
+    if let Some(snap) = &decided.snapshot {
+        write_atomic(
+            &state.join(LAST_GOOD),
+            (serde_json::to_string_pretty(snap)? + "\n").as_bytes(),
+            0o600,
+        )?;
+    }
+    if let Some((md, html)) = &decided.pages {
+        write_atomic(&state.join(SERVED_MD), md.as_bytes(), 0o644)?;
+        write_atomic(&state.join(SERVED_HTML), html.as_bytes(), 0o644)?;
+    }
+    Ok(decided)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    fn input() -> Input {
+        Input::read(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/input/arbitrum-sepolia.json"
+        )))
+        .unwrap()
+    }
+    fn committed() -> Value {
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap()
+    }
+    const SITE: &str = "https://qed.example.test";
+    const OTHER: [&str; 4] = [
+        "0xd15c105ed0d15c105ed0d15c105ed0d15c105ed0",
+        "0x5e11e50000000000000000000000000000000abc",
+        "0x0123456789abcdef0123456789abcdef01234567",
+        "0xfeedfacefeedfacefeedfacefeedfacefeedface",
+    ];
+
+    /// The committed snapshot with every elided wallet replaced by another
+    /// wallet, as if `published` had not run: posters, post vaults,
+    /// senders, buyers, sellers and payees.
+    fn unelided() -> Value {
+        let text = serde_json::to_string(&committed())
+            .unwrap()
+            .replace(&format!("\"{ELIDED}\""), &format!("\"{}\"", OTHER[0]));
+        let mut s: Value = serde_json::from_str(&text).unwrap();
+        for p in s["posts"].as_array_mut().unwrap() {
+            p["vault"] = json!(OTHER[1]);
+        }
+        for v in s["vaults"].as_array_mut().unwrap() {
+            for e in v["events"].as_array_mut().unwrap() {
+                e["sentBy"] = json!(OTHER[2]);
+                if e["event"] == "Claimed" {
+                    e["payee"] = json!(OTHER[3]);
+                }
+            }
+        }
+        s
+    }
+
+    #[test]
+    fn addresses_are_found_bare_and_in_words() {
+        let a = "d15c105ed0d15c105ed0d15c105ed0d15c105ed0";
+        assert!(addresses(&format!("x 0x{a} y")).contains(a));
+        assert!(addresses(&format!("\"0x70a08231{:0>64}\"", a)).contains(a));
+        assert!(addresses(&format!("[\"0x{:0>64}\"]", a.to_uppercase())).contains(a));
+        // A transaction hash and a short form are not addresses.
+        assert!(addresses(&format!("0x{a}{a}abcdefabcdefabcdefabcdef")).is_empty());
+        assert!(addresses("0x952c31aa20…6fa39a6b").is_empty());
+    }
+
+    /// Owner decision 2026-11-14 holds on every refresh: a snapshot naming
+    /// other wallets everywhere it can renders none of them.
+    #[test]
+    fn a_snapshot_naming_other_wallets_renders_none_of_them() {
+        let i = input();
+        let snap = unelided();
+        assert!(
+            serde_json::to_string(&snap)
+                .unwrap()
+                .contains(&OTHER[3][2..])
+        );
+        for source in [
+            Source::Build,
+            Source::Refreshed { failed_at: None },
+            Source::Refreshed {
+                failed_at: Some(snap["takenAt"].as_u64().unwrap() + 3600),
+            },
+        ] {
+            let (md, html) = render(&i, &snap, source, SITE).unwrap();
+            for page in [&md, &html] {
+                assert_eq!(foreign_addresses(&i, page), Vec::<String>::new());
+                for o in OTHER {
+                    assert!(!page.contains(&o[2..]), "{o} on the page");
+                }
+            }
+        }
+        // Red: a snapshot value the page prints verbatim (the endpoint)
+        // carrying another wallet: the reader refuses to write the page.
+        let mut carried = committed();
+        carried["rpc"] = json!(format!("https://rpc.example.test/{}", OTHER[1]));
+        let refused = pass(&i, SITE, None, None, Ok(carried), 0).unwrap_err();
+        assert!(
+            refused.to_string().contains("does not publish"),
+            "{refused}"
+        );
+        // The same guard on a page with one planted wallet.
+        let (_, html) = render(&i, &snap, Source::Build, SITE).unwrap();
+        let planted = html.replacen("<h2", &format!("<p>{}</p><h2", OTHER[2]), 1);
+        assert_eq!(
+            foreign_addresses(&i, &planted),
+            vec![OTHER[2][2..].to_string()]
+        );
+    }
+
+    #[test]
+    fn the_page_says_where_its_values_come_from_and_how_old_they_are() {
+        let i = input();
+        let s = committed();
+        let read = s["takenAt"].as_u64().unwrap();
+        let (md, html) = render(&i, &s, Source::Build, SITE).unwrap();
+        assert!(md.contains(" by the build: block ") && md.contains(". Not refreshed."));
+        assert!(!md.contains("build-time snapshot"));
+        let (block, made, at, sentence) = stamp(&html).unwrap();
+        assert_eq!(block, s["block"].as_u64().unwrap());
+        assert_eq!(made, s["blockTimestamp"].as_u64().unwrap());
+        assert_eq!(at, read);
+        assert!(md.contains(&sentence));
+        let (md, _) = render(&i, &s, Source::Refreshed { failed_at: None }, SITE).unwrap();
+        assert!(md.contains("Reread every 10 minutes; stale after 30 minutes."));
+        // The delivery record is the build's, and says so in both places.
+        assert_eq!(md.matches(" As of the build").count(), 2, "{md}");
+        let (md, _) = render(
+            &i,
+            &s,
+            Source::Refreshed {
+                failed_at: Some(read + 25 * 60),
+            },
+            SITE,
+        )
+        .unwrap();
+        assert!(md.contains("Reread failed at "));
+        assert!(md.contains(", 25 minutes later."));
+    }
+
+    #[test]
+    fn a_pass_keeps_a_good_read_and_otherwise_the_last_good_values_with_their_age() {
+        let i = input();
+        let build = committed();
+        let mut read = committed();
+        read["block"] = json!(read["block"].as_u64().unwrap() + 300);
+        read["deliveries"] = json!({"jws": null, "readAt": 1});
+        let now = read["takenAt"].as_u64().unwrap() + 600;
+        let good = pass(&i, SITE, Some(&build), None, Ok(read.clone()), now).unwrap();
+        let kept = good.snapshot.unwrap();
+        // The build's delivery record, with the build's read time.
+        assert_eq!(kept["deliveries"], build["deliveries"]);
+        assert_eq!(kept["block"], read["block"]);
+        assert!(good.failure.is_none());
+        let (_, html) = good.pages.unwrap();
+        assert_eq!(stamp(&html).unwrap().0, read["block"].as_u64().unwrap());
+
+        let failed = pass(
+            &i,
+            SITE,
+            Some(&build),
+            Some(&kept),
+            Err("timeout".into()),
+            now,
+        )
+        .unwrap();
+        assert!(failed.snapshot.is_none());
+        assert_eq!(failed.failure.as_deref(), Some("timeout"));
+        let (md, html) = failed.pages.unwrap();
+        assert_eq!(stamp(&html).unwrap().0, read["block"].as_u64().unwrap());
+        assert!(md.contains("Reread failed at "));
+        assert!(
+            !md.contains("timeout"),
+            "the error goes to the journal only"
+        );
+
+        let nothing = pass(&i, SITE, Some(&build), None, Err("timeout".into()), now).unwrap();
+        assert!(nothing.pages.is_none() && nothing.snapshot.is_none());
+    }
+
+    #[test]
+    fn writes_replace_the_file_whole() {
+        let dir = std::env::temp_dir().join(format!("nucleus-site-atomic-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("site/status/index.html");
+        write_atomic(&path, b"one", 0o644).unwrap();
+        write_atomic(&path, b"two", 0o600).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"two");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+        let left: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name())
+            .collect();
+        assert_eq!(left.len(), 1, "{left:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// `check-live`'s rule for `/status`, each check driven red on the defect
+    /// it exists for, then green on a fresh refreshed page.
+    #[test]
+    fn a_served_status_page_is_checked_for_frame_structure_age_and_addresses() {
+        let i = input();
+        let s = committed();
+        let (bmd, bhtml) = render(&i, &s, Source::Build, SITE).unwrap();
+        let mut fresh = s.clone();
+        fresh["block"] = json!(s["block"].as_u64().unwrap() + 1000);
+        let made = s["blockTimestamp"].as_u64().unwrap() + 2000;
+        fresh["blockTimestamp"] = json!(made);
+        fresh["takenAt"] = json!(made + 5);
+        let (md, html) = render(&i, &fresh, Source::Refreshed { failed_at: None }, SITE).unwrap();
+        let now = made + 600;
+        assert_eq!(
+            check_served(&bhtml, &bmd, &html, &md, now),
+            Vec::<String>::new()
+        );
+        let has = |f: Vec<String>, what: &str| {
+            assert!(f.iter().any(|x| x.contains(what)), "{what} not in {f:?}");
+        };
+        // Red: stale (the build-time page, served days later).
+        has(
+            check_served(&bhtml, &bmd, &bhtml, &bmd, now + 86_400),
+            "minutes old; the limit is 30",
+        );
+        has(
+            check_served(&bhtml, &bmd, &html, &md, made + MAX_AGE_SECONDS + 60),
+            "minutes old",
+        );
+        // Red: a missing read.
+        has(
+            check_served(
+                &bhtml,
+                &bmd,
+                &html.replace("id=\"q-relayer-nonce\"", "id=\"x\""),
+                &md,
+                now,
+            ),
+            "no element with id q-relayer-nonce",
+        );
+        // Red: an extra address, in either form.
+        let planted = html.replacen("<h2", &format!("<p>{}</p><h2", OTHER[0]), 1);
+        has(
+            check_served(&bhtml, &bmd, &planted, &md, now),
+            "an address the built page does not name",
+        );
+        has(
+            check_served(&bhtml, &bmd, &html, &format!("{md}\n{}", OTHER[1]), now),
+            "an address the built page does not name",
+        );
+        // Red: another frame (a refresher from another commit).
+        has(
+            check_served(
+                &bhtml,
+                &bmd,
+                &html.replace("/qed.css", "/qed2.css"),
+                &md,
+                now,
+            ),
+            "head or masthead",
+        );
+        has(
+            check_served(&bhtml, &bmd, &html, &md.replace("Index:", "Contents:"), now),
+            "Markdown index line",
+        );
+        // Red: no stamp, and a Markdown twin from another read.
+        has(
+            check_served(
+                &bhtml,
+                &bmd,
+                &html.replace("data-block-time", "data-x"),
+                &md,
+                now,
+            ),
+            "no stamp",
+        );
+        has(
+            check_served(&bhtml, &bmd, &html, &bmd, now),
+            "stamp sentence",
+        );
     }
 }

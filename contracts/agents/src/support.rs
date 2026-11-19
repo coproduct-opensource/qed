@@ -220,10 +220,16 @@ pub struct BaseOffer {
 /// match the deployment and the posts it answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ThirdProgram {
-    /// Statement format v2, built reproducibly (`program/nucleus-order-fmt2r.bin`,
-    /// bases from `nucleus-base-check-fmt2r.bin`): the default since the
-    /// switch of 2026-11-13 (docs/rfcs/qed-reproducible-switch-2026-11-13.md).
+    /// The reserved-names pair (`program/nucleus-order-fmt2s.bin`, bases from
+    /// `nucleus-base-check-fmt2s.bin`), whose acceptance rule refuses a seller
+    /// declaration of a kernel-reserved name: the default since 2026-11-19
+    /// (docs/rfcs/proof-acceptance-reserved-names-2026-11-19.md).
     #[default]
+    Reserved,
+    /// Statement format v2, built reproducibly (`program/nucleus-order-fmt2r.bin`,
+    /// bases from `nucleus-base-check-fmt2r.bin`): the default from the switch of
+    /// 2026-11-13 (docs/rfcs/qed-reproducible-switch-2026-11-13.md) until
+    /// 2026-11-19. Still named by orders posted before then.
     Reproducible,
     /// Statement format v2 as first built (`program/nucleus-order-fmt2.bin`,
     /// bases from `nucleus-base-check-fmt2.bin`), named by the Base mainnet
@@ -235,16 +241,17 @@ pub enum ThirdProgram {
     Earlier,
 }
 impl ThirdProgram {
-    /// From a seller config's `proofProgram`: absent or `"fmt2r"` for the
-    /// reproducible build, `"fmt2"` for format v2 as first built, `"vault3"`
+    /// From a seller config's `proofProgram`: absent or `"fmt2s"` for the
+    /// reserved-names pair, `"fmt2r"` for the reproducible build, `"fmt2"` for format v2 as first built, `"vault3"`
     /// for the earlier program. Anything else is refused.
     pub fn from_config(value: Option<&str>) -> Res<Self> {
         match value {
-            None | Some("fmt2r") => Ok(Self::Reproducible),
+            None | Some("fmt2s") => Ok(Self::Reserved),
+            Some("fmt2r") => Ok(Self::Reproducible),
             Some("fmt2") => Ok(Self::FormatV2),
             Some("vault3") => Ok(Self::Earlier),
             Some(other) => Err(format!(
-                "proofProgram {other:?}: expected \"fmt2r\", \"fmt2\" or \"vault3\""
+                "proofProgram {other:?}: expected \"fmt2s\", \"fmt2r\", \"fmt2\" or \"vault3\""
             )
             .into()),
         }
@@ -266,6 +273,7 @@ impl RealProofs {
         match (form, self.third) {
             (nucleus_proof_commerce::vault::Form::Second, _) => "vault-",
             // The base-aware programs: they also prove orders that name no base.
+            (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::Reserved) => "order2s-",
             (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::Reproducible) => "order2r-",
             (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::FormatV2) => "order2-",
             (nucleus_proof_commerce::vault::Form::Third, ThirdProgram::Earlier) => "vault3-",
@@ -468,7 +476,7 @@ mod tests {
     /// build; the earlier builds are chosen by name; a misspelling is refused,
     /// not defaulted.
     #[test]
-    fn the_third_form_program_is_chosen_by_name_and_defaults_to_the_reproducible_build() {
+    fn the_third_form_program_is_chosen_by_name_and_defaults_to_the_reserved_names_pair() {
         let proofs = |third| RealProofs {
             host: String::new(),
             groth16: Groth16::Native { data: None },
@@ -478,7 +486,15 @@ mod tests {
         use nucleus_proof_commerce::vault::Form;
         assert_eq!(
             ThirdProgram::from_config(None).unwrap(),
-            ThirdProgram::Reproducible
+            ThirdProgram::Reserved
+        );
+        assert_eq!(
+            ThirdProgram::from_config(Some("fmt2s")).unwrap(),
+            ThirdProgram::Reserved
+        );
+        assert_eq!(
+            proofs(ThirdProgram::Reserved).prefix(Form::Third),
+            "order2s-"
         );
         assert_eq!(
             ThirdProgram::from_config(Some("fmt2r")).unwrap(),

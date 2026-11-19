@@ -12,9 +12,9 @@
 //! standard library differ (docs/rfcs/qed-reproducible-programs-2026-11-13.md).
 //! So this file no longer compares a native build with a published binary.
 //!
-//! What is left here: the order guest's source names the published
-//! reproducible base program (the host's test
-//! `the_order_guest_source_names_the_published_reproducible_base_program`
+//! What is left here: the order guest's source names the reserved-names
+//! base program `program/nucleus-base-check-fmt2s.bin` (the host's test
+//! `the_order_guest_source_names_the_reserved_names_base_program`
 //! checks the same constant against the embedded binary). Whether a native
 //! build on some machine happens to equal the pinned one is not asserted
 //! either way; it was measured to differ on macOS.
@@ -31,11 +31,11 @@ fn listed_base() -> String {
         .collect()
 }
 
-/// The order guest names the published reproducible base program.
+/// The order guest names the reserved-names base program.
 #[test]
-fn the_order_guest_names_the_published_base_program() {
+fn the_order_guest_names_the_reserved_names_base_program() {
     assert_eq!(
         listed_base(),
-        include_str!("../../../program/IMAGE_ID_BASE_FMT2R").trim()
+        include_str!("../../../program/IMAGE_ID_BASE_FMT2S").trim()
     );
 }

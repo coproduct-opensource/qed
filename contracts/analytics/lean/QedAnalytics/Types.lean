@@ -14,11 +14,11 @@ set_option maxRecDepth 2048
 
 namespace qed_analytics
 
-/-- [qed_analytics::core::Day]
+/-- [qed_analytics::core::Window]
     Source: 'src/core.rs', lines 30:0-33:1
     Visibility: public -/
-structure core.Day where
-  day : Std.U32
+structure core.Window where
+  window : Std.U32
   cells : Array Std.U32 34#usize
 
 /-- [qed_analytics::core::Request]

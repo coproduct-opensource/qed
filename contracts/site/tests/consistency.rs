@@ -190,7 +190,8 @@ fn no_page_calls_the_relayer_unavailable_or_the_test_network_live() {
 
 /// The authors' wallets, from `NUCLEUS_SITE_WALLETS` (comma-separated, never
 /// written into the tree), appear only in chain data (receipts and their
-/// pages) and, for the two the owner published, on the status page.
+/// pages) and, for the ones the owner published (the bounty buyer and the
+/// relayer, 2026-11-14; the ladder buyer, 2026-11-19), on the status page.
 #[test]
 fn author_wallets_appear_only_where_published() {
     let i = input();
@@ -199,7 +200,11 @@ fn author_wallets_appear_only_where_published() {
         .as_ref()
         .and_then(|m| m.status.as_ref())
         .filter(|s| s.publish_wallets)
-        .map(|s| vec![s.buyer.clone(), s.relayer.clone()])
+        .map(|s| {
+            let mut v = vec![s.buyer.clone(), s.relayer.clone()];
+            v.extend(s.ladder_buyer.clone());
+            v
+        })
         .unwrap_or_default()
         .iter()
         .map(|a| a.trim_start_matches("0x").to_lowercase())
@@ -237,7 +242,7 @@ fn author_wallets_appear_only_where_published() {
     };
     let files = built(&i);
     assert_eq!(check(&files, &wallets), Vec::<String>::new());
-    // The two published wallets are on the status page, in both forms.
+    // The published wallets are on the status page, in both forms.
     for w in &published {
         assert!(file(&files, "status/index.md").contains(w.as_str()));
         assert!(file(&files, "status/index.html").contains(w.as_str()));
@@ -337,7 +342,7 @@ fn the_status_page_names_the_two_wallets_only_with_the_switch_on() {
     let st = i.mainnet.as_ref().unwrap().status.clone().unwrap();
     let on = built(&i);
     let md = file(&on, "status/index.md");
-    assert!(md.contains("Showing the build-time snapshot: block "));
+    assert!(md.contains(" by the build: block ") && md.contains(". Not refreshed."));
     for id in [
         "q-block",
         "q-buyer-usdc",

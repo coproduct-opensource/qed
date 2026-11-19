@@ -150,7 +150,7 @@ fn says_cannot(message: &str) -> bool {
 }
 /// A revert carries the contract's own text, which may say anything; it is
 /// always the chain's answer.
-fn says_reverted(code: Option<i64>, message: &str) -> bool {
+pub(crate) fn says_reverted(code: Option<i64>, message: &str) -> bool {
     code == Some(3) || message.to_ascii_lowercase().contains("reverted")
 }
 

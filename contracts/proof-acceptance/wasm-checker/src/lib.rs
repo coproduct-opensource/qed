@@ -80,6 +80,7 @@ pub fn refusal_kind(refusal: &Refusal) -> &'static str {
         Refusal::KernelRefused => "KernelRefused",
         Refusal::StatementAltered => "StatementAltered",
         Refusal::ArtifactDeclaresAxiom(_) => "ArtifactDeclaresAxiom",
+        Refusal::ArtifactDeclaresReservedName(_) => "ArtifactDeclaresReservedName",
         Refusal::ClaimNotProved => "ClaimNotProved",
         Refusal::BaseMismatch => "BaseMismatch",
     }

@@ -8,11 +8,16 @@
 //!   withdraws that journal's post if nobody was signed for it.
 //! `nucleus-buyer task-refund DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
 //!   refunds and claims back that journal's funded order past its delivery deadline.
+//! `nucleus-buyer statement REPO COMMIT PACKAGE ROW LEAN4EXPORT WORK_DIR OUT_DIR [LAKE]`
+//!   generates and screens a ladder statement from a commit (`statement.rs`).
 //! `nucleus-buyer deliveries-fetch NODE_ID OUT [BINDING]`
 //!   fetches a desk's signed summary of delivery attempts (`deliveries.rs`).
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     nucleus_commerce_agents::exit(match args.split_first() {
+        Some((command, rest)) if command == "statement" => {
+            nucleus_commerce_agents::statement::statement(rest)
+        }
         Some((command, rest)) if command == "post" => nucleus_commerce_agents::post::post(rest),
         Some((command, rest)) if command == "post-tasks" => {
             nucleus_commerce_agents::tasks::post_tasks(rest)

@@ -369,6 +369,15 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
     }
     std::fs::write(other.join("deployment.json"), b"{}\n").unwrap();
     std::fs::write(other.join("protocol/index.md"), b"# other\n").unwrap();
+    // The host rewrites /status between releases; the preview serves a
+    // refreshed page, as Caddy does once the reader has run.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let (fresh_html, fresh_md) = refreshed_status(now - 60);
+    std::fs::write(served.join("status/index.html"), &fresh_html).unwrap();
+    std::fs::write(served.join("status/index.md"), &fresh_md).unwrap();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let dir = served.clone();
@@ -379,6 +388,20 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
     let findings = live::check(&base, &other).unwrap();
     let paths: Vec<&str> = findings.iter().map(|(p, _)| p.as_str()).collect();
     assert_eq!(paths, ["/deployment.json", "/protocol"], "{findings:?}");
+    // Red: the build-time page from the committed snapshot, days old: the
+    // one finding is its age (check-live did not fetch /status before).
+    let built_status = built(&input(), Some(SITE));
+    for name in ["status/index.html", "status/index.md"] {
+        let bytes = &built_status.iter().find(|(p, _)| p == name).unwrap().1;
+        std::fs::write(served.join(name), bytes).unwrap();
+    }
+    let stale = live::check(&base, &other).unwrap();
+    let stale: Vec<&(String, String)> = stale.iter().filter(|(p, _)| p == "/status").collect();
+    assert_eq!(stale.len(), 1, "{stale:?}");
+    assert!(
+        stale[0].1.contains("minutes old; the limit is 30"),
+        "{stale:?}"
+    );
     assert!(live::check("http://localhost:1", &served).is_err());
     std::fs::remove_dir_all(&root).unwrap();
 }
@@ -523,23 +546,32 @@ fn no_page_loads_anything_from_another_site() {
         assert!(!html.contains("<style"), "{path}: inline style");
     }
     let js = file(&files, "qed.js");
-    // Five network calls: the live list's and the status page's balance
-    // reads, each to the endpoint the reader sees and can edit; the
-    // checker's, only to paths on this site (its guard refuses anything
-    // else, and the /verify CSP admits only 'self'); and the visit beacon
-    // and the /visits table, each to one fixed path on this site, without
-    // credentials.
-    assert_eq!(js.matches("fetch(").count(), 5);
+    // Six network calls: the live list's and the status page's balance
+    // reads, each to the endpoint the reader sees and can edit; the two
+    // checkers' (/verify, /visits), only to paths on this site (each guard
+    // refuses anything else, and the checker pages' CSP admits only 'self');
+    // and the visit beacon and the /visits table, each to one fixed path on
+    // this site, without credentials.
+    assert_eq!(js.matches("fetch(").count(), 6);
     assert_eq!(js.matches("fetch(\"/analytics/beacon\", {").count(), 1);
     assert_eq!(js.matches("fetch(\"/analytics/published\", {").count(), 1);
-    assert_eq!(js.matches("credentials: \"omit\"").count(), 3);
+    assert_eq!(js.matches("credentials: \"omit\"").count(), 4);
     assert!(!js.contains("document.cookie"));
-    assert_eq!(js.matches("await fetch(url, {").count(), 2);
+    assert_eq!(js.matches("await fetch(url, {").count(), 3);
     assert_eq!(js.matches("return fetch(url, {").count(), 1);
     assert!(js.contains("var url = document.getElementById(\"status-rpc\").value.trim();"));
-    assert!(js.contains(
-        "if (!/^\\/[^\\/\\\\]/.test(url)) throw new Error(url + \": not a path on this site\");\n      var response = await fetch(url, { credentials: \"omit\" });"
-    ));
+    assert_eq!(
+        js.matches(
+            "if (!/^\\/[^\\/\\\\]/.test(url)) throw new Error(url + \": not a path on this site\");\n    var response = await fetch(url, { credentials: \"omit\" });"
+        )
+        .count()
+            + js.matches(
+                "if (!/^\\/[^\\/\\\\]/.test(url)) throw new Error(url + \": not a path on this site\");\n      var response = await fetch(url, { credentials: \"omit\" });"
+            )
+            .count(),
+        2,
+        "each checker's fetch is guarded"
+    );
     for never in [
         "sendBeacon",
         "XMLHttpRequest",
@@ -552,20 +584,32 @@ fn no_page_loads_anything_from_another_site() {
         assert!(!js.contains(never), "{never}");
     }
     // One stored value, by owner decision (2026-11-14, the "first visit
-    // today" bit is kept in the browser): the UTC date of the last beacon,
-    // under one key, read once and written once.
+    // today" bit is kept in the browser; 2026-11-18, at most one beacon per
+    // label per UTC day): today's UTC date and the labels sent today, under
+    // one key, read once and written once, and written before the beacon is
+    // sent. If storage throws, nothing is sent (fail closed).
     assert_eq!(js.matches("localStorage").count(), 2);
     assert_eq!(
-        js.matches("localStorage.getItem(\"qed-beacon-day\") !== today")
+        js.matches("localStorage.getItem(\"qed-beacon-day\")")
             .count(),
         1
     );
     assert_eq!(
-        js.matches("localStorage.setItem(\"qed-beacon-day\", today)")
+        js.matches("localStorage.setItem(\"qed-beacon-day\", today + \" \" + sent.join(\" \"))")
             .count(),
         1
     );
     assert!(js.contains("var today = new Date().toISOString().slice(0, 10);"));
+    let beacon = js
+        .split("(function beacon() {")
+        .nth(1)
+        .and_then(|b| b.split("})();").next())
+        .expect("the beacon");
+    let at = |needle: &str| beacon.find(needle).unwrap_or(usize::MAX);
+    assert!(at("if (sent.indexOf(label) >= 0) return;") < at("localStorage.setItem("));
+    assert!(at("localStorage.setItem(") < at("} catch (error) { return;"));
+    assert!(at("} catch (error) { return;") < at("fetch(\"/analytics/beacon\""));
+    assert_eq!(beacon.matches("return").count(), 3, "no other way out");
     let css = file(&files, "qed.css");
     assert!(!css.contains("@import") && !css.contains("url("));
     // The scanner fires.
@@ -914,6 +958,62 @@ fn the_seller_page_names_the_released_image_and_how_to_check_it() {
     );
 }
 
+/// "Post a task" (owner approval, 2026-11-18;
+/// docs/rfcs/qed-post-a-task-2026-11-18.md): reachable from /participate and
+/// the sitemap, with a Markdown twin; it names the board and vault from the
+/// input, the release by tag with its checks, the worked statement's
+/// measured bytes and hash, the vault's fee and term, and the relayer's
+/// reach. Since v0.2.3 (2026-11-19) it offers the release's exits
+/// (`task-withdraw`; `task-refund` named) and says what the release still
+/// lacks (the statement screen) rather than offering a command it does not
+/// have. The ladder buyer is named only on /status.
+/// Red before the page existed: `post/index.html not built`.
+#[test]
+fn the_post_a_task_page_says_what_the_release_can_do_and_is_linked() {
+    let i = input();
+    let files = built(&i, Some(SITE));
+    let page = file(&files, "post/index.html");
+    let markdown = file(&files, "post/index.md");
+    let m = i.mainnet.as_ref().expect("the input carries a mainnet");
+    let tag = nucleus_site::pages::SELLER_RELEASE.tag;
+    assert!(
+        file(&files, "participate/index.html").contains("href=\"/post\""),
+        "/participate does not link the page"
+    );
+    assert!(file(&files, "sitemap.xml").contains(&format!("<loc>{SITE}/post</loc>")));
+    for text in [page, markdown] {
+        // The release, checked as the seller page checks it.
+        assert!(text.contains(&format!(
+            "gh release download {tag} -R coproduct-opensource/qed"
+        )));
+        assert!(text.contains("shasum -a 256 -c --ignore-missing SHA256SUMS"));
+        assert!(text.contains("gh attestation verify"));
+        // The posting command, with the board and the relay.
+        assert!(text.contains("NUCLEUS_RELAY=default ./nucleus-buyer post-tasks base.json"));
+        assert!(text.contains(&m.board.address));
+        assert!(text.contains(&m.vault.address));
+        assert!(text.contains(&m.bounty.program));
+        // The worked statement, as measured on 2026-11-18.
+        assert!(text.contains("6b5eead329530f4efab1a898c79203919d06b4440c50787a4a1474a23b2b7731"));
+        assert!(text.contains("6,003"));
+        // The vault's terms from the input, and the relayer's reach.
+        assert!(text.contains(&nucleus_site::pages::percent(m.vault.fee_bps)));
+        assert!(text.contains(&m.vault.maximum_term_seconds.to_string()));
+        assert!(text.contains("34,824"));
+    }
+    // v0.2.3's exits: the journal, task-withdraw as a command, task-refund named.
+    assert!(page.contains("journal.jsonl"));
+    assert!(page.contains("./nucleus-buyer task-withdraw base.json"));
+    assert!(page.contains("task-refund"));
+    // What it still lacks is said, not offered as a command.
+    assert!(page.contains("The statement screen"));
+    assert!(!page.contains("nucleus-buyer statement"));
+    // Wallets: the board, vault and token are contracts; no buyer wallet of
+    // the authors' other than the bounty's appears (and that one only on
+    // /status), so the ladder buyer is not named.
+    assert!(!page.contains("ca1f8b498d3df887fe9f0a3cd637b059bb35ad1a"));
+}
+
 /// Every command a page offers to copy runs as it is (owner review,
 /// 2026-11-14): no copy control sits on a command with a placeholder in it.
 /// A command that needs the reader's own value is a template without a copy
@@ -947,13 +1047,14 @@ fn no_copyable_command_holds_a_placeholder() {
     assert_eq!(flagged.len(), 1, "{flagged:?}");
 }
 
-/// The owner's limit (2026-11-14): the whole site under 3,000 words of prose,
+/// The owner's limit (3,000 from 2026-11-14; 3,500 from 2026-11-19): the
+/// whole site under `words::LIMIT` words of prose,
 /// counted by `nucleus_site::words` (the rule is written there). Built from
 /// the committed inputs with the ledger, so every page the site serves,
 /// transaction pages included, is counted. The report prints with
 /// `--nocapture`.
 #[test]
-fn the_whole_site_has_at_most_3000_counted_words() {
+fn the_whole_site_is_within_the_word_limit() {
     let files = built(&input(), Some(SITE));
     let count = nucleus_site::words::count(&files);
     eprint!("{}", count.report());
@@ -1195,6 +1296,80 @@ fn elided_party_wallets_read_as_not_listed_and_nothing_else_changes() {
         if !buyer_elided {
             let buyer = r["order"]["buyer"].as_str().unwrap();
             assert!(page.contains(&format!("/address/{buyer}")), "{id}");
+        }
+    }
+}
+
+/// The status page as the host's reader writes it, from the committed
+/// snapshot moved to `made` (its block's time).
+fn refreshed_status(made: u64) -> (String, String) {
+    use nucleus_site::{doc, pages, status};
+    let mut s: Value = serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    s["blockTimestamp"] = json!(made);
+    s["takenAt"] = json!(made + 5);
+    let d = status::page_from(
+        &input(),
+        Some(&s),
+        status::Source::Refreshed { failed_at: None },
+    )
+    .unwrap();
+    (
+        doc::page(&d, Some(SITE), &pages::footer()),
+        doc::markdown(&d, Some(SITE)),
+    )
+}
+
+/// The owner's word limit holds for the site as served, where `/status` is
+/// the host's refreshed page (and, after a failed read, its last good one),
+/// not only for the release as built.
+#[test]
+fn the_site_with_a_refreshed_status_page_stays_within_3000_counted_words() {
+    use nucleus_site::{doc, pages, status};
+    let s: Value = serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    let read = s["takenAt"].as_u64().unwrap();
+    for source in [
+        status::Source::Refreshed { failed_at: None },
+        status::Source::Refreshed {
+            failed_at: Some(read + 7200),
+        },
+    ] {
+        let d = status::page_from(&input(), Some(&s), source).unwrap();
+        let mut files = built(&input(), Some(SITE));
+        for (path, bytes) in files.iter_mut() {
+            if path == "status/index.html" {
+                *bytes = doc::page(&d, Some(SITE), &pages::footer()).into_bytes();
+            }
+        }
+        let count = nucleus_site::words::count(&files);
+        assert!(
+            count.total <= nucleus_site::words::LIMIT,
+            "{source:?}: {} counted words, over the limit of {}",
+            count.total,
+            nucleus_site::words::LIMIT
+        );
+    }
+}
+
+/// The ladder buyer (owner decision, 2026-11-19) is named on /status as the
+/// poster of Nucleus's open statements, and the page's address check admits
+/// it; no other page names it.
+#[test]
+fn the_status_page_names_the_ladder_buyer() {
+    let i = input();
+    let files = built(&i, Some(SITE));
+    let ladder = "0xca1f8b498d3df887fe9f0a3cd637b059bb35ad1a";
+    for path in ["status/index.html", "status/index.md"] {
+        let text = file(&files, path);
+        assert!(text.contains(ladder), "{path} does not name the ladder buyer");
+        assert!(text.contains("The ladder buyer"), "{path}");
+        assert!(
+            nucleus_site::status::foreign_addresses(&i, text).is_empty(),
+            "{path} names an address the input does not admit"
+        );
+    }
+    for (path, text) in html_files(&files) {
+        if !path.starts_with("status/") {
+            assert!(!text.contains(&ladder[2..]), "{path} names the ladder buyer");
         }
     }
 }

@@ -2,11 +2,15 @@
 QED visit analytics: what the collector means, written before its code.
 
 The collector (contracts/analytics) counts beacons from qed.coproduct.dev
-per day, per site path and per "first visit today" bit, and once a day
-publishes every cell with discrete Laplace noise, suppressing a cell when
-its count plus its noise is under `K`. Suppression reads only the noisy
-value, so the differential-privacy theorems hold for every day with no
-condition on the counts (`day_dp`, `visit_dp`). The rule before 2026-11-15
+per window, per site path and per "first visit that day" bit, and once a
+window publishes every cell with discrete Laplace noise, suppressing a cell
+when its count plus its noise is under `K`. Since 2026-11-18 the window is a
+week starting Monday 00:00 UTC (`week`); until then it was a UTC day. Every
+beacon is counted in exactly one cell of exactly one window
+(`one_window`), so one beacon moves the whole publication by at most a
+factor of 2 (`publication_dp`). Suppression reads only the noisy value, so
+the differential-privacy theorems hold for every window with no condition on
+the counts (`window_dp`, `visit_dp`). The rule before 2026-11-15
 read the true count, and `History.lean` proves why it was replaced
 (`TrueCount.threshold_breaks_dp`). This file is the meaning: a model of the state
 machine and the publisher, and the theorems the site shows. The Rust core is
@@ -32,8 +36,8 @@ open scoped ENNReal
 /-- Site paths on the collector's allow-list (`contracts/analytics/src/paths.rs`). -/
 def PATHS : ℕ := 16
 
-/-- Cells per day: for each path, a cell for returning visits (`2 * path`)
-and one for first visits today (`2 * path + 1`); then one for malformed
+/-- Cells per window: for each path, a cell for returning visits (`2 * path`)
+and one for first visits that day (`2 * path + 1`); then one for malformed
 beacons and one for beacons refused by the rate limit. -/
 def CELLS : ℕ := 2 * PATHS + 2
 
@@ -66,9 +70,28 @@ structure Request where
 
 abbrev Counts := Fin CELLS → ℕ
 
-/-- The collector's whole state: the day being counted and its cells. -/
-structure Day where
-  day : ℕ
+/-- The window a day belongs to: weeks that start on Monday 00:00 UTC.
+Day 0 (1970-01-01) was a Thursday, so day 4 (1970-01-05) was the first
+Monday, and window `w ≥ 1` holds days `7 * w - 3` to `7 * w + 3` (`week_iff`).
+Window 0 holds days 0 to 3. Until 2026-11-18 the window was the day itself. -/
+def week (d : ℕ) : ℕ := (d + 3) / 7
+
+/-- **The days of a window.** -/
+theorem week_iff (d w : ℕ) : week d = w ↔ 7 * w ≤ d + 3 ∧ d + 3 < 7 * w + 7 := by
+  unfold week; omega
+
+/-- A window starts on day `7 * w + 4` (a Monday) and the day before it is
+in the previous window. -/
+theorem week_starts (w : ℕ) : week (7 * w + 4) = w + 1 ∧ week (7 * w + 3) = w := by
+  unfold week; omega
+
+/-- Windows never go back as days go forward. -/
+theorem week_mono {d d' : ℕ} (h : d ≤ d') : week d ≤ week d' := by
+  unfold week; omega
+
+/-- The collector's whole state: the window being counted and its cells. -/
+structure Window where
+  window : ℕ
   cells : Counts
 
 def cell (path : ℕ) (first : Bool) : ℕ :=
@@ -86,28 +109,30 @@ def limitedIdx : Fin CELLS := ⟨LIMITED, by unfold LIMITED CELLS; omega⟩
 
 def bump (c : ℕ) : ℕ := if c < MAX then c + 1 else c
 
-def fresh (day : ℕ) : Day := ⟨day, fun _ => 0⟩
+def fresh (w : ℕ) : Window := ⟨w, fun _ => 0⟩
 
-/-- Count one beacon in cell `i` on `day`. A beacon dated before the day being
-counted (the clock went back) changes nothing; one dated later starts a new
-day from zero. -/
-def count (s : Day) (i : Fin CELLS) (day : ℕ) : Day :=
-  if day < s.day then s
+/-- Count one beacon in cell `i` in window `w`. A beacon of a window before
+the one being counted (the clock went back) changes nothing; one of a later
+window starts that window from zero. -/
+def count (s : Window) (i : Fin CELLS) (w : ℕ) : Window :=
+  if w < s.window then s
   else
-    let t := if s.day < day then fresh day else s
-    ⟨day, Function.update t.cells i (bump (t.cells i))⟩
+    let t := if s.window < w then fresh w else s
+    ⟨w, Function.update t.cells i (bump (t.cells i))⟩
 
 /-- The only fields of a request the core may use. -/
 def project (r : Request) : ℕ × Bool × ℕ := (r.path, r.first, r.day)
 
-def step (s : Day) (path : ℕ) (first : Bool) (day : ℕ) : Day :=
-  count s (cellIdx path first) day
+/-- A beacon dated `day` is counted in the window of that day. -/
+def step (s : Window) (path : ℕ) (first : Bool) (day : ℕ) : Window :=
+  count s (cellIdx path first) (week day)
 
-/-- A beacon refused by the rate limit, counted on `day`. Whether a beacon is
-refused depends on the arrival times of all beacons, never on its fields. -/
-def limit (s : Day) (day : ℕ) : Day := count s limitedIdx day
+/-- A beacon refused by the rate limit, counted in the window of `day`.
+Whether a beacon is refused depends on the arrival times of all beacons,
+never on its fields. -/
+def limit (s : Window) (day : ℕ) : Window := count s limitedIdx (week day)
 
-def handle (s : Day) (r : Request) : Day :=
+def handle (s : Window) (r : Request) : Window :=
   match project r with
   | (path, first, day) => step s path first day
 
@@ -115,14 +140,14 @@ def handle (s : Day) (r : Request) : Day :=
 
 /-- The state after a request depends on the request only through
 `(path, first, day)`. -/
-theorem handle_eq_of_project_eq (s : Day) (r₁ r₂ : Request)
+theorem handle_eq_of_project_eq (s : Window) (r₁ r₂ : Request)
     (h : project r₁ = project r₂) : handle s r₁ = handle s r₂ := by
   unfold handle
   rw [h]
 
 /-- In particular, the connection's peer, the time within the day and the
 request's sizes change nothing. -/
-theorem handle_ignores_connection (s : Day) (r : Request) (sec : ℕ) (peer : List ℕ)
+theorem handle_ignores_connection (s : Window) (r : Request) (sec : ℕ) (peer : List ℕ)
     (port head body : ℕ) :
     handle s { r with secondOfDay := sec, peer := peer, peerPort := port,
                       headBytes := head, bodyBytes := body } = handle s r :=
@@ -130,15 +155,15 @@ theorem handle_ignores_connection (s : Day) (r : Request) (sec : ℕ) (peer : Li
 
 /-! ## 4. Sensitivity: one beacon moves one cell by at most one -/
 
-/-- Count the beacons of one day, in arrival order, each given by its cell. -/
-def run (s : Day) (day : ℕ) : List (Fin CELLS) → Day
+/-- Count the beacons of one window, in arrival order, each given by its cell. -/
+def run (s : Window) (w : ℕ) : List (Fin CELLS) → Window
   | [] => s
-  | i :: es => run (count s i day) day es
+  | i :: es => run (count s i w) w es
 
-/-- L1 distance between two days' cells. -/
+/-- L1 distance between two windows' cells. -/
 def dist (a b : Counts) : ℕ := ∑ j, ((a j - b j) + (b j - a j))
 
-theorem run_cells_of_le (d : ℕ) (es : List (Fin CELLS)) (s : Day) (hd : s.day = d)
+theorem run_cells_of_le (d : ℕ) (es : List (Fin CELLS)) (s : Window) (hd : s.window = d)
     (hle : ∀ j, s.cells j ≤ MAX) (j : Fin CELLS) :
     (run s d es).cells j = min (s.cells j + es.count j) MAX := by
   induction es generalizing s with
@@ -167,14 +192,14 @@ theorem run_cells_of_le (d : ℕ) (es : List (Fin CELLS)) (s : Day) (hd : s.day 
         split <;> omega
       · simp [Function.update, hki, hle k]
 
-/-- A day's cells, from its beacons: each cell is its number of beacons,
+/-- A window's cells, from its beacons: each cell is its number of beacons,
 saturated. Order does not matter. -/
 theorem run_fresh (d : ℕ) (es : List (Fin CELLS)) (j : Fin CELLS) :
     (run (fresh d) d es).cells j = min (es.count j) MAX := by
   rw [run_cells_of_le d es (fresh d) rfl (fun _ => by simp [fresh, MAX])]
   simp [fresh]
 
-/-- **Sensitivity 1.** Two days whose beacons differ by one beacon end with
+/-- **Sensitivity 1.** Two windows whose beacons differ by one beacon end with
 cells at L1 distance at most one. -/
 theorem sensitivity (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) :
     dist (run (fresh d) d (es₁ ++ e :: es₂)).cells (run (fresh d) d (es₁ ++ es₂)).cells ≤ 1 := by
@@ -191,6 +216,56 @@ theorem sensitivity (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) :
     · simp [h, Ne.symm h]
   calc _ ≤ ∑ j : Fin CELLS, (if j = e then 1 else 0) := Finset.sum_le_sum (fun j _ => hj j)
     _ = 1 := by simp
+
+
+/-! ## 4b. Every beacon is in exactly one window
+
+The machine above counts one window at a time. The publication is every
+window's cells, so a beacon must not reach two published cells: that is what
+keeps the per-beacon bound at a factor of 2 for the whole publication
+(`publication_dp`). Publishing daily and weekly cells side by side would
+put each beacon in two cells and double it. -/
+
+/-- A beacon as the publication sees it: its day and its cell. -/
+abbrev Dated := ℕ × Fin CELLS
+
+/-- The cells of the beacons dated in window `w`, in arrival order. -/
+def inWindow (w : ℕ) (es : List Dated) : List (Fin CELLS) :=
+  (es.filter (fun e => week e.1 = w)).map Prod.snd
+
+/-- What window `w` publishes from: its own beacons, counted from zero. -/
+def windowCounts (es : List Dated) (w : ℕ) : Counts :=
+  (run (fresh w) w (inWindow w es)).cells
+
+theorem dist_self (a : Counts) : dist a a = 0 := by
+  simp [dist]
+
+/-- **One beacon, one window.** Adding one beacon dated `e.1` moves window
+`w`'s cells by at most one if `w` is that day's window, and not at all
+otherwise. -/
+theorem one_window (es₁ es₂ : List Dated) (e : Dated) (w : ℕ) :
+    dist (windowCounts (es₁ ++ e :: es₂) w) (windowCounts (es₁ ++ es₂) w)
+      ≤ if week e.1 = w then 1 else 0 := by
+  unfold windowCounts inWindow
+  by_cases h : week e.1 = w
+  · simp only [List.filter_append, List.filter_cons, h, decide_true, if_true,
+      List.map_append, List.map_cons]
+    exact sensitivity w _ _ e.2
+  · simp only [List.filter_append, List.filter_cons, h, decide_false, if_false,
+      Bool.false_eq_true]
+    rw [dist_self]
+
+/-- In particular, every other window's cells are unchanged. -/
+theorem other_windows (es₁ es₂ : List Dated) (e : Dated) (w : ℕ) (h : week e.1 ≠ w) :
+    windowCounts (es₁ ++ e :: es₂) w = windowCounts (es₁ ++ es₂) w := by
+  have hd := one_window es₁ es₂ e w
+  simp only [h, if_false, Nat.le_zero] at hd
+  funext j
+  have hj : ∀ j, (windowCounts (es₁ ++ e :: es₂) w j - windowCounts (es₁ ++ es₂) w j)
+      + (windowCounts (es₁ ++ es₂) w j - windowCounts (es₁ ++ e :: es₂) w j) = 0 :=
+    fun j => (Finset.sum_eq_zero_iff.mp hd) j (Finset.mem_univ j)
+  have := hj j
+  omega
 
 /-! ## 5. (b) The threshold, on the noisy count
 
@@ -372,46 +447,48 @@ theorem postprocess {α β : Type} [DecidableEq β] (f : α → β) (p q : α �
   rw [push_mass, push_mass]
   exact h _
 
-/-! ## 8. (c) Differential privacy of the published day -/
+/-! ## 8. (c) Differential privacy of a published window -/
 
-/-- A day's noisy values, one per cell. -/
+/-- A window's noisy values, one per cell. -/
 abbrev Noisy := Fin CELLS → ℤ
 
-/-- A published day: one value per cell. -/
+/-- A published window: one value per cell. -/
 abbrev Output := Fin CELLS → Cell
 
-/-- The noise of a day: one draw per cell, independent, each of law `lap`. -/
+/-- The noise of a window: one draw per cell, independent, each of law `lap`. -/
 noncomputable def noiseDensity (z : Noisy) : ℝ≥0∞ := ∏ j, lap (z j)
 
-/-- The law of the noisy day: each cell's true count plus its noise. -/
+/-- The law of the noisy window: each cell's true count plus its noise. -/
 noncomputable def noisyDensity (a : Counts) (v : Noisy) : ℝ≥0∞ := ∏ j, lap (v j - a j)
 
-/-- The law of a published day with true counts `a`: the day's noise pushed
-through `publish`, cell by cell. -/
-noncomputable def dayDensity (a : Counts) (o : Output) : ℝ≥0∞ :=
+/-- The law of a published window with true counts `a`: the window's noise
+pushed through `publish`, cell by cell. -/
+noncomputable def windowDensity (a : Counts) (o : Output) : ℝ≥0∞ :=
   ∑' z : Noisy, if (fun j => publish (a j) (z j)) = o then noiseDensity z else 0
 
-/-- Publishing a day from its noisy values. -/
-def publishDay (v : Noisy) : Output := fun j => post (v j)
+/-- Publishing a window from its noisy values. -/
+def publishWindow (v : Noisy) : Output := fun j => post (v j)
 
-/-- **The published day is a function of the noisy day.** Its law is the
-noisy day's law pushed through `publishDay`, which reads nothing else. -/
-theorem day_is_post (a : Counts) : dayDensity a = push publishDay (noisyDensity a) := by
+/-- **The published window is a function of the noisy window.** Its law is
+the noisy window's law pushed through `publishWindow`, which reads nothing
+else. -/
+theorem window_is_post (a : Counts) :
+    windowDensity a = push publishWindow (noisyDensity a) := by
   funext o
-  unfold dayDensity push
+  unfold windowDensity push
   let s : Noisy := fun j => (a j : ℤ)
   symm
   rw [← (Equiv.addRight s).tsum_eq]
   congr 1
   funext z
-  have h1 : publishDay (z + s) = fun j => publish (a j) (z j) := by
+  have h1 : publishWindow (z + s) = fun j => publish (a j) (z j) := by
     funext j
-    simp [publishDay, publish_is_post, s, add_comm]
+    simp [publishWindow, publish_is_post, s, add_comm]
   have h2 : noisyDensity a (z + s) = noiseDensity z := by
     simp [noisyDensity, noiseDensity, s]
   simp only [Equiv.coe_addRight, h1, h2]
 
-/-- The noisy day: the likelihood of any noisy value changes by at most
+/-- The noisy window: the likelihood of any noisy value changes by at most
 `2 ^ dist` between true counts `a` and `b` (group privacy). -/
 theorem noisy_ratio (a b : Counts) (v : Noisy) :
     noisyDensity a v ≤ 2 ^ dist a b * noisyDensity b v := by
@@ -422,8 +499,9 @@ theorem noisy_ratio (a b : Counts) (v : Noisy) :
   have hm : ((a j : ℤ) - b j).natAbs = (a j - b j) + (b j - a j) := by omega
   simpa [hm] using this
 
-/-- **The noisy day is ε = ln 2.** Two days at distance at most one: any set
-of noisy days is at most twice as likely under one as under the other. -/
+/-- **The noisy window is ε = ln 2.** Two windows at distance at most one:
+any set of noisy windows is at most twice as likely under one as under the
+other. -/
 theorem noisy_dp (a b : Counts) (hd : dist a b ≤ 1) (T : Set Noisy) :
     ∑' v, T.indicator (noisyDensity a) v ≤ 2 * ∑' v, T.indicator (noisyDensity b) v := by
   rw [← ENNReal.tsum_mul_left]
@@ -435,11 +513,12 @@ theorem noisy_dp (a b : Counts) (hd : dist a b ≤ 1) (T : Set Noisy) :
       _ = 2 * noisyDensity b v := by ring
   · simp [Set.indicator_of_notMem hv]
 
-/-- **A day, any counts.** The likelihood of any published day changes by at
-most `2 ^ dist` between true counts `a` and `b`: `m` beacons, `m · ln 2`. -/
-theorem day_ratio (a b : Counts) (o : Output) :
-    dayDensity a o ≤ 2 ^ dist a b * dayDensity b o := by
-  rw [day_is_post, day_is_post]
+/-- **A window, any counts.** The likelihood of any published window changes
+by at most `2 ^ dist` between true counts `a` and `b`: `m` beacons,
+`m · ln 2`. -/
+theorem window_ratio (a b : Counts) (o : Output) :
+    windowDensity a o ≤ 2 ^ dist a b * windowDensity b o := by
+  rw [window_is_post, window_is_post]
   unfold push
   rw [← ENNReal.tsum_mul_left]
   refine ENNReal.tsum_le_tsum fun v => ?_
@@ -447,22 +526,78 @@ theorem day_ratio (a b : Counts) (o : Output) :
   · exact noisy_ratio a b v
   · simp
 
-/-- **ε = ln 2 per day, for any set of published days, for any counts.** Two
-days at distance at most one: the probability of any set of published days
-changes by at most a factor of 2. By post-processing: suppression reads only
-the noisy value. -/
-theorem day_dp (a b : Counts) (hd : dist a b ≤ 1) (S : Set Output) :
-    ∑' o, S.indicator (dayDensity a) o ≤ 2 * ∑' o, S.indicator (dayDensity b) o := by
-  rw [day_is_post, day_is_post]
-  exact postprocess publishDay _ _ 2 (noisy_dp a b hd) S
+/-- **ε = ln 2 per window, for any set of published windows, for any
+counts.** Two windows at distance at most one: the probability of any set of
+published windows changes by at most a factor of 2. By post-processing:
+suppression reads only the noisy value. -/
+theorem window_dp (a b : Counts) (hd : dist a b ≤ 1) (S : Set Output) :
+    ∑' o, S.indicator (windowDensity a) o ≤ 2 * ∑' o, S.indicator (windowDensity b) o := by
+  rw [window_is_post, window_is_post]
+  exact postprocess publishWindow _ _ 2 (noisy_dp a b hd) S
 
-/-- **One beacon, end to end.** Two days whose beacons differ by one beacon:
-any set of published days is at most twice as likely under one as under the
-other. -/
-theorem visit_dp (d : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) (S : Set Output) :
-    ∑' o, S.indicator (dayDensity (run (fresh d) d (es₁ ++ e :: es₂)).cells) o
-      ≤ 2 * ∑' o, S.indicator (dayDensity (run (fresh d) d (es₁ ++ es₂)).cells) o :=
-  day_dp _ _ (sensitivity d es₁ es₂ e) S
+/-- **One beacon, end to end, in its window.** Two windows whose beacons
+differ by one beacon: any set of published windows is at most twice as
+likely under one as under the other. -/
+theorem visit_dp (w : ℕ) (es₁ es₂ : List (Fin CELLS)) (e : Fin CELLS) (S : Set Output) :
+    ∑' o, S.indicator (windowDensity (run (fresh w) w (es₁ ++ e :: es₂)).cells) o
+      ≤ 2 * ∑' o, S.indicator (windowDensity (run (fresh w) w (es₁ ++ es₂)).cells) o :=
+  window_dp _ _ (sensitivity w es₁ es₂ e) S
+
+/-! ## 8b. The whole publication: every window at once
+
+The windows in `W` are published together, each with its own noise drawn
+independently (the shell draws fresh coins per cell, §8 of the RFC: by test,
+not proof). A beacon reaches one window (`one_window`), so the publication
+of any finite set of windows moves by at most a factor of 2. -/
+
+/-- The law of the publication of the windows in `W`, each from its counts
+`a w`, with independent noise per window. -/
+noncomputable def publicationDensity (W : Finset ℕ) (a : ℕ → Counts) (o : W → Output) :
+    ℝ≥0∞ :=
+  ∏ w : W, windowDensity (a w) (o w)
+
+/-- A beacon's window is in `W` at most once. -/
+theorem windows_moved (W : Finset ℕ) (es₁ es₂ : List Dated) (e : Dated) :
+    ∑ w : W, dist (windowCounts (es₁ ++ e :: es₂) w) (windowCounts (es₁ ++ es₂) w) ≤ 1 := by
+  calc ∑ w : W, dist (windowCounts (es₁ ++ e :: es₂) w) (windowCounts (es₁ ++ es₂) w)
+      ≤ ∑ w : W, (if week e.1 = (w : ℕ) then 1 else 0) :=
+        Finset.sum_le_sum fun w _ => one_window es₁ es₂ e w
+    _ = ∑ w ∈ W, (if week e.1 = w then 1 else 0) :=
+        Finset.sum_coe_sort W (fun w => if week e.1 = w then 1 else 0)
+    _ ≤ 1 := by rw [Finset.sum_ite_eq]; split <;> simp
+
+/-- **The publication, pointwise.** One beacon more changes the likelihood of
+any publication of the windows in `W` by at most a factor of 2. -/
+theorem publication_ratio (W : Finset ℕ) (es₁ es₂ : List Dated) (e : Dated) (o : W → Output) :
+    publicationDensity W (windowCounts (es₁ ++ e :: es₂)) o
+      ≤ 2 * publicationDensity W (windowCounts (es₁ ++ es₂)) o := by
+  unfold publicationDensity
+  set A := windowCounts (es₁ ++ e :: es₂)
+  set B := windowCounts (es₁ ++ es₂)
+  calc ∏ w : W, windowDensity (A w) (o w)
+      ≤ ∏ w : W, (2 ^ dist (A w) (B w) * windowDensity (B w) (o w)) :=
+        Finset.prod_le_prod' fun w _ => window_ratio _ _ _
+    _ = 2 ^ (∑ w : W, dist (A w) (B w)) * ∏ w : W, windowDensity (B w) (o w) := by
+        rw [Finset.prod_mul_distrib, Finset.prod_pow_eq_pow_sum]
+    _ ≤ 2 ^ 1 * ∏ w : W, windowDensity (B w) (o w) := by
+        gcongr
+        · norm_num
+        · exact windows_moved W es₁ es₂ e
+    _ = 2 * ∏ w : W, windowDensity (B w) (o w) := by rw [pow_one]
+
+/-- **ε = ln 2 per beacon for the whole publication.** For any finite set of
+windows `W` and any set `S` of their publications, one beacon more makes `S`
+at most twice as likely. -/
+theorem publication_dp (W : Finset ℕ) (es₁ es₂ : List Dated) (e : Dated)
+    (S : Set (W → Output)) :
+    ∑' o, S.indicator (publicationDensity W (windowCounts (es₁ ++ e :: es₂))) o
+      ≤ 2 * ∑' o, S.indicator (publicationDensity W (windowCounts (es₁ ++ es₂))) o := by
+  rw [← ENNReal.tsum_mul_left]
+  refine ENNReal.tsum_le_tsum fun o => ?_
+  by_cases ho : o ∈ S
+  · simp only [Set.indicator_of_mem ho]
+    exact publication_ratio W es₁ es₂ e o
+  · simp [Set.indicator_of_notMem ho]
 
 /-! ## 9. What suppression no longer promises
 

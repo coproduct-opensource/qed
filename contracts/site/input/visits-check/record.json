@@ -1,0 +1,23 @@
+{
+  "artifactBytes": 134993,
+  "artifactSha256": "87a9f519806458c8d154a483410e2453563390860e22b859f38be99a6d692e35",
+  "claim": "QedVisits.claim",
+  "declarations": 540,
+  "exporter": {
+    "binarySha256": "2363864b90c11d4b6e39f1f6678605405f52d489c6877004af3bad5e7a35b9d8",
+    "name": "lean4export",
+    "version": "3.1.0"
+  },
+  "permittedAxioms": [
+    "propext"
+  ],
+  "policyHash": "0x2c32075dfa3b64ac826cf8c97809f13b3d26a8e7aabf0342d7657a1cee22f2fe",
+  "proof": "QedVisits.proof",
+  "sources": {
+    "QedVisits/Proof.lean": "b373d73aa0b4b743fa510806dab39c5530038fb189fc7fa6241b7d94108fe48f",
+    "QedVisits/Statement.lean": "7a85a0088a322c84b9ae5f37f043228b204d1651952334058122cde0a43ddd04"
+  },
+  "statementBytes": 46141,
+  "statementSha256": "bee7b8f8c113f913439daa8d5f752748574d0b7948bceea3dcab4c2a3056da7e",
+  "toolchain": "leanprover/lean4:v4.30.0"
+}

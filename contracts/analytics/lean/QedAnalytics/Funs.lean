@@ -39,15 +39,25 @@ def core.LIMITED : Result Std.Usize := do
     Visibility: public -/
 @[global_simps, irreducible] def core.K : Std.U32 := 10#u32
 
-/-- [qed_analytics::core::fresh]:
-    Source: 'src/core.rs', lines 58:0-63:1
+/-- [qed_analytics::core::week]:
+    Source: 'src/core.rs', lines 62:0-65:1
     Visibility: public -/
-def core.fresh (day : Std.U32) : Result core.Day := do
+def core.week (day : Std.U32) : Result Std.U32 := do
+  let w ← day / 7#u32
+  let i ← day % 7#u32
+  if i >= 4#u32
+  then w + 1#u32
+  else ok w
+
+/-- [qed_analytics::core::fresh]:
+    Source: 'src/core.rs', lines 67:0-72:1
+    Visibility: public -/
+def core.fresh (window : Std.U32) : Result core.Window := do
   let a := Array.repeat 34#usize 0#u32
-  ok { day, cells := a }
+  ok { window, cells := a }
 
 /-- [qed_analytics::core::cell]:
-    Source: 'src/core.rs', lines 65:0-71:1
+    Source: 'src/core.rs', lines 74:0-80:1
     Visibility: public -/
 def core.cell (path : Std.Usize) (first : Bool) : Result Std.Usize := do
   if path < core.PATHS
@@ -58,7 +68,7 @@ def core.cell (path : Std.Usize) (first : Bool) : Result Std.Usize := do
   else core.MALFORMED
 
 /-- [qed_analytics::core::bump]:
-    Source: 'src/core.rs', lines 73:0-75:1
+    Source: 'src/core.rs', lines 82:0-84:1
     Visibility: public -/
 def core.bump (c : Std.U32) : Result Std.U32 := do
   if c < core.num.U32.MAX
@@ -66,15 +76,17 @@ def core.bump (c : Std.U32) : Result Std.U32 := do
   else ok c
 
 /-- [qed_analytics::core::count]:
-    Source: 'src/core.rs', lines 80:0-88:1
+    Source: 'src/core.rs', lines 89:0-97:1
     Visibility: public -/
 def core.count
-  (s : core.Day) (i : Std.Usize) (day : Std.U32) : Result core.Day := do
-  if day < s.day
+  (s : core.Window) (i : Std.Usize) (window : Std.U32) :
+  Result core.Window
+  := do
+  if window < s.window
   then ok s
   else
-    let t ← if s.day < day
-              then core.fresh day
+    let t ← if s.window < window
+              then core.fresh window
               else ok s
     let i1 ← Array.index_usize t.cells i
     let i2 ← core.bump i1
@@ -82,38 +94,40 @@ def core.count
     ok { t with cells := a }
 
 /-- [qed_analytics::core::project]:
-    Source: 'src/core.rs', lines 91:0-93:1
+    Source: 'src/core.rs', lines 100:0-102:1
     Visibility: public -/
 def core.project
   (r : core.Request) : Result (Std.Usize × Bool × Std.U32) := do
   ok (r.path, r.first, r.day)
 
 /-- [qed_analytics::core::step]:
-    Source: 'src/core.rs', lines 95:0-97:1
+    Source: 'src/core.rs', lines 105:0-107:1
     Visibility: public -/
 def core.step
-  (s : core.Day) (path : Std.Usize) (first : Bool) (day : Std.U32) :
-  Result core.Day
+  (s : core.Window) (path : Std.Usize) (first : Bool) (day : Std.U32) :
+  Result core.Window
   := do
   let i ← core.cell path first
-  core.count s i day
+  let i1 ← core.week day
+  core.count s i i1
 
 /-- [qed_analytics::core::limit]:
-    Source: 'src/core.rs', lines 100:0-102:1
+    Source: 'src/core.rs', lines 110:0-112:1
     Visibility: public -/
-def core.limit (s : core.Day) (day : Std.U32) : Result core.Day := do
-  let i ← core.LIMITED
-  core.count s i day
+def core.limit (s : core.Window) (day : Std.U32) : Result core.Window := do
+  let i ← core.week day
+  let i1 ← core.LIMITED
+  core.count s i1 i
 
 /-- [qed_analytics::core::handle]:
-    Source: 'src/core.rs', lines 104:0-107:1
+    Source: 'src/core.rs', lines 114:0-117:1
     Visibility: public -/
-def core.handle (s : core.Day) (r : core.Request) : Result core.Day := do
+def core.handle (s : core.Window) (r : core.Request) : Result core.Window := do
   let (path, first, day) ← core.project r
   core.step s path first day
 
 /-- [qed_analytics::core::publish_cell]:
-    Source: 'src/core.rs', lines 114:0-121:1
+    Source: 'src/core.rs', lines 124:0-131:1
     Visibility: public -/
 def core.publish_cell
   (count : Std.U32) (g1 : Std.U32) (g2 : Std.U32) : Result core.Cell := do

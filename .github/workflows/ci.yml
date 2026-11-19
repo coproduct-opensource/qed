@@ -153,6 +153,10 @@ jobs:
         run: lake exe cache get
       - name: lake build
         run: lake build
+      # The claim /visits checks in the browser: Lean core only.
+      - name: lake build (browser-check)
+        working-directory: contracts/analytics/browser-check
+        run: lake build
 
   # The committed translation is what Charon and Aeneas (release
   # nightly-2026.06.10, SHA-256 pinned below) make of core.rs today.

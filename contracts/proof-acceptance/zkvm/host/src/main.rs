@@ -53,6 +53,15 @@ const NUCLEUS_BASE2_GUEST_ELF: &[u8] =
 const NUCLEUS_ORDER2R_GUEST_ELF: &[u8] = include_bytes!("../../../program/nucleus-order-fmt2r.bin");
 const NUCLEUS_BASE2R_GUEST_ELF: &[u8] =
     include_bytes!("../../../program/nucleus-base-check-fmt2r.bin");
+/// The reserved-names pair (docs/rfcs/proof-acceptance-reserved-names-2026-11-19.md):
+/// the reproducible pair's source with the acceptance rule that refuses a
+/// seller declaration of a kernel-reserved name, built the same way. The
+/// order program names this base program. `order2s-` and `base2s-` address
+/// them. The `fmt2r` pair above rebuilds from commit `4242282b4`, not from
+/// this tree.
+const NUCLEUS_ORDER2S_GUEST_ELF: &[u8] = include_bytes!("../../../program/nucleus-order-fmt2s.bin");
+const NUCLEUS_BASE2S_GUEST_ELF: &[u8] =
+    include_bytes!("../../../program/nucleus-base-check-fmt2s.bin");
 use risc0_zkvm::{
     default_executor, default_prover, sha::Digest, ExecutorEnv, ProverOpts, Receipt, ReceiptClaim,
 };
@@ -103,7 +112,7 @@ fn second_form() -> Result<&'static [u8], Box<dyn Error>> {
 }
 
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-seal GROTH16_RECEIPT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2r-... and base2r-... for the reproducible statement-format-v2 pair, order2-... and base2-... for the earlier build of it; vault-... for the second form, in a build with the `second-form` feature)";
+    let usage = "usage: vault3-execute INPUT | vault3-prove INPUT RECEIPT [BASE_RECEIPT] | vault3-verify RECEIPT | vault3-groth16 RECEIPT OUT SEAL | vault3-seal GROTH16_RECEIPT SEAL | vault3-image | vault3-image-of FILE (base-... for the base program; order2s-... and base2s-... for the reserved-names pair, order2r-... and base2r-... for the reproducible statement-format-v2 pair, order2-... and base2-... for the earlier build of it; vault-... for the second form, in a build with the `second-form` feature)";
     let Some((command, rest)) = args.split_first() else {
         return Err(usage.into());
     };
@@ -165,6 +174,10 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         (NUCLEUS_BASE_GUEST_ELF, NUCLEUS_BASE_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("vault3-") {
         (NUCLEUS_VAULT3_GUEST_ELF, NUCLEUS_BASE_GUEST_ELF, command)
+    } else if let Some(command) = command.strip_prefix("base2s-") {
+        (NUCLEUS_BASE2S_GUEST_ELF, NUCLEUS_BASE2S_GUEST_ELF, command)
+    } else if let Some(command) = command.strip_prefix("order2s-") {
+        (NUCLEUS_ORDER2S_GUEST_ELF, NUCLEUS_BASE2S_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("base2r-") {
         (NUCLEUS_BASE2R_GUEST_ELF, NUCLEUS_BASE2R_GUEST_ELF, command)
     } else if let Some(command) = command.strip_prefix("order2r-") {
@@ -333,6 +346,8 @@ mod tests {
         let base2 = include_str!("../../../program/IMAGE_ID_BASE_FMT2").trim();
         let order2r = include_str!("../../../program/IMAGE_ID_ORDER_FMT2R").trim();
         let base2r = include_str!("../../../program/IMAGE_ID_BASE_FMT2R").trim();
+        let order2s = include_str!("../../../program/IMAGE_ID_ORDER_FMT2S").trim();
+        let base2s = include_str!("../../../program/IMAGE_ID_BASE_FMT2S").trim();
         let id = |program: &[u8]| {
             image_of(program)
                 .map(|d| hex(d.as_bytes()))
@@ -344,11 +359,13 @@ mod tests {
         assert_eq!(id(NUCLEUS_BASE2_GUEST_ELF), base2);
         assert_eq!(id(NUCLEUS_ORDER2R_GUEST_ELF), order2r);
         assert_eq!(id(NUCLEUS_BASE2R_GUEST_ELF), base2r);
-        let mut all = [third, base, order2, base2, order2r, base2r];
+        assert_eq!(id(NUCLEUS_ORDER2S_GUEST_ELF), order2s);
+        assert_eq!(id(NUCLEUS_BASE2S_GUEST_ELF), base2s);
+        let mut all = [third, base, order2, base2, order2r, base2r, order2s, base2s];
         all.sort_unstable();
         assert!(
             all.windows(2).all(|w| w[0] != w[1]),
-            "six distinct programs"
+            "eight distinct programs"
         );
 
         // A flipped byte of loaded code is a different program. (The ID
@@ -361,6 +378,8 @@ mod tests {
             (NUCLEUS_BASE2_GUEST_ELF, base2),
             (NUCLEUS_ORDER2R_GUEST_ELF, order2r),
             (NUCLEUS_BASE2R_GUEST_ELF, base2r),
+            (NUCLEUS_ORDER2S_GUEST_ELF, order2s),
+            (NUCLEUS_BASE2S_GUEST_ELF, base2s),
         ] {
             let mut other = program.to_vec();
             let middle = other.len() / 2;
@@ -372,9 +391,9 @@ mod tests {
     /// The order program verifies commitments of one base program, named by a
     /// constant in its source. `verify-programs` checks each ID on its own, so
     /// this is what ties the pair: the constant in the order guest's source is
-    /// the published reproducible base program's ID. No guest is built.
+    /// the reserved-names base program's ID. No guest is built.
     #[test]
-    fn the_order_guest_source_names_the_published_reproducible_base_program() {
+    fn the_order_guest_source_names_the_reserved_names_base_program() {
         let source = include_str!("../../methods/vault3/src/main.rs");
         let listed: String = source
             .split("const BASE_IMAGE_ID: [u8; 32] = [")
@@ -384,10 +403,10 @@ mod tests {
             .split(',')
             .filter_map(|byte| byte.trim().strip_prefix("0x").map(str::to_owned))
             .collect();
-        let base2r = include_str!("../../../program/IMAGE_ID_BASE_FMT2R").trim();
-        assert_eq!(listed, base2r);
+        let base2s = include_str!("../../../program/IMAGE_ID_BASE_FMT2S").trim();
+        assert_eq!(listed, base2s);
         assert_eq!(
-            hex(image_of(NUCLEUS_BASE2R_GUEST_ELF).expect("id").as_bytes()),
+            hex(image_of(NUCLEUS_BASE2S_GUEST_ELF).expect("id").as_bytes()),
             listed
         );
     }

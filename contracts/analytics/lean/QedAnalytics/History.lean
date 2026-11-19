@@ -10,7 +10,8 @@ days whose cells all stayed on one side of `K`.
 
 Owner decision 2026-11-15 ("go on rec"): suppress on the NOISY count
 (`Spec.lean`, `publish`). Suppression then reads only the noisy value, and
-`day_dp` and `visit_dp` hold for every day by post-processing. What that
+`day_dp` and `visit_dp` (since 2026-11-18 `window_dp` and `visit_dp`, over
+weeks) hold for every window by post-processing. What that
 gives up is stated there too: a cell under `K` is now shown with probability
 `shown c` (`shown_zero`, `shown_nine`, `shown_below_k_le`).
 

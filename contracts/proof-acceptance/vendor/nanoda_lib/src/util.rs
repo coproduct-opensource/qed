@@ -752,81 +752,80 @@ impl<'a> LeanDag<'a> {
         Some(pfx)
     }
 
-    /// If these names are present in the export file, we want to cache
-    /// them since we need to retrieve them quite frequently.
-    pub(crate) fn mk_name_cache(&self) -> NameCache<'a> {
-        NameCache {
-            eager_reduce: self.find_name("eagerReduce"),
-            quot: self.find_name("Quot"),
-            quot_mk: self.find_name("Quot.mk"),
-            quot_lift: self.find_name("Quot.lift"),
-            quot_ind: self.find_name("Quot.ind"),
-            string: self.find_name("String"),
-            string_of_list: self.find_name("String.ofList"),
-            nat: self.find_name("Nat"),
-            nat_zero: self.find_name("Nat.zero"),
-            nat_succ: self.find_name("Nat.succ"),
-            nat_add: self.find_name("Nat.add"),
-            nat_sub: self.find_name("Nat.sub"),
-            nat_mul: self.find_name("Nat.mul"),
-            nat_pow: self.find_name("Nat.pow"),
-            nat_mod: self.find_name("Nat.mod"),
-            nat_div: self.find_name("Nat.div"),
-            nat_beq: self.find_name("Nat.beq"),
-            nat_ble: self.find_name("Nat.ble"),
-            nat_gcd: self.find_name("Nat.gcd"),
-            nat_xor: self.find_name("Nat.xor"),
-            nat_land: self.find_name("Nat.land"),
-            nat_lor: self.find_name("Nat.lor"),
-            nat_shl: self.find_name("Nat.shiftLeft"),
-            nat_shr: self.find_name("Nat.shiftRight"),
-            bool_true: self.find_name("Bool.true"),
-            bool_false: self.find_name("Bool.false"),
-            char: self.find_name("Char"),
-            char_of_nat: self.find_name("Char.ofNat"),
-            list: self.find_name("List"),
-            list_nil: self.find_name("List.nil"),
-            list_cons: self.find_name("List.cons"),
-        }
-    }
 }
 
-/// This just caches common names; the values are `Some(x)` if the name
-/// is present in the export file, otherwise they're `None`.
-#[derive(Debug, Clone, Copy)]
-pub struct NameCache<'p> {
-    pub(crate) eager_reduce: Option<NamePtr<'p>>,
-    pub(crate) quot: Option<NamePtr<'p>>,
-    pub(crate) quot_mk: Option<NamePtr<'p>>,
-    pub(crate) quot_lift: Option<NamePtr<'p>>,
-    pub(crate) quot_ind: Option<NamePtr<'p>>,
-    pub(crate) nat: Option<NamePtr<'p>>,
-    pub(crate) nat_zero: Option<NamePtr<'p>>,
-    pub(crate) nat_succ: Option<NamePtr<'p>>,
-    pub(crate) nat_add: Option<NamePtr<'p>>,
-    pub(crate) nat_sub: Option<NamePtr<'p>>,
-    pub(crate) nat_mul: Option<NamePtr<'p>>,
-    pub(crate) nat_pow: Option<NamePtr<'p>>,
-    pub(crate) nat_mod: Option<NamePtr<'p>>,
-    pub(crate) nat_div: Option<NamePtr<'p>>,
-    pub(crate) nat_beq: Option<NamePtr<'p>>,
-    pub(crate) nat_ble: Option<NamePtr<'p>>,
-    pub(crate) nat_gcd: Option<NamePtr<'p>>,
-    pub(crate) nat_xor: Option<NamePtr<'p>>,
-    pub(crate) nat_land: Option<NamePtr<'p>>,
-    pub(crate) nat_lor: Option<NamePtr<'p>>,
-    pub(crate) nat_shr: Option<NamePtr<'p>>,
-    pub(crate) nat_shl: Option<NamePtr<'p>>,
-    pub(crate) string: Option<NamePtr<'p>>,
-    pub(crate) string_of_list: Option<NamePtr<'p>>,
-    pub(crate) bool_false: Option<NamePtr<'p>>,
-    pub(crate) bool_true: Option<NamePtr<'p>>,
-    pub(crate) char: Option<NamePtr<'p>>,
-    pub(crate) char_of_nat: Option<NamePtr<'p>>,
-    #[allow(dead_code)]
-    pub(crate) list: Option<NamePtr<'p>>,
-    pub(crate) list_nil: Option<NamePtr<'p>>,
-    pub(crate) list_cons: Option<NamePtr<'p>>,
+// Nucleus change (VENDOR.md, item 12): the names the checker treats specially
+// by name, in one list, from which `special_names!` (end of file) generates
+// `NameCache`, `mk_name_cache` and `NAME_CACHE_NAMES`. `layout` is upstream's
+// field order, `lookups` upstream's lookup order; the compiler requires them
+// to name the same fields.
+self::special_names! {
+    layout: [
+        eager_reduce,
+        quot,
+        quot_mk,
+        quot_lift,
+        quot_ind,
+        nat,
+        nat_zero,
+        nat_succ,
+        nat_add,
+        nat_sub,
+        nat_mul,
+        nat_pow,
+        nat_mod,
+        nat_div,
+        nat_beq,
+        nat_ble,
+        nat_gcd,
+        nat_xor,
+        nat_land,
+        nat_lor,
+        nat_shr,
+        nat_shl,
+        string,
+        string_of_list,
+        bool_false,
+        bool_true,
+        char,
+        char_of_nat,
+        #[allow(dead_code)] list,
+        list_nil,
+        list_cons,
+    ],
+    lookups: {
+        eager_reduce => "eagerReduce",
+        quot => "Quot",
+        quot_mk => "Quot.mk",
+        quot_lift => "Quot.lift",
+        quot_ind => "Quot.ind",
+        string => "String",
+        string_of_list => "String.ofList",
+        nat => "Nat",
+        nat_zero => "Nat.zero",
+        nat_succ => "Nat.succ",
+        nat_add => "Nat.add",
+        nat_sub => "Nat.sub",
+        nat_mul => "Nat.mul",
+        nat_pow => "Nat.pow",
+        nat_mod => "Nat.mod",
+        nat_div => "Nat.div",
+        nat_beq => "Nat.beq",
+        nat_ble => "Nat.ble",
+        nat_gcd => "Nat.gcd",
+        nat_xor => "Nat.xor",
+        nat_land => "Nat.land",
+        nat_lor => "Nat.lor",
+        nat_shl => "Nat.shiftLeft",
+        nat_shr => "Nat.shiftRight",
+        bool_true => "Bool.true",
+        bool_false => "Bool.false",
+        char => "Char",
+        char_of_nat => "Char.ofNat",
+        list => "List",
+        list_nil => "List.nil",
+        list_cons => "List.cons",
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1034,3 +1033,36 @@ struct ExitStatus {
     pp_err: Option<String>
 }
 
+
+/// Nucleus change (VENDOR.md, item 12). Generates, from the invocation above:
+/// `NameCache` (fields in `layout` order), `LeanDag::mk_name_cache` (lookups
+/// in `lookups` order) and `NAME_CACHE_NAMES` (the looked-up names).
+macro_rules! special_names {
+    (
+        layout: [$( $(#[$attr:meta])* $field:ident, )*],
+        lookups: { $( $lookup:ident => $name:literal, )* }
+    ) => {
+        /// This just caches common names; the values are `Some(x)` if the name
+        /// is present in the export file, otherwise they're `None`.
+        #[derive(Debug, Clone, Copy)]
+        pub struct NameCache<'p> {
+            $( $(#[$attr])* pub(crate) $field: Option<NamePtr<'p>>, )*
+        }
+
+        /// Every dotted name a `NameCache` field is looked up by. Where the
+        /// export declares one of these, the checker reduces or builds terms
+        /// with that constant by name (`tc.rs` `try_reduce_nat`, the
+        /// string-literal expansion, quotient reduction), whatever the
+        /// declaration's value says.
+        pub const NAME_CACHE_NAMES: &[&str] = &[$($name),*];
+
+        impl<'a> LeanDag<'a> {
+            /// If these names are present in the export file, we want to cache
+            /// them since we need to retrieve them quite frequently.
+            pub(crate) fn mk_name_cache(&self) -> NameCache<'a> {
+                NameCache { $( $lookup: self.find_name($name), )* }
+            }
+        }
+    };
+}
+use special_names;

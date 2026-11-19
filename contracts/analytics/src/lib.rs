@@ -4,7 +4,7 @@
 //!   (`lean/`) and proved there.
 //! - [`paths`]: the allow-list of site paths and the beacon's wire format.
 //! - [`noise`]: the noise sampler (fair coins from the operating system).
-//! - [`store`]: the collector's state on disk and its daily publication.
+//! - [`store`]: the collector's state on disk and its weekly publication.
 //! - [`server`]: the loopback HTTP endpoint Caddy forwards beacons to.
 //!
 //! contracts/analytics/README.md says what is proved, what is stored, and

@@ -30,5 +30,9 @@ env CFLAGS_riscv32im_risc0_zkvm_elf -march=rv32im -nostdlib
 # testnet deployment of 2026-11-13 names, and what Base mainnet will name after
 # its own switch. The fmt2 pair it replaces is not reproducible by this route
 # and is not rebuilt here.
-program base contracts/proof-acceptance/zkvm/methods/base nucleus-base-guest IMAGE_ID_BASE_FMT2R nucleus-base-check-fmt2r.bin
-program order contracts/proof-acceptance/zkvm/methods/vault3 nucleus-vault3-guest IMAGE_ID_ORDER_FMT2R nucleus-order-fmt2r.bin
+# The reserved-names pair (docs/rfcs/proof-acceptance-reserved-names-2026-11-19.md)
+# is what this tree builds. The fmt2r pair it follows rebuilds from commit
+# 4242282b4 with this same recipe (`verify-programs --commit 4242282b4`), with
+# the fmt2r ID files and binaries in place of these.
+program base contracts/proof-acceptance/zkvm/methods/base nucleus-base-guest IMAGE_ID_BASE_FMT2S nucleus-base-check-fmt2s.bin
+program order contracts/proof-acceptance/zkvm/methods/vault3 nucleus-vault3-guest IMAGE_ID_ORDER_FMT2S nucleus-order-fmt2s.bin

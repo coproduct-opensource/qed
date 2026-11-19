@@ -889,12 +889,10 @@ pub fn participate(input: &Input) -> Doc {
                 m.network.name
             )),
         ]);
+        items.push(vec![link("/post", "Post a task"), t(".")]);
     }
     items.extend([
-        vec![
-            link("/sellers/run", "Run a seller"),
-            t(": on a Mac or on Linux, with measured times."),
-        ],
+        vec![link("/sellers/run", "Run a seller"), t(".")],
         vec![
             link(
                 format!(
@@ -903,7 +901,7 @@ pub fn participate(input: &Input) -> Doc {
                 ),
                 format!("Release {}", r.tag),
             ),
-            t(": the seller's image and archives, built and signed from the tag."),
+            t(": signed image and archives."),
         ],
         vec![
             t("Questions: "),
@@ -914,7 +912,7 @@ pub fn participate(input: &Input) -> Doc {
     doc(
         "participate",
         "Participate",
-        "The standing bounty, how to run a seller, and the signed releases.",
+        "The standing bounty, how to post a task, how to run a seller, and the signed releases.",
         vec![Block::Ul(items)],
     )
 }
@@ -1662,8 +1660,8 @@ const BASE_RPCS: [&str; 3] = [
     "https://base.gateway.tenderly.co",
 ];
 
-/// A seller's deployment file for the main-network vault.
-fn deployment_json(m: &Mainnet) -> String {
+/// A seller's or buyer's deployment file for the main-network vault.
+pub(crate) fn deployment_json(m: &Mainnet) -> String {
     let rpcs = match m.network.chain_id {
         8453 => format!(
             " \"rpcs\": [{}],\n",
@@ -2958,7 +2956,7 @@ fn earnings() -> Vec<Block> {
         ]));
     } else {
         blocks.push(p(vec![
-            t("From release v0.2.2. With nothing to move it stops before signing: "),
+            t("Since release v0.2.2. With nothing to move it stops before signing: "),
             code("FAILED: nothing to sweep"),
             t(", exit 1."),
         ]));

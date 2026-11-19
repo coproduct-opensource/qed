@@ -13,6 +13,9 @@ fn main() -> std::process::ExitCode {
         Some((command, rest)) if command == "send-gas" => ops::send_gas(rest),
         Some((command, rest)) if command == "send-token" => ops::send_token(rest),
         Some((command, rest)) if command == "probe-calldata" => ops::probe_calldata(rest),
+        Some((command, rest)) if command == "probe-calldata-read" => {
+            nucleus_commerce_agents::probe::probe_calldata_read(rest)
+        }
         Some((command, rest)) if command == "swap-native" => ops::swap_native(rest),
         Some((command, rest)) if command == "keys" => support::keys(rest),
         Some((command, rest)) if command == "board-deploy" => ops::board_deploy(rest),

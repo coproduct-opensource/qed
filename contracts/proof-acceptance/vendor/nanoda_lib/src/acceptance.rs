@@ -252,3 +252,28 @@ pub fn inspect_all_marked_segments(
     file.check_all_declars_serial();
     Ok(Marked { entries: entries(&file), counts })
 }
+
+/// Nucleus change (VENDOR.md, item 12). Whether `name` (dotted, as
+/// `Entry::name` renders it) is one the checker treats specially by name: a
+/// `NameCache` name (`util.rs`, generated from one list) or one `quot.rs`
+/// looks `Eq` up by. The checker reduces, or builds terms with, the constant
+/// of that name whatever the export defines under it.
+///
+/// A declaration whose name *is* a cached name renders to exactly that string
+/// (`find_name` splits on `.`, `name_string` joins on `.`, and no listed name
+/// has a numeric component), so a test on the rendering never misses one. It
+/// can also match a different name that renders alike (one component holding
+/// a dot); that errs toward refusing.
+pub fn is_kernel_reserved(name: &str) -> bool {
+    crate::util::NAME_CACHE_NAMES.contains(&name)
+        || name == crate::quot::EQ
+        || name.strip_prefix(crate::quot::EQ).and_then(|rest| rest.strip_prefix('.')) == Some(crate::quot::EQ_REFL)
+}
+
+/// Every name `is_kernel_reserved` holds for. For tests and tools.
+pub fn kernel_reserved_names() -> Vec<String> {
+    let mut names: Vec<String> = crate::util::NAME_CACHE_NAMES.iter().map(|n| (*n).to_string()).collect();
+    names.push(crate::quot::EQ.to_string());
+    names.push(format!("{}.{}", crate::quot::EQ, crate::quot::EQ_REFL));
+    names
+}

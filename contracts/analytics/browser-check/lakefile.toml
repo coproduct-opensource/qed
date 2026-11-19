@@ -1,0 +1,8 @@
+# The claim /visits checks in the browser: Lean core only (no Mathlib, no
+# dependencies), exported with lean4export 3.1.0 and checked by the site's
+# WebAssembly acceptance rule. contracts/analytics/README.md.
+name = "qedVisits"
+
+[[lean_lib]]
+name = "QedVisits"
+globs = ["QedVisits.+"]

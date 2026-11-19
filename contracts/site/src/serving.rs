@@ -32,14 +32,18 @@ pub const CROSS_ORIGIN: [&str; 8] = [
 pub const CROSS_ORIGIN_DIRS: [&str; 3] = ["receipts/", "artifacts/", "statements/"];
 /// Directories whose files are named by their own hash and never change.
 pub const IMMUTABLE_DIRS: [&str; 2] = ["artifacts/", "statements/"];
-/// Request paths of the one page that instantiates the WebAssembly checker
-/// (crate::CHECKER_PAGE). The host gives these, and only these, a
+/// Request paths of the pages that instantiate the WebAssembly checker
+/// (crate::CHECKER_PAGES). The host gives these, and only these, a
 /// Content-Security-Policy with `'wasm-unsafe-eval'` and same-origin fetch.
-pub const CHECKER_PAGE_PATHS: [&str; 4] = [
+pub const CHECKER_PAGE_PATHS: [&str; 8] = [
     "/verify",
     "/verify/",
     "/verify/index.html",
     "/verify/index.md",
+    "/visits",
+    "/visits/",
+    "/visits/index.html",
+    "/visits/index.md",
 ];
 
 /// Paths answered by the visit collector (contracts/analytics), which the

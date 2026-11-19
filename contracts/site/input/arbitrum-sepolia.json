@@ -194,6 +194,7 @@
         }
       ],
       "publishWallets": true,
+      "ladderBuyer": "0xca1f8b498d3df887fe9f0a3cd637b059bb35ad1a",
       "deliveries": {
         "keyBinding": "0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8",
         "node": "4304f10154038dfff2837b4f031689c006782e8920e228a8fc0ad7c94fcec506",

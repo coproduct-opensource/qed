@@ -2,6 +2,9 @@
 //! the vault program input for it, around fixed unsigned order fields.
 //!
 //!   cargo run --release --example measure -- STATEMENT ARTIFACT OUT [PERMITTED_AXIOM...]
+//!
+//! Environment: NUCLEUS_MEASURE_CLAIM (default `Nucleus.Claim`),
+//! NUCLEUS_MEASURE_MAX_ARTIFACT (default 65,536), NUCLEUS_MEASURE_FORM.
 use nucleus_proof_acceptance::{Policy, accept, vault_program::Input};
 use nucleus_proof_commerce::vault::Order;
 use sha2::{Digest, Sha256};
@@ -16,7 +19,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let artifact = fs::read(artifact)?;
     let policy = Policy {
         statement_sha256: Sha256::digest(&statement).into(),
-        claim: "Nucleus.Claim".into(),
+        // `Nucleus.Claim` unless NUCLEUS_MEASURE_CLAIM names another (a
+        // ladder row's is `Statements.S<id>.claim`).
+        claim: std::env::var("NUCLEUS_MEASURE_CLAIM").unwrap_or_else(|_| "Nucleus.Claim".into()),
         permitted_axioms: axioms.to_vec(),
         // 65,536 unless NUCLEUS_MEASURE_MAX_ARTIFACT names another cap.
         maximum_artifact_bytes: match std::env::var("NUCLEUS_MEASURE_MAX_ARTIFACT") {

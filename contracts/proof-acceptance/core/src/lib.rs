@@ -113,6 +113,11 @@ pub enum Refusal {
     StatementAltered,
     /// The artifact declares an axiom or a quotient primitive.
     ArtifactDeclaresAxiom(String),
+    /// The artifact declares a name the kernel checker treats specially by
+    /// name (`nanoda_lib::acceptance::is_kernel_reserved`). Only the
+    /// statement may declare those: the checker reduces them by name,
+    /// whatever the declaration says.
+    ArtifactDeclaresReservedName(String),
     /// No delivered theorem or definition has the claim as its type.
     ClaimNotProved,
     /// The order names a base, and the statement does not begin with bytes
@@ -129,6 +134,32 @@ pub struct Accepted {
     pub declarations: usize,
     /// Rendered name of the delivered declaration that has the claim's type.
     pub proof: String,
+}
+
+/// What no seller declaration may be: an axiom or a quotient primitive, or a
+/// declaration of a name the checker treats specially by name. The second is
+/// decided by the checker's own list (ADR-0007 G-1), not a copy of it.
+///
+/// With it, every kernel-reserved name in the checked environment is either
+/// undeclared, so the checker refuses any constant that names it, or the
+/// statement's, so the checker's by-name reductions apply to the buyer's
+/// declaration, which the policy hash fixes. A reserved name the statement
+/// omits cannot be supplied by the seller.
+/// `docs/rfcs/proof-acceptance-reserved-names-2026-11-19.md`.
+fn refuse_seller_declarations(sellers: &[Entry]) -> Result<(), Refusal> {
+    if let Some(axiom) = sellers
+        .iter()
+        .find(|e| matches!(e.kind, Kind::Axiom | Kind::Quot))
+    {
+        return Err(Refusal::ArtifactDeclaresAxiom(axiom.name.clone()));
+    }
+    if let Some(reserved) = sellers
+        .iter()
+        .find(|e| nanoda_lib::acceptance::is_kernel_reserved(&e.name))
+    {
+        return Err(Refusal::ArtifactDeclaresReservedName(reserved.name.clone()));
+    }
+    Ok(())
 }
 
 fn claim_index(statement: &[Entry], claim: &str) -> Option<usize> {
@@ -196,12 +227,7 @@ fn decide(
         .split_at_checked(statement_count)
         .ok_or(Refusal::StatementAltered)?;
     let claim = claim_index(buyers, &policy.claim).ok_or(Refusal::ClaimNotDeclared)?;
-    if let Some(axiom) = sellers
-        .iter()
-        .find(|e| matches!(e.kind, Kind::Axiom | Kind::Quot))
-    {
-        return Err(Refusal::ArtifactDeclaresAxiom(axiom.name.clone()));
-    }
+    refuse_seller_declarations(sellers)?;
     let proof = sellers
         .iter()
         .find(|e| {
@@ -301,12 +327,7 @@ fn decide_on_base(
         .split_at_checked(statement_count)
         .ok_or(Refusal::StatementAltered)?;
     let claim = claim_index(buyers, &policy.claim).ok_or(Refusal::ClaimNotDeclared)?;
-    if let Some(axiom) = sellers
-        .iter()
-        .find(|e| matches!(e.kind, Kind::Axiom | Kind::Quot))
-    {
-        return Err(Refusal::ArtifactDeclaresAxiom(axiom.name.clone()));
-    }
+    refuse_seller_declarations(sellers)?;
     let proof = sellers
         .iter()
         .find(|e| {

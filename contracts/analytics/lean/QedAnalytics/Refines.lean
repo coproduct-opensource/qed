@@ -41,7 +41,7 @@ theorem limited_eq : core.LIMITED = ok 33#usize := by
 
 def absCounts (a : Array U32 34#usize) : Counts := fun j => (a.val.getD j.val 0#u32).val
 
-def absDay (s : core.Day) : Day := ⟨s.day.val, absCounts s.cells⟩
+def absWindow (s : core.Window) : Window := ⟨s.window.val, absCounts s.cells⟩
 
 def absCell : core.Cell → Cell
   | .Suppressed => .suppressed
@@ -79,17 +79,17 @@ theorem bump_refines (c : U32) : ∃ b, core.bump c = ok b ∧ b.val = bump c.va
       simpa [MAX, core.num.U32.MAX] using hc
     simp [h, hv]
 
-theorem count_refines (s : core.Day) (i : Usize) (d : U32) (hi : i.val < CELLS) :
-    ∃ t, core.count s i d = ok t ∧ absDay t = count (absDay s) ⟨i.val, hi⟩ d.val := by
+theorem count_refines (s : core.Window) (i : Usize) (d : U32) (hi : i.val < CELLS) :
+    ∃ t, core.count s i d = ok t ∧ absWindow t = count (absWindow s) ⟨i.val, hi⟩ d.val := by
   have hi34 : i.val < 34 := by simpa [cells_eq] using hi
-  -- The shared tail: index, bump, update, on a day `t` already dated `d`.
-  have tail : ∀ t : core.Day, t.day = d →
+  -- The shared tail: index, bump, update, on a state `t` already in window `d`.
+  have tail : ∀ t : core.Window, t.window = d →
       ∃ u, (do
           let i1 ← Array.index_usize t.cells i
           let i2 ← core.bump i1
           let a ← Array.update t.cells i i2
-          ok { t with cells := a } : Result core.Day) = ok u ∧
-        absDay u = ⟨d.val, Function.update (absCounts t.cells) ⟨i.val, hi⟩
+          ok { t with cells := a } : Result core.Window) = ok u ∧
+        absWindow u = ⟨d.val, Function.update (absCounts t.cells) ⟨i.val, hi⟩
           (bump (absCounts t.cells ⟨i.val, hi⟩))⟩ := by
     intro t ht
     have hlen : i.val < t.cells.val.length := by rw [length_34]; exact hi34
@@ -98,7 +98,7 @@ theorem count_refines (s : core.Day) (i : Usize) (d : U32) (hi : i.val < CELLS) 
     obtain ⟨a, ha, hav⟩ := spec_imp_exists (Array.update_spec t.cells i b hlen)
     refine ⟨{ t with cells := a }, by simp [hx, hb, ha], ?_⟩
     subst hav
-    simp only [absDay, ht]
+    simp only [absWindow, ht]
     congr 1
     funext j
     have hcell : absCounts t.cells ⟨i.val, hi⟩ = x.val := by
@@ -116,23 +116,23 @@ theorem count_refines (s : core.Day) (i : Usize) (d : U32) (hi : i.val < CELLS) 
       simp [absCounts, Array.set, List.getD_eq_getElem?_getD, Function.update, hj,
         List.getElem?_set, Ne.symm hjv]
   unfold core.count count
-  by_cases hlt : d < s.day
-  · have hv : d.val < s.day.val := (UScalar.lt_equiv _ _).mp hlt
-    exact ⟨s, by simp [hlt], by simp [absDay, hv]⟩
-  · have hv : ¬ d.val < s.day.val := fun h => hlt ((UScalar.lt_equiv _ _).mpr h)
-    by_cases hgt : s.day < d
-    · have hgv : s.day.val < d.val := (UScalar.lt_equiv _ _).mp hgt
+  by_cases hlt : d < s.window
+  · have hv : d.val < s.window.val := (UScalar.lt_equiv _ _).mp hlt
+    exact ⟨s, by simp [hlt], by simp [absWindow, hv]⟩
+  · have hv : ¬ d.val < s.window.val := fun h => hlt ((UScalar.lt_equiv _ _).mpr h)
+    by_cases hgt : s.window < d
+    · have hgv : s.window.val < d.val := (UScalar.lt_equiv _ _).mp hgt
       obtain ⟨u, hu, hau⟩ := tail ⟨d, Array.repeat 34#usize 0#u32⟩ rfl
       refine ⟨u, by simpa [hlt, hgt, fresh_eq] using hu, ?_⟩
       rw [hau]
-      simp [absDay, hv, hgv, fresh, absCounts_repeat]
-    · have hgv : ¬ s.day.val < d.val := fun h => hgt ((UScalar.lt_equiv _ _).mpr h)
-      have hsd : s.day = d := by
+      simp [absWindow, hv, hgv, fresh, absCounts_repeat]
+    · have hgv : ¬ s.window.val < d.val := fun h => hgt ((UScalar.lt_equiv _ _).mpr h)
+      have hsd : s.window = d := by
         apply UScalar.eq_of_val_eq; omega
       obtain ⟨u, hu, hau⟩ := tail s hsd
       refine ⟨u, by simpa [hlt, hgt] using hu, ?_⟩
       rw [hau]
-      simp [absDay, hv, hgv]
+      simp [absWindow, hv, hgv]
 
 theorem cell_refines (path : Usize) (first : Bool) :
     ∃ i, core.cell path first = ok i ∧ i.val = cell path.val first := by
@@ -160,26 +160,48 @@ theorem cell_refines (path : Usize) (first : Bool) :
     simp only [hp, if_false, hpv]
     exact ⟨32#usize, malformed_eq, rfl⟩
 
-theorem step_refines (s : core.Day) (path : Usize) (first : Bool) (d : U32) :
+/-- The translated `week` computes the spec's `(d + 3) / 7` and never fails. -/
+theorem week_refines (d : U32) : ∃ w, core.week d = ok w ∧ w.val = week d.val := by
+  have hd := d.hBounds
+  obtain ⟨q, hq, hqv⟩ := spec_imp_exists (U32.div_spec d (y := 7#u32) (by simp))
+  obtain ⟨r, hr, hrv⟩ := spec_imp_exists (U32.rem_spec d (y := 7#u32) (by simp))
+  have h7 : (7#u32 : U32).val = 7 := by simp
+  rw [h7] at hqv hrv
+  by_cases h : r ≥ 4#u32
+  · have hv : 4 ≤ r.val := by
+      have := (UScalar.le_equiv _ _).mp h; simpa using this
+    have hq1 : q.val + (1#u32 : U32).val ≤ U32.max := by
+      simp [U32.max] at *; scalar_tac
+    obtain ⟨z, hz, hzv⟩ := spec_imp_exists (U32.add_spec (x := q) (y := 1#u32) hq1)
+    refine ⟨z, by simp [core.week, hq, hr, hz, Nat.not_lt.mpr hv], ?_⟩
+    rw [hzv]
+    unfold week; simp at *; omega
+  · have hv : ¬ 4 ≤ r.val := fun h' => h ((UScalar.le_equiv _ _).mpr (by simpa using h'))
+    refine ⟨q, by simp [core.week, hq, hr, hv], ?_⟩
+    unfold week; omega
+
+theorem step_refines (s : core.Window) (path : Usize) (first : Bool) (d : U32) :
     ∃ t, core.step s path first d = ok t ∧
-      absDay t = step (absDay s) path.val first d.val := by
+      absWindow t = step (absWindow s) path.val first d.val := by
   obtain ⟨i, hi, hiv⟩ := cell_refines path first
   have hlt : i.val < CELLS := hiv ▸ cell_lt path.val first
-  obtain ⟨t, ht, hat⟩ := count_refines s i d hlt
-  refine ⟨t, by simp [core.step, hi, ht], ?_⟩
-  rw [hat]
+  obtain ⟨w, hw, hwv⟩ := week_refines d
+  obtain ⟨t, ht, hat⟩ := count_refines s i w hlt
+  refine ⟨t, by simp [core.step, hi, hw, ht], ?_⟩
+  rw [hat, hwv]
   unfold step cellIdx
   congr 2
 
-theorem limit_refines (s : core.Day) (d : U32) :
-    ∃ t, core.limit s d = ok t ∧ absDay t = limit (absDay s) d.val := by
+theorem limit_refines (s : core.Window) (d : U32) :
+    ∃ t, core.limit s d = ok t ∧ absWindow t = limit (absWindow s) d.val := by
   have h33 : (33#usize).val < CELLS := by decide
-  obtain ⟨t, ht, hat⟩ := count_refines s 33#usize d h33
-  refine ⟨t, ?_, by rw [hat]; rfl⟩
-  simp [core.limit, limited_eq, ht]
+  obtain ⟨w, hw, hwv⟩ := week_refines d
+  obtain ⟨t, ht, hat⟩ := count_refines s 33#usize w h33
+  refine ⟨t, ?_, by rw [hat, hwv]; rfl⟩
+  simp [core.limit, limited_eq, hw, ht]
 
-theorem handle_refines (s : core.Day) (r : core.Request) :
-    ∃ t, core.handle s r = ok t ∧ absDay t = handle (absDay s) (absRequest r) := by
+theorem handle_refines (s : core.Window) (r : core.Request) :
+    ∃ t, core.handle s r = ok t ∧ absWindow t = handle (absWindow s) (absRequest r) := by
   obtain ⟨t, ht, hat⟩ := step_refines s r.path r.first r.day
   exact ⟨t, by simp [core.handle, core.project, ht], by simp [hat, handle, project, absRequest]⟩
 
@@ -224,14 +246,14 @@ theorem publish_cell_refines (c g1 g2 : U32) :
 /-- **(a) Noninterference, over the translated `handle`.** Two requests that
 agree on `(path, first, day)` leave the same state, whatever their peer
 address and port, time within the day, or head and body sizes. -/
-theorem core_handle_noninterference (s : core.Day) (r₁ r₂ : core.Request)
+theorem core_handle_noninterference (s : core.Window) (r₁ r₂ : core.Request)
     (hp : r₁.path = r₂.path) (hf : r₁.first = r₂.first) (hd : r₁.day = r₂.day) :
     core.handle s r₁ = core.handle s r₂ := by
   simp [core.handle, core.project, hp, hf, hd]
 
 /-- The translated `handle` never fails, and its result is the spec's. -/
-theorem core_handle_total (s : core.Day) (r : core.Request) :
-    ∃ t, core.handle s r = ok t ∧ absDay t = handle (absDay s) (absRequest r) :=
+theorem core_handle_total (s : core.Window) (r : core.Request) :
+    ∃ t, core.handle s r = ok t ∧ absWindow t = handle (absWindow s) (absRequest r) :=
   handle_refines s r
 
 /-- **(b) The threshold, over the translated publisher.** A cell whose count

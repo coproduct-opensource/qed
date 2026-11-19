@@ -66,8 +66,8 @@ macro_rules! pi_telescope {
 /// that a propery constructed `Eq` and `Eq.refl`
 pub fn check_eq<'x, 't: 'x, 'p: 't>(ctx: &'x mut TcCtx<'t, 'p>, declar: &Declar<'p>) {
     use crate::expr::BinderStyle::*;
-    let name = ctx.str1("Eq");
-    let cname = ctx.str2("Eq", "refl");
+    let name = ctx.str1(EQ);
+    let cname = ctx.str2(EQ, EQ_REFL);
     let alpha_name = ctx.str1("α");
     let a_name = ctx.str1("a");
     let prop = ctx.prop();
@@ -213,7 +213,7 @@ pub fn check_quot<'x, 't: 'x, 'p: 't>(ctx: &'x mut TcCtx<'t, 'p>, declar: &Decla
     };
 
     let quot_mk_const = ctx.mk_const(expected_quot_mk.info().name, levels_u);
-    let eq_name = ctx.str1("Eq");
+    let eq_name = ctx.str1(EQ);
 
     let rab = app!(in ctx; r, a, b);
 
@@ -314,3 +314,9 @@ pub fn check_quot<'x, 't: 'x, 'p: 't>(ctx: &'x mut TcCtx<'t, 'p>, declar: &Decla
         panic!("invalid quotient declaration {:?}", ctx.debug_print(declar.info().name))
     }
 }
+
+/// Nucleus change (VENDOR.md, item 12): the names `check_eq` and `check_quot`
+/// look `Eq` up by, also listed by `acceptance::kernel_reserved_names`.
+pub const EQ: &str = "Eq";
+/// The last component of `Eq.refl`.
+pub const EQ_REFL: &str = "refl";
