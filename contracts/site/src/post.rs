@@ -60,7 +60,7 @@ shasum -a 256 statement.v2",
     )
 }
 
-fn task_json(m: &Mainnet) -> String {
+fn task_json() -> String {
     format!(
         "{{\"name\": \"add-comm\",
  \"statement\": \"statement.v2\",
@@ -137,7 +137,7 @@ pub fn page(m: &Mainnet, fee_bps: u16) -> Doc {
         },
         h2("task", "2. Task file"),
         p(vec![code("task/task.json"), t(":")]),
-        template("post-task-json", task_json(m)),
+        template("post-task-json", task_json()),
         Block::Table {
             caption: format!("Each field, as {} reads it", r.tag),
             head: vec!["Field".into(), "Here".into(), "Rule".into()],
