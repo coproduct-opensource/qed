@@ -1690,15 +1690,15 @@ pub struct SellerRelease {
     pub has_sweep: bool,
 }
 pub const SELLER_RELEASE: SellerRelease = SellerRelease {
-    tag: "v0.2.3",
+    tag: "v0.2.4",
     image: "ghcr.io/coproduct-opensource/qed-seller",
-    digest: "sha256:c53560b36247373886874b8dda45cb2a7e4f5a701cf25884ffc678de0671be36",
-    // 2026-11-19: `gh attestation verify oci://…` of the v0.2.3 digest exit 0
-    // (SLSA provenance signed by release.yml at refs/tags/v0.2.3), and the
-    // registry served its manifest to an anonymous pull token (HTTP 200).
+    digest: "sha256:de98e2a06770f83f1c4bc3d93f47ff0d253767a0536b275549c9d021e13c2bdf",
+    // 2026-11-19: `gh attestation verify oci://…` of the v0.2.4 digest exit 0
+    // (SLSA provenance signed by release.yml at refs/tags/v0.2.4); the digest is
+    // the image index the release run pushed as `qed-seller:v0.2.4`.
     // cosign was not run (not installed on the checking machine).
     image_public: true,
-    // v0.2.2 was the first release with `nucleus-seller sweep`; v0.2.3 keeps it.
+    // v0.2.2 was the first release with `nucleus-seller sweep`; v0.2.4 keeps it.
     has_sweep: true,
 };
 

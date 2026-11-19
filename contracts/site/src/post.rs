@@ -3,7 +3,7 @@
 //! was built and exported on 2026-11-18 (owner approval of that date;
 //! docs/rfcs/qed-post-a-task-2026-11-18.md has the run and its findings).
 //!
-//! Every command shown is one release `SELLER_RELEASE.tag` (v0.2.3) has.
+//! Every command shown is one release `SELLER_RELEASE.tag` (v0.2.4) has.
 //! What it lacks (the statement screen, a v2 converter) is said in a table
 //! and is never offered as a command.
 use crate::Mainnet;
@@ -22,6 +22,10 @@ const V2_SHA256: &str = "6b5eead329530f4efab1a898c79203919d06b4440c50787a4a1474a
 /// 2026-11-16).
 const RELAY_CAP: &str = "1,750,000";
 const RELAY_REACH: &str = "34,824";
+/// The order program a new post names: the newest published pair (fmt2s), whose
+/// acceptance rule refuses an artifact declaring a kernel-reserved name.
+pub const ORDER_PROGRAM: &str =
+    include_str!("../../proof-acceptance/program/IMAGE_ID_ORDER_FMT2S").trim_ascii();
 
 fn statement_steps() -> String {
     format!(
@@ -37,10 +41,12 @@ printf 'name = \"task\"\\n\\n[[lean_lib]]\\nname = \"Statements\"\\nglobs = [\"S
 echo '{CLAIM}' > Statements/S1.lean
 lake build Statements.S1
 
-# Export the three axioms, then the claim. Exit 0 is not enough:
-# lean4export exits 0 after dropping a root it cannot find.
+# Export the three axioms, the claim, then Nat: a proof may not declare Nat (the
+# checker treats it as built in), so the statement must. Nat is already in this
+# claim's closure, so the bytes are the same. Exit 0 is not enough: lean4export
+# exits 0 after dropping a root it cannot find.
 lake env ../lean4export/.lake/build/bin/lean4export Statements.S1 -- \\
-  propext Classical.choice Quot.sound Statements.S1.claim > statement.ndjson 2> export.err
+  propext Classical.choice Quot.sound Statements.S1.claim Nat > statement.ndjson 2> export.err
 test ! -s export.err && head -n 1 statement.ndjson
 
 # Export v2, the form the order program pins (smaller). {tag} ships no
@@ -65,7 +71,7 @@ fn task_json(m: &Mainnet) -> String {
  \"maximumPrice\": 1000000,
  \"fundingWindowSeconds\": 86400,
  \"deliveryWindowSeconds\": 172800}}",
-        program = m.bounty.program
+        program = ORDER_PROGRAM
     )
 }
 
@@ -118,7 +124,7 @@ pub fn page(m: &Mainnet, fee_bps: u16) -> Doc {
             ],
         },
         Block::Table {
-            caption: "What a statement must pass. The authors' screen checks all six and gave the same v2 hash; it is in no release, so check by hand".into(),
+            caption: "What a statement must pass. nucleus-buyer statement checks all six and gave the same v2 hash; by hand as below".into(),
             head: vec!["Check".into(), "Why".into(), "By hand".into()],
             rows: vec![
                 row(["The exporter exited 0 and wrote nothing to stderr", "It exits 0 after a missing root", "test ! -s export.err"]),
@@ -139,7 +145,7 @@ pub fn page(m: &Mainnet, fee_bps: u16) -> Doc {
                 row(["statement", "statement.v2", "Relative to the task file; its SHA-256 is pinned in the post"]),
                 row(["claim, permittedAxioms", "Statements.S1.claim; the three", "No name repeated; the checker admits only these axioms"]),
                 row(["maximumArtifactBytes", "34824", "The largest proof accepted; above 34,824 the relayer will not send the seller's settle"]),
-                row(["program", "the Base vault's order program", "Sellers skip a post naming another"]),
+                row(["program", "the newest published order program", "It refuses a proof that declares a name the checker treats as built in; sellers skip a post naming a program they do not run"]),
                 row(["maximumPrice", "1000000 (1 USDC)", "Units of 0.000001 USDC; the most you pay"]),
                 row(["fundingWindowSeconds", "86400", "At least 300; sellers skip a post with under 1,800 s left to deliver"]),
                 row(["deliveryWindowSeconds", "172800", "Longer than funding; at most the vault's term, else refused before posting"]),
@@ -184,8 +190,7 @@ NUCLEUS_RELAY=default ./nucleus-buyer post-tasks base.json {board} buyer.keys 0.
             caption: format!("Not in {}", r.tag),
             head: vec!["".into(), "Instead".into(), "Where".into()],
             rows: vec![
-                row(["The statement screen", "Check the six rows of the table under 1. Statement by hand", "The authors' screen is in no release"]),
-                row(["A v2 converter", "The v2_inputs example program, built from the tagged source", "Needs Rust; see 1. Statement"]),
+                row(["A Lean toolchain or lean4export", "Install Lean 4.30.0 with elan and build lean4export 3.1.0", "See 1. Statement"]),
             ],
         },
         h2("terms", "Terms"),

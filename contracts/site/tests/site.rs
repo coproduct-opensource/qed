@@ -992,7 +992,11 @@ fn the_post_a_task_page_says_what_the_release_can_do_and_is_linked() {
         assert!(text.contains("NUCLEUS_RELAY=default ./nucleus-buyer post-tasks base.json"));
         assert!(text.contains(&m.board.address));
         assert!(text.contains(&m.vault.address));
-        assert!(text.contains(&m.bounty.program));
+        // A new post names the newest published order program, which refuses a
+        // proof declaring a kernel-reserved name; the statement roots Nat.
+        assert!(text.contains(nucleus_site::post::ORDER_PROGRAM));
+        assert_eq!(nucleus_site::post::ORDER_PROGRAM.len(), 64);
+        assert!(text.contains("Statements.S1.claim Nat"));
         // The worked statement, as measured on 2026-11-18.
         assert!(text.contains("6b5eead329530f4efab1a898c79203919d06b4440c50787a4a1474a23b2b7731"));
         assert!(text.contains("6,003"));
@@ -1005,9 +1009,9 @@ fn the_post_a_task_page_says_what_the_release_can_do_and_is_linked() {
     assert!(page.contains("journal.jsonl"));
     assert!(page.contains("./nucleus-buyer task-withdraw base.json"));
     assert!(page.contains("task-refund"));
-    // What it still lacks is said, not offered as a command.
-    assert!(page.contains("The statement screen"));
-    assert!(!page.contains("nucleus-buyer statement"));
+    // v0.2.4 has the statement screen as nucleus-buyer statement.
+    assert!(page.contains("nucleus-buyer statement"));
+    assert!(!page.contains("The statement screen"));
     // Wallets: the board, vault and token are contracts; no buyer wallet of
     // the authors' other than the bounty's appears (and that one only on
     // /status), so the ladder buyer is not named.

@@ -206,8 +206,8 @@ release is named once, in `IMAGE`.
 # 1. Apple's container runtime (Apple silicon; https://github.com/apple/container/releases)
 container system start
 
-# 2. The seller release v0.2.3, named by digest
-IMAGE=ghcr.io/coproduct-opensource/qed-seller@sha256:c53560b36247373886874b8dda45cb2a7e4f5a701cf25884ffc678de0671be36
+# 2. The seller release v0.2.4, named by digest
+IMAGE=ghcr.io/coproduct-opensource/qed-seller@sha256:de98e2a06770f83f1c4bc3d93f47ff0d253767a0536b275549c9d021e13c2bdf
 container image pull "$IMAGE"
 
 # 3. Check it. cosign needs no account; gh attestation needs gh signed in to GitHub.

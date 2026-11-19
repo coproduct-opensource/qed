@@ -77,6 +77,7 @@ pub struct KnownProgram {
     pub image_id: String,
     pub name: String,
     /// `published` (its binary is in contracts/proof-acceptance/program),
+    /// `superseded` (published, but new posts name a newer pair),
     /// `not-distributed` or `retired`.
     pub status: String,
 }
