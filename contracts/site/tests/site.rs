@@ -1360,7 +1360,10 @@ fn the_status_page_names_the_ladder_buyer() {
     let ladder = "0xca1f8b498d3df887fe9f0a3cd637b059bb35ad1a";
     for path in ["status/index.html", "status/index.md"] {
         let text = file(&files, path);
-        assert!(text.contains(ladder), "{path} does not name the ladder buyer");
+        assert!(
+            text.contains(ladder),
+            "{path} does not name the ladder buyer"
+        );
         assert!(text.contains("The ladder buyer"), "{path}");
         assert!(
             nucleus_site::status::foreign_addresses(&i, text).is_empty(),
@@ -1369,7 +1372,10 @@ fn the_status_page_names_the_ladder_buyer() {
     }
     for (path, text) in html_files(&files) {
         if !path.starts_with("status/") {
-            assert!(!text.contains(&ladder[2..]), "{path} names the ladder buyer");
+            assert!(
+                !text.contains(&ladder[2..]),
+                "{path} names the ladder buyer"
+            );
         }
     }
 }

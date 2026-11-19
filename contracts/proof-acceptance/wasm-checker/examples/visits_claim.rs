@@ -4,7 +4,9 @@
 //!
 //! `PACKAGE_DIR` is `contracts/analytics/browser-check` (Lean core only).
 //! The statement is `lean4export QedVisits.Statement -- propext
-//! QedVisits.claim`; the artifact is the rest of `lean4export
+//! QedVisits.claim`, then each kernel-reserved name the proof would otherwise
+//! declare (the acceptance rule refuses an artifact declaring one); the
+//! artifact is the rest of `lean4export
 //! QedVisits.Statement QedVisits.Proof -- … QedVisits.claim QedVisits.proof`
 //! after the statement's bytes, both in export format v2, as the QED
 //! acceptance rule reads a buyer's statement and a seller's artifact.
@@ -16,7 +18,7 @@
 //! whole, and the acceptance rule accepts the pair with `QedVisits.proof` as
 //! the proof. Writes `statement.v2`, `artifact.v2`, `policy.json` and
 //! `record.json` to `OUT_DIR`.
-use nucleus_proof_acceptance::{Policy, accept, export_v2_from_ndjson};
+use nucleus_proof_acceptance::{Policy, Refusal, accept, export_v2_from_ndjson};
 use serde_json::json;
 use sha2::Digest as _;
 use std::error::Error;
@@ -78,32 +80,48 @@ fn main() -> Res<()> {
     if !built.success() {
         return Err(format!("lake build: {built}").into());
     }
-    let mut roots: Vec<&str> = AXIOMS.to_vec();
-    roots.push(CLAIM);
-    let statement_ndjson = export(package, lean4export, &["QedVisits.Statement"], &roots)?;
-    roots.push(PROOF);
-    let full_ndjson = export(
-        package,
-        lean4export,
-        &["QedVisits.Statement", "QedVisits.Proof"],
-        &roots,
-    )?;
-    let suffix = full_ndjson
-        .strip_prefix(statement_ndjson.as_slice())
-        .ok_or("the statement export is not a prefix of the whole")?;
-    let statement = export_v2_from_ndjson(&statement_ndjson, true).map_err(|e| format!("{e:?}"))?;
-    let artifact = export_v2_from_ndjson(suffix, false).map_err(|e| format!("{e:?}"))?;
-    let whole = export_v2_from_ndjson(&full_ndjson, true).map_err(|e| format!("{e:?}"))?;
-    if [statement.as_slice(), artifact.as_slice()].concat() != whole {
-        return Err("v2(statement) ++ v2(rest) is not v2(whole)".into());
-    }
-    let policy = Policy {
-        statement_sha256: sha256(&statement),
-        claim: CLAIM.into(),
-        permitted_axioms: AXIOMS.iter().map(|a| (*a).to_owned()).collect(),
-        maximum_artifact_bytes: MAXIMUM_ARTIFACT_BYTES,
+    // The statement roots the axioms, the claim, then every name the checker
+    // treats as built in that the proof would otherwise declare: the rule
+    // refuses an artifact declaring one, so the statement must. Each refusal
+    // names one; root it and export again (a reserved name is added at most
+    // once, so the loop ends).
+    let mut reserved: Vec<String> = Vec::new();
+    let (statement, artifact, policy, accepted) = loop {
+        let mut roots: Vec<&str> = AXIOMS.to_vec();
+        roots.push(CLAIM);
+        roots.extend(reserved.iter().map(String::as_str));
+        let statement_ndjson = export(package, lean4export, &["QedVisits.Statement"], &roots)?;
+        roots.push(PROOF);
+        let full_ndjson = export(
+            package,
+            lean4export,
+            &["QedVisits.Statement", "QedVisits.Proof"],
+            &roots,
+        )?;
+        let suffix = full_ndjson
+            .strip_prefix(statement_ndjson.as_slice())
+            .ok_or("the statement export is not a prefix of the whole")?;
+        let statement =
+            export_v2_from_ndjson(&statement_ndjson, true).map_err(|e| format!("{e:?}"))?;
+        let artifact = export_v2_from_ndjson(suffix, false).map_err(|e| format!("{e:?}"))?;
+        let whole = export_v2_from_ndjson(&full_ndjson, true).map_err(|e| format!("{e:?}"))?;
+        if [statement.as_slice(), artifact.as_slice()].concat() != whole {
+            return Err("v2(statement) ++ v2(rest) is not v2(whole)".into());
+        }
+        let policy = Policy {
+            statement_sha256: sha256(&statement),
+            claim: CLAIM.into(),
+            permitted_axioms: AXIOMS.iter().map(|a| (*a).to_owned()).collect(),
+            maximum_artifact_bytes: MAXIMUM_ARTIFACT_BYTES,
+        };
+        match accept(&policy, &statement, &artifact) {
+            Ok(accepted) => break (statement, artifact, policy, accepted),
+            Err(Refusal::ArtifactDeclaresReservedName(name)) if !reserved.contains(&name) => {
+                reserved.push(name);
+            }
+            Err(e) => return Err(format!("{e:?}").into()),
+        }
     };
-    let accepted = accept(&policy, &statement, &artifact).map_err(|e| format!("{e:?}"))?;
     if accepted.proof != PROOF {
         return Err(format!("accepted with {}, not {PROOF}", accepted.proof).into());
     }
