@@ -1,0 +1,189 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "CouldNotRun",
+    "reasons": [
+      "con-leche: checked 75238 declarations; the export has 75233",
+      "con-ron: checked 75238 declarations; the export has 75233"
+    ]
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "leanprover/lean4-cli",
+    "commit": "c830de39b67d5d447d854a4e390fff9bb0a9c897",
+    "tree": "73a0f2df3e4eab26c3b2a9421f282b809968b1fd",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.37.0-rc1",
+    "leanVersion": "4.37.0-rc1",
+    "leanGithash": "0b77e12952ad39077d80d8bd6b66d601f225c321"
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "4f5226680a15811444273975284fcb78cf7f8e6af7afa6312ab41a5b945b8542"
+  },
+  "exports": [
+    {
+      "role": "project",
+      "sha256": "2aa558dd8d8c9d727f007a99e2543201df4943cdf24a0456e089eec2b276a3fa",
+      "bytes": 457408149,
+      "constants": 76957,
+      "records": 75238
+    },
+    {
+      "role": "trusted-init",
+      "sha256": "187a7b62e234db2e3d4141419796754a9afb1834b4e4e125b99f2f1bef5c3faf",
+      "bytes": 369289671,
+      "constants": 62454,
+      "records": 61002
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "7a2b8415adf629cc55e4de86243ba0b5198e9af75b3181491363c1d18cd622f1",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 92872,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 119454,
+      "declarations": 75235
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "5c34d6124b19dfd23c7d0377b520893cf8adec5c23fa0c809dde9e38eb201ffe",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 25893,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "8fff3f055d032b66d5262cb6db4fb916328b4931a98634630f7481b1e3449308",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "checked 75238 declarations; the export has 75233"
+      },
+      "evidence": "ran",
+      "durationMs": 12716,
+      "declarations": 75238
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "e3241d3bb154d40ee92671440497d1a51564dd6f654aa7d01e8812ee04d73ce9",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "checked 75238 declarations; the export has 75233"
+      },
+      "evidence": "ran",
+      "durationMs": 8534,
+      "declarations": 75238
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.37.0-rc1",
+      "binarySha256": "437c52be453b0bd769f2c9f852f4a8f1668888a8e7c50b063722e534c5993dd0",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 76507,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "primitives",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms agree",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [
+    {
+      "rootSet": "project",
+      "roots": 14503,
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "closureKey": null
+    }
+  ],
+  "reuse": {
+    "mode": "off",
+    "declarations": 76957,
+    "reused": 0,
+    "rechecked": 76957,
+    "unmatched": 0,
+    "keySetSha256": "34ac66881be57bc09da9e5f251f89b5ff1626df87ee591bca9aaff9ee6169fb1",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 17908,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 0,
+      "durationMs": 378119,
+      "sandboxed": true
+    },
+    {
+      "command": "LAKE_CHECK_EXPORT=1 lake check (the export half, outside the sandbox)",
+      "exitCode": 0,
+      "durationMs": 22645,
+      "sandboxed": false
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

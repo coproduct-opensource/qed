@@ -17,6 +17,7 @@ pub mod live;
 pub mod pages;
 pub mod post;
 pub mod preview;
+pub mod proof_board;
 pub mod schema;
 pub mod serving;
 pub mod signing;
@@ -1143,6 +1144,12 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     }
     docs_list.push(visits::page(input, repository, options.ledger.is_some())?);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    // The Lean Proof Board, when the input has one: the page, and each
+    // row's verdict file byte for byte beside it (src/proof_board.rs).
+    if let Some(loaded) = proof_board::read(repository)? {
+        docs_list.push(proof_board::page(&loaded.board));
+        files.extend(proof_board::files(&loaded)?);
+    }
     if let Some((ledger_input, snapshot)) = options.ledger {
         let mut index = Vec::new();
         for receipt in snapshot.receipts() {

@@ -1,0 +1,1410 @@
+{
+  "schema": "qed-board/1",
+  "generatedAt": 1795158443,
+  "rows": [
+    {
+      "rank": 1,
+      "repository": "palladin/lean-reducers",
+      "url": "https://github.com/palladin/lean-reducers",
+      "license": "MIT",
+      "stars": 16,
+      "toolchain": "v4.35.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/palladin__lean-reducers/verdict.json",
+      "verdictSha256": "abb7a1c3317addd73cbb94fe27040ad528277b820996a07dc9cf48628cb5b90f",
+      "sourceVerdictSha256": "abb7a1c3317addd73cbb94fe27040ad528277b820996a07dc9cf48628cb5b90f",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 2,
+      "repository": "bergmannjg/leanCurl",
+      "url": "https://github.com/bergmannjg/leanCurl",
+      "license": "MIT",
+      "stars": 15,
+      "toolchain": "v4.36.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/bergmannjg__leanCurl/verdict.json",
+      "verdictSha256": "6cd269ed1cbacac9a0c59d0dec186a907e03af5fdbe102fb280df839c2b7c0d4",
+      "sourceVerdictSha256": "6cd269ed1cbacac9a0c59d0dec186a907e03af5fdbe102fb280df839c2b7c0d4",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 3,
+      "repository": "Seasawher/lean-book",
+      "url": "https://github.com/Seasawher/lean-book",
+      "license": "Apache-2.0",
+      "stars": 11,
+      "toolchain": "v4.36.0-rc2",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/Seasawher__lean-book/verdict.json",
+      "verdictSha256": "cf0d3d43bf26cbd1e4859d5dba7b724123038b27296196b68b4d3471b0d843a8",
+      "sourceVerdictSha256": "cf0d3d43bf26cbd1e4859d5dba7b724123038b27296196b68b4d3471b0d843a8",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 4,
+      "repository": "monsterkrampe/Existential-Rules-in-Lean",
+      "url": "https://github.com/monsterkrampe/Existential-Rules-in-Lean",
+      "license": "Apache-2.0",
+      "stars": 5,
+      "toolchain": "v4.36.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/monsterkrampe__Existential-Rules-in-Lean/verdict.json",
+      "verdictSha256": "1d9f99d879fd245eca2eef348efa285f2182490dd3c3f258d957b1afe47f6e8b",
+      "sourceVerdictSha256": "1d9f99d879fd245eca2eef348efa285f2182490dd3c3f258d957b1afe47f6e8b",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 5,
+      "repository": "T-Brick/Numbers",
+      "url": "https://github.com/T-Brick/Numbers",
+      "license": "GPL-3.0",
+      "stars": 4,
+      "toolchain": "v4.35.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/T-Brick__Numbers/verdict.json",
+      "verdictSha256": "c52e2ca2731b07e59267c6a9d68a8112575ab6558e8a8198ef68da8db88b9e9f",
+      "sourceVerdictSha256": "c52e2ca2731b07e59267c6a9d68a8112575ab6558e8a8198ef68da8db88b9e9f",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 6,
+      "repository": "Volland/agent.lean",
+      "url": "https://github.com/Volland/agent.lean",
+      "license": "Apache-2.0",
+      "stars": 3,
+      "toolchain": "v4.35.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/Volland__agent.lean/verdict.json",
+      "verdictSha256": "f007262e50032adf5301e73d2d400a618d7342f6813927de1210069de6e00fd9",
+      "sourceVerdictSha256": "f007262e50032adf5301e73d2d400a618d7342f6813927de1210069de6e00fd9",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 7,
+      "repository": "MinaBasilious/logic_induction",
+      "url": "https://github.com/MinaBasilious/logic_induction",
+      "license": "MIT",
+      "stars": 2,
+      "toolchain": "v4.35.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/MinaBasilious__logic_induction/verdict.json",
+      "verdictSha256": "05198eed113228b4ccef953dca2a7697f649a87a72bafe9a4fd0730f7466e6a1",
+      "sourceVerdictSha256": "05198eed113228b4ccef953dca2a7697f649a87a72bafe9a4fd0730f7466e6a1",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 8,
+      "repository": "israelflores8789/eig3x3-lean",
+      "url": "https://github.com/israelflores8789/eig3x3-lean",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.35.0-rc4",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/israelflores8789__eig3x3-lean/verdict.json",
+      "verdictSha256": "252dd374aa42133c36549a9130366486a89ffa3ff55e1f2791296b8b2bddd274",
+      "sourceVerdictSha256": "252dd374aa42133c36549a9130366486a89ffa3ff55e1f2791296b8b2bddd274",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 9,
+      "repository": "monsterkrampe/Possibly-Infinite-Trees",
+      "url": "https://github.com/monsterkrampe/Possibly-Infinite-Trees",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.36.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/monsterkrampe__Possibly-Infinite-Trees/verdict.json",
+      "verdictSha256": "e12cfccd583a9042d1ebe7578d95c3081bc9d643a6c05471e086e670cddd8cb0",
+      "sourceVerdictSha256": "e12cfccd583a9042d1ebe7578d95c3081bc9d643a6c05471e086e670cddd8cb0",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 10,
+      "repository": "rbeauchamp/regula",
+      "url": "https://github.com/rbeauchamp/regula",
+      "license": "MIT",
+      "stars": 2,
+      "toolchain": "v4.35.0",
+      "tier": "acceptedByAll",
+      "kernels": {
+        "accepted": 6,
+        "total": 6
+      },
+      "why": null,
+      "verdict": "verdicts/rbeauchamp__regula/verdict.json",
+      "verdictSha256": "3de88bdb9854ba815ca840b666465df35872baac9a1af02a1b5442ce23cee017",
+      "sourceVerdictSha256": "3de88bdb9854ba815ca840b666465df35872baac9a1af02a1b5442ce23cee017",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 11,
+      "repository": "leanprover/lean-beam",
+      "url": "https://github.com/leanprover/lean-beam",
+      "license": "Apache-2.0",
+      "stars": 58,
+      "toolchain": "v4.36.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 3,
+        "total": 6
+      },
+      "why": "axioms: uses Lake.DataType.bool, Lake.DataType.dynlib, Lake.DataType.extern_lib, Lake.DataType.filepath, Lake.DataType.input_dir, Lake.DataType.input_file, Lake.DataType.lean_exe, Lake.DataType.lean_lib, Lake.DataType.module, Lake.DataType.…",
+      "verdict": "verdicts/leanprover__lean-beam/verdict.json",
+      "verdictSha256": "578947f53b169cf928cf65cadd084061aec0a624e73861f9dba45f6c7589bdc0",
+      "sourceVerdictSha256": "578947f53b169cf928cf65cadd084061aec0a624e73861f9dba45f6c7589bdc0",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 12,
+      "repository": "jcreinhold/lean-fmt",
+      "url": "https://github.com/jcreinhold/lean-fmt",
+      "license": "Apache-2.0",
+      "stars": 3,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 3,
+        "total": 6
+      },
+      "why": "axioms: uses Lake.DataType.bool, Lake.DataType.dynlib, Lake.DataType.extern_lib, Lake.DataType.filepath, Lake.DataType.input_dir, Lake.DataType.input_file, Lake.DataType.lean_exe, Lake.DataType.lean_lib, Lake.DataType.module, Lake.DataType.…",
+      "verdict": "verdicts/jcreinhold__lean-fmt/verdict.json",
+      "verdictSha256": "7052d52a726a8e26c51d55a246a6e7f184ff696a0936eee66582666321a73ba8",
+      "sourceVerdictSha256": "7052d52a726a8e26c51d55a246a6e7f184ff696a0936eee66582666321a73ba8",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 13,
+      "repository": "hardenedlinux/cedar-poo-spec",
+      "url": "https://github.com/hardenedlinux/cedar-poo-spec",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 3,
+        "total": 6
+      },
+      "why": "axioms: uses CedarPooSpec.Functional.order._native.native_decide.ax_1, _private.Cedar.Data.Int64.0.Int64.toInt_neg_of_not_ge_zero._native.native_decide.ax_1_2, _private.Cedar.Data.Int64.0.Int64.toInt_nonneg_of_ge_zero._native.native_decide.…",
+      "verdict": "verdicts/hardenedlinux__cedar-poo-spec/verdict.json",
+      "verdictSha256": "0de7b79f8493d9b974d3df6e0b6986ea3af5528265466b44039ed250e7322b0e",
+      "sourceVerdictSha256": "0de7b79f8493d9b974d3df6e0b6986ea3af5528265466b44039ed250e7322b0e",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 14,
+      "repository": "lean-dojo/LeanCopilot",
+      "url": "https://github.com/lean-dojo/LeanCopilot",
+      "license": "MIT",
+      "stars": 1347,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [1036/1037] Built Aesop.Search.Main:c.o (3.2s) | ✔ [1037/1037] Built Aesop:shared (101ms) | Some required targets logged failures: | - LeanCopilot/libopenblas | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/lean-dojo__LeanCopilot/verdict.json",
+      "verdictSha256": "22660d6967ae6a868c1c8254eefb2424c82ec4cd11ac5e78dc1c869335c2dfc6",
+      "sourceVerdictSha256": "22660d6967ae6a868c1c8254eefb2424c82ec4cd11ac5e78dc1c869335c2dfc6",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 15,
+      "repository": "leanprover-community/batteries",
+      "url": "https://github.com/leanprover-community/batteries",
+      "license": "Apache-2.0",
+      "stars": 435,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "axioms (lake): Axiom 'Lake.DataType.bool' is not permitted; it is used by 'Lake.instFamilyDefNameDataTypeMkStr1Bool'; Axiom 'Lake.DataType.dynlib' is not permitted; it is used by 'Lake.instFamilyDefNameDataTypeMkStr1Dynlib'; Axiom 'Lake.Dat…",
+      "verdict": "verdicts/leanprover-community__batteries/verdict.json",
+      "verdictSha256": "a8a6a45be62a22ebc5fde06b2289b76b35941c28385b175be467b034ec97312f",
+      "sourceVerdictSha256": "a8a6a45be62a22ebc5fde06b2289b76b35941c28385b175be467b034ec97312f",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 16,
+      "repository": "verse-lab/veil",
+      "url": "https://github.com/verse-lab/veil",
+      "license": "Apache-2.0",
+      "stars": 413,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: - libpicpoly | - libpicpolyxx | - cvc5/ffi.o | - auto/zipperpositionAutoDownload | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/verse-lab__veil/verdict.json",
+      "verdictSha256": "cdd297ddc817795a0d3a513f7783d4344673fbd1bafa5b00ebb76b135b2da583",
+      "sourceVerdictSha256": "cdd297ddc817795a0d3a513f7783d4344673fbd1bafa5b00ebb76b135b2da583",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 17,
+      "repository": "leanprover-community/ProofWidgets4",
+      "url": "https://github.com/leanprover-community/ProofWidgets4",
+      "license": "Apache-2.0",
+      "stars": 233,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: error: read-only file system (error code: 30) | file: $SRC/leanprover-community__ProofWidgets4/widget/package-lock.json.hash | Some required targets logged failures: | - proofwidgets/widgetPac…",
+      "verdict": "verdicts/leanprover-community__ProofWidgets4/verdict.json",
+      "verdictSha256": "e77fe5ade772c09f6cace90c86eaf34b14acf915491c6f19e957bed0da7f5473",
+      "sourceVerdictSha256": "67c49d9d0ebebd043224f8f7503aec5a8d170ca3b48070eb351deb13c3de5dd4",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 18,
+      "repository": "leanprover-community/lean-auto",
+      "url": "https://github.com/leanprover-community/lean-auto",
+      "license": "Apache-2.0",
+      "stars": 197,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: curl: (6) Could not resolve host: github.com | error: external command 'curl' exited with code 6 | Some required targets logged failures: | - auto/zipperpositionAutoDownload | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/leanprover-community__lean-auto/verdict.json",
+      "verdictSha256": "71ec4bf11f2e67fd35ae7f6aafa72d567d4be36310a80029f431ee8fc89c4e3c",
+      "sourceVerdictSha256": "71ec4bf11f2e67fd35ae7f6aafa72d567d4be36310a80029f431ee8fc89c4e3c",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 19,
+      "repository": "chasenorman/CanonicalLean",
+      "url": "https://github.com/chasenorman/CanonicalLean",
+      "license": "MIT",
+      "stars": 142,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [37/81] Built Canonical.Util:c.o (1.1s) | ✔ [75/81] Built Canonical.Monomorphize.Basic:c.o (3.0s) | Some required targets logged failures: | - Canonical:release | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/chasenorman__CanonicalLean/verdict.json",
+      "verdictSha256": "d1a511ac03b7ec4efb60974d3fd07a281599eceabccf9a050ed027389accf110",
+      "sourceVerdictSha256": "d1a511ac03b7ec4efb60974d3fd07a281599eceabccf9a050ed027389accf110",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 20,
+      "repository": "leanprover/reference-manual",
+      "url": "https://github.com/leanprover/reference-manual",
+      "license": "Apache-2.0",
+      "stars": 139,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: error: $SRC/leanprover__reference-manual/lakefile.lean:63:18: no such file or directory (error code: 2) | file: lean | error: $SRC/leanprover__referenc…",
+      "verdict": "verdicts/leanprover__reference-manual/verdict.json",
+      "verdictSha256": "4cec149f6b622b944d96a3aceac882a9639924b9a17476e1e548a22d85c8eba2",
+      "sourceVerdictSha256": "b151088b789e27e6dc9157fcc91260599dc9a144bbe797308b13d07eacefb151",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 21,
+      "repository": "leanprover/LNSym",
+      "url": "https://github.com/leanprover/LNSym",
+      "license": "Apache-2.0",
+      "stars": 122,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "axioms: uses Aligned_AddWithCarry_64_4._native.bv_decide.ax_1_5, Aligned_BitVecAdd_64_4._native.bv_decide.ax_1_5, Aligned_BitVecSub_64_4._native.bv_decide.ax_1_5, DPSFP.dup_aux_0_4_32._native.bv_decide.ax_1_5, sgt_iff_n_eq_v_and_z_eq_0_32._…",
+      "verdict": "verdicts/leanprover__LNSym/verdict.json",
+      "verdictSha256": "83318df8e88c71111e931fdcc2e7f213796e6b248a250c7c3f7b27f21f937fd1",
+      "sourceVerdictSha256": "83318df8e88c71111e931fdcc2e7f213796e6b248a250c7c3f7b27f21f937fd1",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 22,
+      "repository": "leanprover-community/duper",
+      "url": "https://github.com/leanprover-community/duper",
+      "license": "Apache-2.0",
+      "stars": 120,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [807/810] Built Duper.Interface.Basic:c.o (698ms) | ✔ [810/810] Built Duper.Interface.Basic:dynlib (249ms) | Some required targets logged failures: | - auto/zipperpositionAutoDownload | error: build failed | error: Child exited wit…",
+      "verdict": "verdicts/leanprover-community__duper/verdict.json",
+      "verdictSha256": "1cd7a802d56b751a7f010b75271aa3bb26ce1adf11e76998714fb82290b6cc13",
+      "sourceVerdictSha256": "1cd7a802d56b751a7f010b75271aa3bb26ce1adf11e76998714fb82290b6cc13",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 23,
+      "repository": "JOSHCLUNE/LeanHammer",
+      "url": "https://github.com/JOSHCLUNE/LeanHammer",
+      "license": "Apache-2.0",
+      "stars": 103,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: - libgmp | - libgmpxx | - libpicpoly | - libpicpolyxx | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/JOSHCLUNE__LeanHammer/verdict.json",
+      "verdictSha256": "3447328fac6325f783be783c6f28b6b0c59a673c615c1e33fc07db2fe0f8d576",
+      "sourceVerdictSha256": "3447328fac6325f783be783c6f28b6b0c59a673c615c1e33fc07db2fe0f8d576",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 24,
+      "repository": "hanwenzhu/LeanArchitect",
+      "url": "https://github.com/hanwenzhu/LeanArchitect",
+      "license": "Apache-2.0",
+      "stars": 94,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [53/56] Built Architect.Output:c.o (2.4s) | ✔ [54/56] Built Cli.Basic:c.o (4.2s) | ✔ [55/56] Built add_position_info:exe (1.8s) | ✔ [56/56] Built extract_blueprint:exe (1.9s) | error: import scripts.convert.add_position_info failed…",
+      "verdict": "verdicts/hanwenzhu__LeanArchitect/verdict.json",
+      "verdictSha256": "aae5c27a74826036a27e1bd4df0bb3941b0fb87dbb6cfde020df5fc731c7c52e",
+      "sourceVerdictSha256": "aae5c27a74826036a27e1bd4df0bb3941b0fb87dbb6cfde020df5fc731c7c52e",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 25,
+      "repository": "dwrensha/tryAtEachStep",
+      "url": "https://github.com/dwrensha/tryAtEachStep",
+      "license": "Apache-2.0",
+      "stars": 40,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [6/9] Built tryAtEachStepInDirectory:c.o (1.1s) | ✔ [7/9] Built tryAtEachStepInDirectory:exe (666ms) | ✔ [8/9] Built tryAtEachStep:c.o (1.8s) | ✔ [9/9] Built tryAtEachStep:exe (619ms) | error: import tryAtEachStepInDirectory failed…",
+      "verdict": "verdicts/dwrensha__tryAtEachStep/verdict.json",
+      "verdictSha256": "ff9a437b3309e7abea790a4c677c6887b3ce7c8f2fae6e215cb0dfaeb47de1ab",
+      "sourceVerdictSha256": "ff9a437b3309e7abea790a4c677c6887b3ce7c8f2fae6e215cb0dfaeb47de1ab",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 26,
+      "repository": "leanprover-community/import-graph",
+      "url": "https://github.com/leanprover-community/import-graph",
+      "license": "Apache-2.0",
+      "stars": 30,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [133/139] Built ImportGraph.Tools (160ms) | ✔ [135/139] Built ImportGraph (159ms) | ✔ [138/139] Built Cli.Basic:c.o (3.6s) | ✔ [139/139] Built graph:exe (720ms) | error: import executables.WorkspaceSummary failed, environment alrea…",
+      "verdict": "verdicts/leanprover-community__import-graph/verdict.json",
+      "verdictSha256": "899c5d38fe5e60a5e5cd53f06d71d139a59e6c1e1255b64c2d7f652dc539aded",
+      "sourceVerdictSha256": "899c5d38fe5e60a5e5cd53f06d71d139a59e6c1e1255b64c2d7f652dc539aded",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 27,
+      "repository": "palladin/lean-linq",
+      "url": "https://github.com/palladin/lean-linq",
+      "license": "MIT",
+      "stars": 29,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: /usr/lib/aarch64-linux-gnu, | /usr/lib64, | /usr/lib, | ] | error: $SRC/palladin__lean-linq/lakefile.lean: package configuration has errors | error: Child exited with 1",
+      "verdict": "verdicts/palladin__lean-linq/verdict.json",
+      "verdictSha256": "0663ceaa2d526fb5cd8ada933368cb6b819889c579fbd7cd2c7184703f2dd461",
+      "sourceVerdictSha256": "b119ccd06658c426d7e1876340cd4ea11ab6af034abe7de9292d27ea9e443e3c",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 28,
+      "repository": "abdoo8080/lean-cvc5",
+      "url": "https://github.com/abdoo8080/lean-cvc5",
+      "license": "Apache-2.0",
+      "stars": 28,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: curl: (6) Could not resolve host: github.com | error: external command 'curl' exited with code 6 | Some required targets logged failures: | - cvc5/cvc5Enums | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/abdoo8080__lean-cvc5/verdict.json",
+      "verdictSha256": "7cdfeb51b3a0c3126ca3a2eac631bec7c012b8d049d7742aac3cde18e0336454",
+      "sourceVerdictSha256": "7cdfeb51b3a0c3126ca3a2eac631bec7c012b8d049d7742aac3cde18e0336454",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 29,
+      "repository": "palladin/lean-eff",
+      "url": "https://github.com/palladin/lean-eff",
+      "license": "MIT",
+      "stars": 25,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [86/89] Built SQLite:shared (41ms) | ✔ [87/89] Built Examples.VideoRental (939ms) | ✔ [88/89] Built Examples.VideoRental:c.o (1.1s) | ✔ [89/89] Built video_rental_shop:exe (461ms) | error: import Examples.AsciiTetris failed, enviro…",
+      "verdict": "verdicts/palladin__lean-eff/verdict.json",
+      "verdictSha256": "40fe8aac565cd4fb689bce15c39a34284806d32eb3f11b2c2192b2dbdca92b6f",
+      "sourceVerdictSha256": "40fe8aac565cd4fb689bce15c39a34284806d32eb3f11b2c2192b2dbdca92b6f",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 30,
+      "repository": "leanprover/verso-slides",
+      "url": "https://github.com/leanprover/verso-slides",
+      "license": "Apache-2.0",
+      "stars": 21,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [790/792] Built VersoSlides.ModuleExample:c.o (5.2s) | ✔ [791/792] Built VersoSlides.LibModule:c.o (3.4s) | Some required targets logged failures: | - Demo | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/leanprover__verso-slides/verdict.json",
+      "verdictSha256": "284f9ab356915b1d4e5f902cd132cec6351e3e0d48b14f0264a47c582ffb9d24",
+      "sourceVerdictSha256": "284f9ab356915b1d4e5f902cd132cec6351e3e0d48b14f0264a47c582ffb9d24",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 31,
+      "repository": "bergmannjg/regex",
+      "url": "https://github.com/bergmannjg/regex",
+      "license": "MIT",
+      "stars": 20,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [561/564] Built Main (1.7s) | ✔ [562/564] Built benchmark:exe (518ms) | ✔ [563/564] Built Main:c.o (207ms) | ✔ [564/564] Built inspect:exe (492ms) | error: import Benchmark failed, environment already contains 'main' from Main | er…",
+      "verdict": "verdicts/bergmannjg__regex/verdict.json",
+      "verdictSha256": "af80c38c6f19b6469345e63cc17012bfb9935e5b01bc2107a245454f44384bdd",
+      "sourceVerdictSha256": "af80c38c6f19b6469345e63cc17012bfb9935e5b01bc2107a245454f44384bdd",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 32,
+      "repository": "leanprover/subverso",
+      "url": "https://github.com/leanprover/subverso",
+      "license": "Apache-2.0",
+      "stars": 8,
+      "toolchain": "v4.36.0-rc2",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: error: import InternalTests failed, environment already contains 'main' from Tests | error: Child exited with 1",
+      "verdict": "verdicts/leanprover__subverso/verdict.json",
+      "verdictSha256": "b289dbc686296980fe8d00829841686f85c4f4d5b1b4675f9455d24a80fe2351",
+      "sourceVerdictSha256": "b289dbc686296980fe8d00829841686f85c4f4d5b1b4675f9455d24a80fe2351",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 33,
+      "repository": "marcellop71/redis-lean",
+      "url": "https://github.com/marcellop71/redis-lean",
+      "license": "Apache-2.0",
+      "stars": 7,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [34/36] Built RedisLean.Mathlib (240ms) | ✔ [35/36] Built RedisLean (245ms) | Some required targets logged failures: | - redisLean/hiredis_shim_o | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/marcellop71__redis-lean/verdict.json",
+      "verdictSha256": "329c853857d96d76be4586a329ab79f2711a85aca3919b9f78f18e2825b780d8",
+      "sourceVerdictSha256": "329c853857d96d76be4586a329ab79f2711a85aca3919b9f78f18e2825b780d8",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 34,
+      "repository": "typednotes/infra",
+      "url": "https://github.com/typednotes/infra",
+      "license": "Apache-2.0",
+      "stars": 7,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: error: $SRC/typednotes__infra/.lake/packages/linen/lakefile.lean:678:18: Unknown identifier `nativeLinkArgs` | error: $SRC/typednotes__infra/.lake/pack…",
+      "verdict": "verdicts/typednotes__infra/verdict.json",
+      "verdictSha256": "01a8a5101c95825d57a2a12a0fb30a9a1186e390ed044feefec0564b412d6c9c",
+      "sourceVerdictSha256": "9b840852cbd5797230084560ff2f73287eec702ac2d3d871614de19a19413f32",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 35,
+      "repository": "KislyjKisel/lean-pod",
+      "url": "https://github.com/KislyjKisel/lean-pod",
+      "license": "BSD-3-Clause",
+      "stars": 6,
+      "toolchain": "v4.35.0-rc3",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: Some required targets logged failures: | - pod/Pod.Alloy:alloy.c | - pod/Pod.Meta:alloy.c | - pod/Pod.Alloy.DeclareLean:alloy.c | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/KislyjKisel__lean-pod/verdict.json",
+      "verdictSha256": "044da92ef800235be6344743ac5511c1106ca9f91cae86baa61e6d23337a2cb5",
+      "sourceVerdictSha256": "044da92ef800235be6344743ac5511c1106ca9f91cae86baa61e6d23337a2cb5",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 36,
+      "repository": "Seasawher/import-all",
+      "url": "https://github.com/Seasawher/import-all",
+      "license": "MIT",
+      "stars": 5,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [12/15] Built ImportCheck:c.o (86ms) | ✔ [13/15] Built ImportAll.Base:c.o (310ms) | ✔ [14/15] Built import_all:exe (812ms) | ✔ [15/15] Built import_check:exe (826ms) | error: import ImportCheck failed, environment already contains …",
+      "verdict": "verdicts/Seasawher__import-all/verdict.json",
+      "verdictSha256": "d44cf2a6a7ac1ed7f591ad481117ffa841416e6e71e95f4a67f1983dc3090663",
+      "sourceVerdictSha256": "d44cf2a6a7ac1ed7f591ad481117ffa841416e6e71e95f4a67f1983dc3090663",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 37,
+      "repository": "ionathanch/CBPV",
+      "url": "https://github.com/ionathanch/CBPV",
+      "license": "Zlib",
+      "stars": 5,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: warning: CBPV/Antisubstitution.lean:10:10: declaration uses `sorry` | warning: CBPV/Antisubstitution.lean:11:10: declaration uses `sorry` | warning: CBPV/Antisubstitution.lean:12:10: declaration uses `sorry` | warning: CBPV/Antisubst…",
+      "verdict": "verdicts/ionathanch__CBPV/verdict.json",
+      "verdictSha256": "2f1ebb0045eb8db2c996f42dd04dfea6a02d465c24dc7901c587d10a35962db6",
+      "sourceVerdictSha256": "2f1ebb0045eb8db2c996f42dd04dfea6a02d465c24dc7901c587d10a35962db6",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 38,
+      "repository": "paulbutcher/lean-todomvc-max",
+      "url": "https://github.com/paulbutcher/lean-todomvc-max",
+      "license": "Apache-2.0",
+      "stars": 4,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: Some required targets logged failures: | - leanpostgres/leanpostgres.o | - leancurl/curlShimDynlib | - «lean-libcrypto»/cryptoShimDynlib | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/paulbutcher__lean-todomvc-max/verdict.json",
+      "verdictSha256": "98b6b242ae461a1ba831f056b24345d288a6f142ac775dd6d2ed93e9c0f77064",
+      "sourceVerdictSha256": "98b6b242ae461a1ba831f056b24345d288a6f142ac775dd6d2ed93e9c0f77064",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 39,
+      "repository": "mathlib-initiative/lean_scout",
+      "url": "https://github.com/mathlib-initiative/lean_scout",
+      "license": "Apache-2.0",
+      "stars": 3,
+      "toolchain": "v4.36.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [59/62] Built lean_scout_extractor:exe (744ms) | ✔ [60/62] Built lean_scout_schema:exe (576ms) | ✔ [61/62] Built Main:c.o (1.3s) | ✔ [62/62] Built lean_scout:exe (670ms) | error: import Main failed, environment already contains 'ma…",
+      "verdict": "verdicts/mathlib-initiative__lean_scout/verdict.json",
+      "verdictSha256": "f0a39d29cedc7e66b60f9c1852b0c5de74af46be5a3fe9b819012e5ec018a62b",
+      "sourceVerdictSha256": "f0a39d29cedc7e66b60f9c1852b0c5de74af46be5a3fe9b819012e5ec018a62b",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 40,
+      "repository": "scidonia/lexpat",
+      "url": "https://github.com/scidonia/lexpat",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: $SRC/scidonia__lexpat/scripts/build-c-abi.sh: line 61: lean: command not found | error: external command 'bash' exited with code 127 | Some required targets logged failures: | - lexpat/lexpatC…",
+      "verdict": "verdicts/scidonia__lexpat/verdict.json",
+      "verdictSha256": "45af03f27927262c1f95f2da7d57edbffc99d95a588896248ed9759540f7ee31",
+      "sourceVerdictSha256": "48795908f8690b38d715201e7e0d921f7604dec4a66a7a31d131c1ceefa93a2b",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 41,
+      "repository": "leanprover/nerodia",
+      "url": "https://github.com/leanprover/nerodia",
+      "license": "Apache-2.0",
+      "stars": 0,
+      "toolchain": "v4.35.0",
+      "tier": "rejected",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "build: ✔ [153/157] Built Nerodia:c.o (67ms) | ✔ [154/157] Built Nerodia.Data.OfMkPy.StdInstances:c.o (895ms) | Some required targets logged failures: | - nerodia/pyconfig | error: build failed | error: Child exited with 1",
+      "verdict": "verdicts/leanprover__nerodia/verdict.json",
+      "verdictSha256": "791bea614f4c12c42c04ec2d930fe47d42393e63f85eb934516625af8f96f63e",
+      "sourceVerdictSha256": "791bea614f4c12c42c04ec2d930fe47d42393e63f85eb934516625af8f96f63e",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 42,
+      "repository": "leanprover/comparator",
+      "url": "https://github.com/leanprover/comparator",
+      "license": "Apache-2.0",
+      "stars": 249,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18098 MiB resident (18208 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/leanprover__comparator/verdict.json",
+      "verdictSha256": "5c4c1adde60cb7e607cb84cbdb4486684e4c1abf274b69f11c6623a321c3006f",
+      "sourceVerdictSha256": "5c4c1adde60cb7e607cb84cbdb4486684e4c1abf274b69f11c6623a321c3006f",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 43,
+      "repository": "cmu-l3/llmlean",
+      "url": "https://github.com/cmu-l3/llmlean",
+      "license": "MIT",
+      "stars": 224,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18078 MiB resident (18188 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/cmu-l3__llmlean/verdict.json",
+      "verdictSha256": "2228e0a5fad3848b7432506a98e79d4799f962dd7f57c5e49ecf3d07fdc1930a",
+      "sourceVerdictSha256": "2228e0a5fad3848b7432506a98e79d4799f962dd7f57c5e49ecf3d07fdc1930a",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 44,
+      "repository": "verse-lab/velvet",
+      "url": "https://github.com/verse-lab/velvet",
+      "license": "Apache-2.0",
+      "stars": 140,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18021 MiB resident (18131 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/verse-lab__velvet/verdict.json",
+      "verdictSha256": "748f29a617baf6261c403a6c0f1e76a9c210cb5c012eaf1551eb93afc1518dd3",
+      "sourceVerdictSha256": "748f29a617baf6261c403a6c0f1e76a9c210cb5c012eaf1551eb93afc1518dd3",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 45,
+      "repository": "fgdorais/lean4-parser",
+      "url": "https://github.com/fgdorais/lean4-parser",
+      "license": "Apache-2.0",
+      "stars": 89,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18137 MiB resident (18251 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/fgdorais__lean4-parser/verdict.json",
+      "verdictSha256": "7912c26d7093460deb8423c4b668e0fa61fd12cb8f6ea504fc1ddff6640bfc45",
+      "sourceVerdictSha256": "7912c26d7093460deb8423c4b668e0fa61fd12cb8f6ea504fc1ddff6640bfc45",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 46,
+      "repository": "leanprover/Pantograph",
+      "url": "https://github.com/leanprover/Pantograph",
+      "license": "Apache-2.0",
+      "stars": 85,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18154 MiB resident (18264 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/leanprover__Pantograph/verdict.json",
+      "verdictSha256": "54d36e6967b8152ca2f7a539774a6875868b198849e136e29e5917a6d06a1bcb",
+      "sourceVerdictSha256": "54d36e6967b8152ca2f7a539774a6875868b198849e136e29e5917a6d06a1bcb",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 47,
+      "repository": "medovina/natural_lean",
+      "url": "https://github.com/medovina/natural_lean",
+      "license": "MIT",
+      "stars": 63,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18142 MiB resident (18254 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/medovina__natural_lean/verdict.json",
+      "verdictSha256": "c2c4573dcb9448fd5d7b34addf8f8dcf9d9d037dc0d63c2108b5fa3cdf206a21",
+      "sourceVerdictSha256": "c2c4573dcb9448fd5d7b34addf8f8dcf9d9d037dc0d63c2108b5fa3cdf206a21",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 48,
+      "repository": "leanprover/lean4export",
+      "url": "https://github.com/leanprover/lean4export",
+      "license": "Apache-2.0",
+      "stars": 51,
+      "toolchain": "v4.36.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18095 MiB resident (18208 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/leanprover__lean4export/verdict.json",
+      "verdictSha256": "61ad2b23ace40e26b06f4e53cfa9fa6bcfebb7ee851c2c74db2e8d6d7ee946fa",
+      "sourceVerdictSha256": "61ad2b23ace40e26b06f4e53cfa9fa6bcfebb7ee851c2c74db2e8d6d7ee946fa",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 49,
+      "repository": "verse-lab/Lentil",
+      "url": "https://github.com/verse-lab/Lentil",
+      "license": "Apache-2.0",
+      "stars": 42,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18115 MiB resident (18228 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/verse-lab__Lentil/verdict.json",
+      "verdictSha256": "ae5248f121ab9721ae282d847ad4c368c0d138199357d751182b20eb83b8faa6",
+      "sourceVerdictSha256": "ae5248f121ab9721ae282d847ad4c368c0d138199357d751182b20eb83b8faa6",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 50,
+      "repository": "ionathanch/MutualInduction",
+      "url": "https://github.com/ionathanch/MutualInduction",
+      "license": "Zlib",
+      "stars": 33,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18052 MiB resident (18164 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/ionathanch__MutualInduction/verdict.json",
+      "verdictSha256": "f7aa0356efaf13295d717e9227f1a47e88eb1cff7e34f5932198f950309d65f5",
+      "sourceVerdictSha256": "f7aa0356efaf13295d717e9227f1a47e88eb1cff7e34f5932198f950309d65f5",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 51,
+      "repository": "0art0/lean-slides",
+      "url": "https://github.com/0art0/lean-slides",
+      "license": "GPL-3.0",
+      "stars": 28,
+      "toolchain": "v4.36.0-rc2",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18145 MiB resident (18256 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/0art0__lean-slides/verdict.json",
+      "verdictSha256": "d51ef100cbf3b8609009b229f956e8f9ebd0c1b96a10c89a8179eb029e7dcd18",
+      "sourceVerdictSha256": "d51ef100cbf3b8609009b229f956e8f9ebd0c1b96a10c89a8179eb029e7dcd18",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 52,
+      "repository": "Seasawher/mdgen",
+      "url": "https://github.com/Seasawher/mdgen",
+      "license": "MIT",
+      "stars": 25,
+      "toolchain": "v4.36.0-rc2",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18079 MiB resident (18190 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/Seasawher__mdgen/verdict.json",
+      "verdictSha256": "13653c696d9ad01471989e43b8454a646c0f653560a2b75ed4a1ec2c483df60b",
+      "sourceVerdictSha256": "13653c696d9ad01471989e43b8454a646c0f653560a2b75ed4a1ec2c483df60b",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 53,
+      "repository": "ISTA-PLV/coinductive",
+      "url": "https://github.com/ISTA-PLV/coinductive",
+      "license": "Apache-2.0",
+      "stars": 19,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18057 MiB resident (18168 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/ISTA-PLV__coinductive/verdict.json",
+      "verdictSha256": "2fb1449ac63c4d15bb67f401fb6773f91aa20f61a545ba825e62287cb284d8cf",
+      "sourceVerdictSha256": "2fb1449ac63c4d15bb67f401fb6773f91aa20f61a545ba825e62287cb284d8cf",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 54,
+      "repository": "hanwenzhu/premise-selection",
+      "url": "https://github.com/hanwenzhu/premise-selection",
+      "license": "Apache-2.0",
+      "stars": 18,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18077 MiB resident (18188 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/hanwenzhu__premise-selection/verdict.json",
+      "verdictSha256": "e7782a4fe70d741f8d21c3d707589abdd7befdfe1190060e52b68469ffa61aed",
+      "sourceVerdictSha256": "e7782a4fe70d741f8d21c3d707589abdd7befdfe1190060e52b68469ffa61aed",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 55,
+      "repository": "amarmaduke/lean-subst",
+      "url": "https://github.com/amarmaduke/lean-subst",
+      "license": "MIT",
+      "stars": 16,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18120 MiB resident (18230 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/amarmaduke__lean-subst/verdict.json",
+      "verdictSha256": "8fb75d78d6317d29a6991d477de8b47c7844b48e19db1351e1ec7636a592abb2",
+      "sourceVerdictSha256": "8fb75d78d6317d29a6991d477de8b47c7844b48e19db1351e1ec7636a592abb2",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 56,
+      "repository": "hhu-adam/lean-i18n",
+      "url": "https://github.com/hhu-adam/lean-i18n",
+      "license": "Apache-2.0",
+      "stars": 14,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18157 MiB resident (18269 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/hhu-adam__lean-i18n/verdict.json",
+      "verdictSha256": "bae107ac2ce8bedb5d44dd8d1891692305017a71d29844f35cd1fa15689b619e",
+      "sourceVerdictSha256": "bae107ac2ce8bedb5d44dd8d1891692305017a71d29844f35cd1fa15689b619e",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 57,
+      "repository": "tani/literate-lean",
+      "url": "https://github.com/tani/literate-lean",
+      "license": "Unlicense",
+      "stars": 10,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18069 MiB resident (18181 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/tani__literate-lean/verdict.json",
+      "verdictSha256": "0a11fdcc123b042da426b803dc7bb4e5af68c666fa39bd0a6ceff186b03e14f5",
+      "sourceVerdictSha256": "0a11fdcc123b042da426b803dc7bb4e5af68c666fa39bd0a6ceff186b03e14f5",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 58,
+      "repository": "cslib-community/bignum",
+      "url": "https://github.com/cslib-community/bignum",
+      "license": "Apache-2.0",
+      "stars": 7,
+      "toolchain": "v4.36.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18082 MiB resident (18194 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/cslib-community__bignum/verdict.json",
+      "verdictSha256": "a3fd1e1b6c2b82cfe8bdf64bcb9befee44afbe77bbe11321d5eeee331c472151",
+      "sourceVerdictSha256": "a3fd1e1b6c2b82cfe8bdf64bcb9befee44afbe77bbe11321d5eeee331c472151",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 59,
+      "repository": "leanprover-community/lean-update",
+      "url": "https://github.com/leanprover-community/lean-update",
+      "license": "MIT",
+      "stars": 7,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18118 MiB resident (18230 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/leanprover-community__lean-update/verdict.json",
+      "verdictSha256": "48c7d8c96a41f05cf6aa4b9e6675aa67413c8ea9cfb3c1300af3d62ca76c6ceb",
+      "sourceVerdictSha256": "48c7d8c96a41f05cf6aa4b9e6675aa67413c8ea9cfb3c1300af3d62ca76c6ceb",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 60,
+      "repository": "Volland/lean-elpi",
+      "url": "https://github.com/Volland/lean-elpi",
+      "license": "Apache-2.0",
+      "stars": 6,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18010 MiB resident (18120 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/Volland__lean-elpi/verdict.json",
+      "verdictSha256": "437e499c88cd645430f98bf7cb7b5dd3aeec9fc5e6fe3e8784f17fcf9bab1da9",
+      "sourceVerdictSha256": "437e499c88cd645430f98bf7cb7b5dd3aeec9fc5e6fe3e8784f17fcf9bab1da9",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 61,
+      "repository": "duckki/leanfmt",
+      "url": "https://github.com/duckki/leanfmt",
+      "license": "MIT",
+      "stars": 5,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18131 MiB resident (18243 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/duckki__leanfmt/verdict.json",
+      "verdictSha256": "4771c48f1bcac2f1dcd3bc300ea57423506322781f65735dd3c489d29f269ae9",
+      "sourceVerdictSha256": "4771c48f1bcac2f1dcd3bc300ea57423506322781f65735dd3c489d29f269ae9",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 62,
+      "repository": "paulbutcher/lean-markdown",
+      "url": "https://github.com/paulbutcher/lean-markdown",
+      "license": "Apache-2.0",
+      "stars": 3,
+      "toolchain": "v4.35.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 5,
+        "total": 6
+      },
+      "why": "nanoda: qed-check stopped nanoda_bin at 18142 MiB resident (18252 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine",
+      "verdict": "verdicts/paulbutcher__lean-markdown/verdict.json",
+      "verdictSha256": "ee0ccfd8cccb5acf88ae660f32b7c80620cdf4f74b9e8045d3848d92a4216761",
+      "sourceVerdictSha256": "ee0ccfd8cccb5acf88ae660f32b7c80620cdf4f74b9e8045d3848d92a4216761",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 63,
+      "repository": "leanprover-community/aesop",
+      "url": "https://github.com/leanprover-community/aesop",
+      "license": "Apache-2.0",
+      "stars": 415,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 114830 declarations; the export has 114825; con-ron: checked 114830 declarations; the export has 114825",
+      "verdict": "verdicts/leanprover-community__aesop/verdict.json",
+      "verdictSha256": "ce08e41a8fa33e46ab603fb4add3fdedaaff0cd07660e01e465a931a4fb9510a",
+      "sourceVerdictSha256": "ce08e41a8fa33e46ab603fb4add3fdedaaff0cd07660e01e465a931a4fb9510a",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 64,
+      "repository": "leanprover-community/repl",
+      "url": "https://github.com/leanprover-community/repl",
+      "license": "Apache-2.0",
+      "stars": 238,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 176564 declarations; the export has 176559; con-ron: checked 176564 declarations; the export has 176559",
+      "verdict": "verdicts/leanprover-community__repl/verdict.json",
+      "verdictSha256": "c464eec4b9cee82f52a53e5fe6a480ee0805423f85301d0eb591e1ecb4dccf77",
+      "sourceVerdictSha256": "c464eec4b9cee82f52a53e5fe6a480ee0805423f85301d0eb591e1ecb4dccf77",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 65,
+      "repository": "leanprover/doc-gen4",
+      "url": "https://github.com/leanprover/doc-gen4",
+      "license": "Apache-2.0",
+      "stars": 176,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 180186 declarations; the export has 180181; con-ron: checked 180186 declarations; the export has 180181",
+      "verdict": "verdicts/leanprover__doc-gen4/verdict.json",
+      "verdictSha256": "ef0fcdf5299667b1e8ec7ed7898236480da3c79269263fdefa36cd288a0976e9",
+      "sourceVerdictSha256": "ef0fcdf5299667b1e8ec7ed7898236480da3c79269263fdefa36cd288a0976e9",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 66,
+      "repository": "leanprover/lean4-cli",
+      "url": "https://github.com/leanprover/lean4-cli",
+      "license": "MIT",
+      "stars": 126,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 75238 declarations; the export has 75233; con-ron: checked 75238 declarations; the export has 75233",
+      "verdict": "verdicts/leanprover__lean4-cli/verdict.json",
+      "verdictSha256": "3774c8ef7572744ca9d8861ce1d4f55af122c39e44d8b53b3362470e80fc0685",
+      "sourceVerdictSha256": "3774c8ef7572744ca9d8861ce1d4f55af122c39e44d8b53b3362470e80fc0685",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 67,
+      "repository": "leanprover-community/plausible",
+      "url": "https://github.com/leanprover-community/plausible",
+      "license": "Apache-2.0",
+      "stars": 122,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 100230 declarations; the export has 100225; con-ron: checked 100230 declarations; the export has 100225",
+      "verdict": "verdicts/leanprover-community__plausible/verdict.json",
+      "verdictSha256": "75961093388c914cbf7b17d299d71837f29f1891523a33276cc1ba0374c86c88",
+      "sourceVerdictSha256": "75961093388c914cbf7b17d299d71837f29f1891523a33276cc1ba0374c86c88",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 68,
+      "repository": "leanprover-community/quote4",
+      "url": "https://github.com/leanprover-community/quote4",
+      "license": "Apache-2.0",
+      "stars": 111,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 96864 declarations; the export has 96859; con-ron: checked 96864 declarations; the export has 96859",
+      "verdict": "verdicts/leanprover-community__quote4/verdict.json",
+      "verdictSha256": "503ae99f9fc9772b5fb6dadb620077c28e7c14c23371c584c4cdd989dc36b3c1",
+      "sourceVerdictSha256": "503ae99f9fc9772b5fb6dadb620077c28e7c14c23371c584c4cdd989dc36b3c1",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 69,
+      "repository": "leanprover/leansqlite",
+      "url": "https://github.com/leanprover/leansqlite",
+      "license": "Apache-2.0",
+      "stars": 56,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 118792 declarations; the export has 118787; con-ron: checked 118792 declarations; the export has 118787",
+      "verdict": "verdicts/leanprover__leansqlite/verdict.json",
+      "verdictSha256": "5d659f931af75a2c3a47ae44a846769867ccf0598b5f1dab946c7d7372e08057",
+      "sourceVerdictSha256": "5d659f931af75a2c3a47ae44a846769867ccf0598b5f1dab946c7d7372e08057",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 70,
+      "repository": "leanprover-community/LeanSearchClient",
+      "url": "https://github.com/leanprover-community/LeanSearchClient",
+      "license": "Apache-2.0",
+      "stars": 38,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 105026 declarations; the export has 105021; con-ron: checked 105026 declarations; the export has 105021",
+      "verdict": "verdicts/leanprover-community__LeanSearchClient/verdict.json",
+      "verdictSha256": "a01cfc3e824de488cbb2958a5954af4d9263d9b5a8f913e8be21322198a33345",
+      "sourceVerdictSha256": "a01cfc3e824de488cbb2958a5954af4d9263d9b5a8f913e8be21322198a33345",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 71,
+      "repository": "alok/LeanPlot",
+      "url": "https://github.com/alok/LeanPlot",
+      "license": "Apache-2.0",
+      "stars": 26,
+      "toolchain": "v4.35.0-rc3",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 88266 declarations; the export has 88271; con-ron: checked 88266 declarations; the export has 88271",
+      "verdict": "verdicts/alok__LeanPlot/verdict.json",
+      "verdictSha256": "1a43fa3735c27a8f71c7e170a6211e6e489f9c6551192c10e2cd073b36a9dfbb",
+      "sourceVerdictSha256": "1a43fa3735c27a8f71c7e170a6211e6e489f9c6551192c10e2cd073b36a9dfbb",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 72,
+      "repository": "fgdorais/lean4-unicode-basic",
+      "url": "https://github.com/fgdorais/lean4-unicode-basic",
+      "license": "Apache-2.0",
+      "stars": 16,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 84770 declarations; the export has 84765; con-ron: checked 84770 declarations; the export has 84765",
+      "verdict": "verdicts/fgdorais__lean4-unicode-basic/verdict.json",
+      "verdictSha256": "b714192d39ab544c34075b188f5286b5a404da6c3d9f6cb7d026eaeeea219c71",
+      "sourceVerdictSha256": "b714192d39ab544c34075b188f5286b5a404da6c3d9f6cb7d026eaeeea219c71",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 73,
+      "repository": "dupuisf/BibtexQuery",
+      "url": "https://github.com/dupuisf/BibtexQuery",
+      "license": "Apache-2.0",
+      "stars": 11,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 85501 declarations; the export has 85496; con-ron: checked 85501 declarations; the export has 85496",
+      "verdict": "verdicts/dupuisf__BibtexQuery/verdict.json",
+      "verdictSha256": "c9ba00a3dc955d0d524782d5651ac105f012714c71a20cdb34a1aa60fe6ad525",
+      "sourceVerdictSha256": "c9ba00a3dc955d0d524782d5651ac105f012714c71a20cdb34a1aa60fe6ad525",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 74,
+      "repository": "leanprover/verso-web-components",
+      "url": "https://github.com/leanprover/verso-web-components",
+      "license": "Apache-2.0",
+      "stars": 3,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 4,
+        "total": 6
+      },
+      "why": "con-leche: checked 181064 declarations; the export has 181059; con-ron: checked 181064 declarations; the export has 181059",
+      "verdict": "verdicts/leanprover__verso-web-components/verdict.json",
+      "verdictSha256": "c6b4880fd72cbc6c346e9b93633c77b508c27ee87c3d89d1c673e20ef295a111",
+      "sourceVerdictSha256": "c6b4880fd72cbc6c346e9b93633c77b508c27ee87c3d89d1c673e20ef295a111",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 75,
+      "repository": "RemyDegenne/challenge-gen",
+      "url": "https://github.com/RemyDegenne/challenge-gen",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.35.0-rc2",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 3,
+        "total": 6
+      },
+      "why": "con-leche: checked 164642 declarations; the export has 164647; con-ron: checked 164642 declarations; the export has 164647; nanoda: qed-check stopped nanoda_bin at 18084 MiB resident (18193 MiB for the whole check), over the kernel memory l…",
+      "verdict": "verdicts/RemyDegenne__challenge-gen/verdict.json",
+      "verdictSha256": "f0f59ead62af2a455c6a6fe4e3ab89cde3d358cc8434917cd5f332aca9123897",
+      "sourceVerdictSha256": "f0f59ead62af2a455c6a6fe4e3ab89cde3d358cc8434917cd5f332aca9123897",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 76,
+      "repository": "leanprover/hex-lll",
+      "url": "https://github.com/leanprover/hex-lll",
+      "license": "Apache-2.0",
+      "stars": 2,
+      "toolchain": "v4.35.0-rc3",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 3,
+        "total": 6
+      },
+      "why": "con-leche: checked 105738 declarations; the export has 105743; con-ron: checked 105738 declarations; the export has 105743; nanoda: qed-check stopped nanoda_bin at 18168 MiB resident (18280 MiB for the whole check), over the kernel memory l…",
+      "verdict": "verdicts/leanprover__hex-lll/verdict.json",
+      "verdictSha256": "3f77dbf01c3af7b45b36bf4b449328ccd8f4194014675ba50d69ac43a2094381",
+      "sourceVerdictSha256": "3f77dbf01c3af7b45b36bf4b449328ccd8f4194014675ba50d69ac43a2094381",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 77,
+      "repository": "leanprover/verso",
+      "url": "https://github.com/leanprover/verso",
+      "license": "Apache-2.0",
+      "stars": 410,
+      "toolchain": "v4.37.0-rc1",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "Lean default: not reached: lake check stopped before running kernels; Lean paranoid: not reached: lake check stopped before running kernels; build: qed-check stopped lean at 1663 MiB resident (19178 MiB for the whole check), over the kernel…",
+      "verdict": "verdicts/leanprover__verso/verdict.json",
+      "verdictSha256": "6784936db3c85900124d14fff68014c86183eda02a666ab6f48f3a221c305007",
+      "sourceVerdictSha256": "6784936db3c85900124d14fff68014c86183eda02a666ab6f48f3a221c305007",
+      "summary": "awaiting model approval"
+    },
+    {
+      "rank": 78,
+      "repository": "leanprover-community/lean4-metaprogramming-book",
+      "url": "https://github.com/leanprover-community/lean4-metaprogramming-book",
+      "license": "Apache-2.0",
+      "stars": 321,
+      "toolchain": "v4.36.0",
+      "tier": "couldNotRun",
+      "kernels": {
+        "accepted": 0,
+        "total": 6
+      },
+      "why": "Lean default: not reached: lake check stopped before running kernels; Lean paranoid: not reached: lake check stopped before running kernels; build: qed-check stopped lean at 1354 MiB resident (19612 MiB for the whole check), over the kernel…",
+      "verdict": "verdicts/leanprover-community__lean4-metaprogramming-book/verdict.json",
+      "verdictSha256": "d90635a4086753e2c82d1da1dc3f881b2be43d6e49d7c979f0804d6ce7e670a7",
+      "sourceVerdictSha256": "d90635a4086753e2c82d1da1dc3f881b2be43d6e49d7c979f0804d6ce7e670a7",
+      "summary": "awaiting model approval"
+    }
+  ]
+}

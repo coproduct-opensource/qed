@@ -1,0 +1,181 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "CouldNotRun",
+    "reasons": [
+      "nanoda: qed-check stopped nanoda_bin at 18052 MiB resident (18164 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine"
+    ]
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "ionathanch/MutualInduction",
+    "commit": "a4a2f5e938f8e22f4dde83f3bc93e7c3be2d51d0",
+    "tree": "7e67ffd7744edf73eabbeb01971122ae7df64574",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.36.0",
+    "leanVersion": "4.36.0",
+    "leanGithash": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9"
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "8298d4412a1f8986b5dbfd1d9925211778d8d320fc47b72040c8fdfdd5b603d5"
+  },
+  "exports": [
+    {
+      "role": "project",
+      "sha256": "96c56da54c12f166158b0fa6405813161f91d8268695c610e3da165297de2dcd",
+      "bytes": 746683570,
+      "constants": 175665,
+      "records": 167718
+    },
+    {
+      "role": "trusted-init",
+      "sha256": "93b61a432ed4241b1d2184de65354e0b98333bf4403a8d63922da18e10b430ba",
+      "bytes": 347772063,
+      "constants": 59979,
+      "records": 58547
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "cd9a6ddb5fbf8f649c789dc905236e1ddee9fb32a323c141a4e63478f72e47b6",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 193725,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 193795,
+      "declarations": 167715
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "8241c5e6baa29490aa118d382f97961b208ae730fdb96545c2abed74c9ece5a8",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "qed-check stopped nanoda_bin at 18052 MiB resident (18164 MiB for the whole check), over the kernel memory limit of 18119 MiB. Out of memory refutes nothing; check on a larger machine"
+      },
+      "evidence": "ran",
+      "durationMs": 81495,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "a6380d68b4fb364189821dd4692569c11536de0a1e3aaefea06028c0d67bb193",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 72350,
+      "declarations": 167713
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "4e5616d94374cae37324dad2594f6230c2bb2297240249fc78ff508f3bc5acef",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 150288,
+      "declarations": 167713
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "2b2ff08805ace61c935b023f8114ac3f7f1d3bc79cb4e8c47ef7801a5af58798",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 130453,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "primitives",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [
+    {
+      "rootSet": "project",
+      "roots": 115686,
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "closureKey": null
+    }
+  ],
+  "reuse": {
+    "mode": "off",
+    "declarations": 175665,
+    "reused": 0,
+    "rechecked": 175665,
+    "unmatched": 0,
+    "keySetSha256": "3781f4c958761b36c90532056a2e181504d75e43d002573f26ac8cadbbd0f799",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 16279,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 1,
+      "durationMs": 860642,
+      "sandboxed": true
+    },
+    {
+      "command": "LAKE_CHECK_EXPORT=1 lake check (the export half, outside the sandbox)",
+      "exitCode": 0,
+      "durationMs": 44544,
+      "sandboxed": false
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

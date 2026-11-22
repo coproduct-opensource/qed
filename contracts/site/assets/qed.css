@@ -13,12 +13,14 @@
     color-scheme: light dark;
     --paper: #fbf8f1; --ink: #1d1b17; --muted: #6a645a; --rule: #d8d1c2;
     --code-bg: #f1ece1; --link: #2c4f7c; --note: #fff4d0; --note-rule: #c9a83a;
+    --tier-all: #1f6f5c; --tier-some: #8a5f0e; --tier-rejected: #a73a2e;
     accent-color: #365d8c;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --paper: #16150f; --ink: #e9e4d8; --muted: #a39d90; --rule: #3a372e;
       --code-bg: #22201a; --link: #9ec1ea; --note: #2b2611; --note-rule: #8a7426;
+      --tier-all: #5bbf9f; --tier-some: #e0ac45; --tier-rejected: #e46d5f;
     }
   }
   html { background: var(--paper); color: var(--ink); }
@@ -95,4 +97,19 @@
     dl { grid-template-columns: 1fr; }
     dt { margin-top: 0.5rem; }
   }
+
+  /* The Lean Proof Board (/board). Four columns do not fit a phone: the
+     table keeps a readable width and its wrapper scrolls, the page does not.
+     Tier colours repeat the tier's words, never replace them. */
+  .board table { min-width: 44rem; }
+  .board td { overflow-wrap: anywhere; }
+  .board .why { color: var(--muted); font-size: 0.85rem; margin-top: 0.15rem; }
+  .board .tier { font-weight: bold; }
+  .board .t-acceptedByAll { color: var(--tier-all); }
+  .board .t-acceptedBySome { color: var(--tier-some); }
+  .board .t-rejected { color: var(--tier-rejected); }
+  .board .t-couldNotRun { color: var(--muted); }
+  .board .k { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .board .op { color: var(--muted); }
+  .board .await { font-style: italic; }
 }

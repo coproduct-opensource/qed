@@ -374,6 +374,15 @@ fn block_md(block: &Block, out: &mut String) {
     }
 }
 
+/// One block's Markdown, as a page's Markdown carries it: for a
+/// `Block::Rendered` whose HTML is made elsewhere but whose Markdown is an
+/// ordinary block (the board's table).
+pub fn block_markdown(block: &Block) -> String {
+    let mut out = String::new();
+    block_md(block, &mut out);
+    out
+}
+
 /// The Markdown representation of a page.
 pub fn markdown(doc: &Doc, site: Option<&str>) -> String {
     let mut out = format!("# {}\n\n", md_text(&doc.heading));

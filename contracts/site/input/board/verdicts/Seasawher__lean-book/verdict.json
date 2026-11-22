@@ -1,0 +1,179 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "Accepted"
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "Seasawher/lean-book",
+    "commit": "8133b8fa57344375423f7d05e8702c55be07810d",
+    "tree": "d23f53a6f8dc901ae00a9c0e1ff54622942a2eb5",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.36.0-rc2",
+    "leanVersion": "4.36.0-rc2",
+    "leanGithash": "b35cb10cf2ced51a2fd1880cfdbf75c71ab7a35a"
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "8298d4412a1f8986b5dbfd1d9925211778d8d320fc47b72040c8fdfdd5b603d5"
+  },
+  "exports": [
+    {
+      "role": "project",
+      "sha256": "2fac17c70a00fce79d15eabb5bb246e0901e27d56cce1bbc8182b00f0fecbbbb",
+      "bytes": 347771444,
+      "constants": 59978,
+      "records": 58546
+    },
+    {
+      "role": "trusted-init",
+      "sha256": "2fac17c70a00fce79d15eabb5bb246e0901e27d56cce1bbc8182b00f0fecbbbb",
+      "bytes": 347771444,
+      "constants": 59978,
+      "records": 58546
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "4508d26d3e22463a9566a6155d7a1600c7bfc42b6cd2548be73e3d19d159d6c5",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 76596,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 87437,
+      "declarations": 58543
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "8241c5e6baa29490aa118d382f97961b208ae730fdb96545c2abed74c9ece5a8",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 17521,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "a6380d68b4fb364189821dd4692569c11536de0a1e3aaefea06028c0d67bb193",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 23024,
+      "declarations": 58541
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "4e5616d94374cae37324dad2594f6230c2bb2297240249fc78ff508f3bc5acef",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 29244,
+      "declarations": 58541
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.36.0-rc2",
+      "binarySha256": "2b2ff08805ace61c935b023f8114ac3f7f1d3bc79cb4e8c47ef7801a5af58798",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 82343,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "primitives",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms agree",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [
+    {
+      "rootSet": "project",
+      "roots": 0,
+      "axioms": [],
+      "closureKey": null
+    }
+  ],
+  "reuse": {
+    "mode": "off",
+    "declarations": 59978,
+    "reused": 0,
+    "rechecked": 59978,
+    "unmatched": 0,
+    "keySetSha256": "8536bae7449d90eb26af8f0403ca9954caf857ff3e827bb351512cd6e7704c80",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 16160,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 0,
+      "durationMs": 334799,
+      "sandboxed": true
+    },
+    {
+      "command": "LAKE_CHECK_EXPORT=1 lake check (the export half, outside the sandbox)",
+      "exitCode": 0,
+      "durationMs": 17457,
+      "sandboxed": false
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

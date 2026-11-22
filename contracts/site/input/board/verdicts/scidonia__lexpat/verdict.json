@@ -1,0 +1,151 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "Rejected",
+    "reasons": [
+      "build: $SRC/scidonia__lexpat/scripts/build-c-abi.sh: line 61: lean: command not found | error: external command 'bash' exited with code 127 | Some required targets logged failures: | - lexpat/lexpatCAbi | error: build failed | error: Child exited with 1"
+    ]
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "scidonia/lexpat",
+    "commit": "15eee92b433940e5481f09c7f77e6f833e5f684d",
+    "tree": "bd72daf94e878920537fb1221805898558ca386b",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.35.0",
+    "leanVersion": "4.35.0",
+    "leanGithash": null
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "f6a6483d518a11b323c28b9bac176d2220df0e9fc3230833815db9586669c074"
+  },
+  "exports": [
+    {
+      "role": "trusted-init",
+      "sha256": "c1b2071a6d2132ace8c4711499f078aab2117d925213d5a222a1fe843a59a179",
+      "bytes": 345690182,
+      "constants": 59349,
+      "records": 57919
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "ca74d1e9a856149ed05acb600d8931a574dd9f465745beeaf93e3de7b7cbe274",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "cbf13950fc4a48f635a0beceeb5ed32dd82568b870cfd081b6391c1f2cf02ba5",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "23a32522ea2c79f4ec8b48916272b37a423bda171e57cd83cfcf142eec50e621",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "60f4ca9fb9436c323789fa49aae33af6dcd1b9b54b43a66b461779ce79fd8eec",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.35.0",
+      "binarySha256": "12c38901cdbfab178f1bf6145dd30012e9a3b2c11ca695292a5884fa3cbaddb6",
+      "result": {
+        "kind": "CouldNotRun",
+        "reason": "not reached: lake check stopped before running kernels"
+      },
+      "evidence": "notRun",
+      "durationMs": null,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Rejected",
+        "reason": "$SRC/scidonia__lexpat/scripts/build-c-abi.sh: line 61: lean: command not found | error: external command 'bash' exited with code 127 | Some required targets logged failures: | - lexpat/lexpatCAbi | error: build failed | error: Child exited with 1"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [],
+  "reuse": {
+    "mode": "off",
+    "declarations": 0,
+    "reused": 0,
+    "rechecked": 0,
+    "unmatched": 0,
+    "keySetSha256": "",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 15893,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 1,
+      "durationMs": 32132,
+      "sandboxed": true
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

@@ -375,3 +375,131 @@ fn the_status_page_names_the_two_wallets_only_with_the_switch_on() {
         assert!(text.contains("BUYER_ADDRESS") && text.contains("RELAYER_ADDRESS"));
     }
 }
+
+/// The Lean Proof Board (/board, src/proof_board.rs): the committed input,
+/// read straight from disk, not through the loader the build uses.
+const BOARD_ROWS: usize = 78;
+fn board_input() -> nucleus_site::proof_board::Board {
+    let path = repository()
+        .join(nucleus_site::proof_board::INPUT_DIR)
+        .join("board.json");
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+fn bytes<'a>(files: &'a [(String, Vec<u8>)], name: &str) -> Option<&'a [u8]> {
+    files
+        .iter()
+        .find(|(p, _)| p == name)
+        .map(|(_, b)| b.as_slice())
+}
+/// Every value of `attribute="…"` in `html` that starts with `prefix`.
+fn attribute_values(html: &str, attribute: &str, prefix: &str) -> Vec<String> {
+    html.split(&format!("{attribute}=\""))
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next())
+        .filter(|v| v.starts_with(prefix))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Every verdict link on /board, in the HTML and in its Markdown twin,
+/// names a file the build emits.
+#[test]
+fn every_board_verdict_link_resolves_to_an_emitted_file() {
+    let files = built(&input());
+    let html = file(&files, "board/index.html");
+    let md = file(&files, "board/index.md");
+    let from_html = attribute_values(html, "href", "/board/verdicts/");
+    let from_md: Vec<String> = md
+        .split("](")
+        .skip(1)
+        .filter_map(|rest| rest.split(')').next())
+        .filter(|v| v.starts_with("/board/verdicts/"))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(from_html.len(), BOARD_ROWS);
+    assert_eq!(from_md, from_html, "the twin links the same files");
+    let unresolved: Vec<&String> = from_html
+        .iter()
+        .filter(|href| bytes(&files, href.trim_start_matches('/')).is_none())
+        .collect();
+    assert_eq!(unresolved, Vec::<&String>::new());
+    // The rows as data are linked and emitted too.
+    assert!(html.contains("href=\"/board/board.json\""));
+    assert!(bytes(&files, "board/board.json").is_some());
+}
+
+/// Each verdict the build serves is the committed file, byte for byte, and
+/// the build serves no other file under /board/verdicts/.
+#[test]
+fn every_emitted_board_verdict_is_its_input_byte_for_byte() {
+    let files = built(&input());
+    let board = board_input();
+    let dir = repository().join(nucleus_site::proof_board::INPUT_DIR);
+    for row in &board.rows {
+        let committed = std::fs::read(dir.join(&row.verdict)).unwrap();
+        let served = bytes(&files, &format!("board/{}", row.verdict))
+            .unwrap_or_else(|| panic!("{} not emitted", row.verdict));
+        assert!(served == committed.as_slice(), "{} differs", row.verdict);
+    }
+    let emitted = files
+        .iter()
+        .filter(|(p, _)| p.starts_with("board/verdicts/"))
+        .count();
+    assert_eq!(emitted, board.rows.len());
+}
+
+/// 78 rows, ranked 1 to 78, in board.json, on the page, in the twin and in
+/// the served board.json.
+#[test]
+fn the_board_has_78_rows_in_every_form() {
+    let board = board_input();
+    assert_eq!(board.rows.len(), BOARD_ROWS);
+    assert!(board.rows.iter().enumerate().all(|(n, r)| r.rank == n + 1));
+    let files = built(&input());
+    let html = file(&files, "board/index.html");
+    let body = html.split("<tbody>").nth(1).unwrap();
+    assert_eq!(body.matches("<tr>").count(), BOARD_ROWS);
+    let md = file(&files, "board/index.md");
+    assert_eq!(
+        md.lines()
+            .filter(|l| l.starts_with("| ") && l.contains("/board/verdicts/"))
+            .count(),
+        BOARD_ROWS
+    );
+    let served: nucleus_site::proof_board::Board =
+        serde_json::from_slice(bytes(&files, "board/board.json").unwrap()).unwrap();
+    assert_eq!(served, board);
+}
+
+/// The site's CSP is `default-src 'none'; style-src 'self'`: /board has no
+/// style element, no style attribute and no script at all, and its colours
+/// are in the site's stylesheet.
+#[test]
+fn the_board_page_has_no_inline_style_or_script() {
+    let files = built(&input());
+    let html = file(&files, "board/index.html");
+    for never in ["<style", " style=", "<script", "javascript:"] {
+        assert!(!html.contains(never), "board/index.html: {never}");
+    }
+    assert!(html.contains("<link rel=\"stylesheet\" href=\"/qed.css\">"));
+    let css = file(&files, "qed.css");
+    for class in [
+        ".board table",
+        ".t-acceptedByAll",
+        ".t-acceptedBySome",
+        ".t-rejected",
+        ".t-couldNotRun",
+    ] {
+        assert!(css.contains(class), "qed.css: {class}");
+    }
+    // The page's disclosures and QED Check's tier words.
+    for text in [
+        "The right column is a model's opinion of practical use; it never changes a row's rank.",
+        "Out of memory refutes nothing",
+        "accepted by every kernel",
+        "could not run",
+        "awaiting model approval",
+    ] {
+        assert!(html.contains(&text.replace('\'', "&#39;")), "{text}");
+    }
+}

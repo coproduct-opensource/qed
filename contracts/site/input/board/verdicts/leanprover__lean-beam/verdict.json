@@ -1,0 +1,261 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "Rejected",
+    "reasons": [
+      "axioms: uses Lake.DataType.bool, Lake.DataType.dynlib, Lake.DataType.extern_lib, Lake.DataType.filepath, Lake.DataType.input_dir, Lake.DataType.input_file, Lake.DataType.lean_exe, Lake.DataType.lean_lib, Lake.DataType.module, Lake.DataType.package, Lake.DataType.unit, Lake.FacetOut.extern_lib.default, Lake.FacetOut.extern_lib.dynlib, Lake.FacetOut.extern_lib.shared, Lake.FacetOut.extern_lib.static, Lake.FacetOut.input_dir.default, Lake.FacetOut.input_file.default, Lake.FacetOut.lean_exe.default, Lake.FacetOut.lean_exe.exe, Lake.FacetOut.lean_lib.default, Lake.FacetOut.lean_lib.elabArts, Lake.FacetOut.lean_lib.extraDep, Lake.FacetOut.lean_lib.irArts, Lake.FacetOut.lean_lib.leanArts, Lake.FacetOut.lean_lib.modules, Lake.FacetOut.lean_lib.shared, Lake.FacetOut.lean_lib.static, Lake.FacetOut.lean_lib.static.export, Lake.FacetOut.module.bc, Lake.FacetOut.module.bc.o, Lake.FacetOut.module.c, Lake.FacetOut.module.c.o, Lake.FacetOut.module.c.o.export, Lake.FacetOut.module.c.o.noexport, Lake.FacetOut.module.depHash, Lake.FacetOut.module.depTrace, Lake.FacetOut.module.deps, Lake.FacetOut.module.dynlib, Lake.FacetOut.module.elabArts, Lake.FacetOut.module.exportInfo, Lake.FacetOut.module.header, Lake.FacetOut.module.ilean, Lake.FacetOut.module.importAllArts, Lake.FacetOut.module.importArts, Lake.FacetOut.module.importInfo, Lake.FacetOut.module.imports, Lake.FacetOut.module.input, Lake.FacetOut.module.ir, Lake.FacetOut.module.ir.sig, Lake.FacetOut.module.irArts, Lake.FacetOut.module.lean, Lake.FacetOut.module.leanArts, Lake.FacetOut.module.linkInfoExport, Lake.FacetOut.module.linkInfoNoExport, Lake.FacetOut.module.ltar, Lake.FacetOut.module.metaExportInfo, Lake.FacetOut.module.o, Lake.FacetOut.module.o.export, Lake.FacetOut.module.o.noexport, Lake.FacetOut.module.olean, Lake.FacetOut.module.olean.private, Lake.FacetOut.module.olean.server, Lake.FacetOut.module.precompileImports, Lake.FacetOut.module.presetup, Lake.FacetOut.module.setup, Lake.FacetOut.module.transImports, Lake.FacetOut.package.barrel, Lake.FacetOut.package.cache, Lake.FacetOut.package.defaultModules, Lake.FacetOut.package.deps, Lake.FacetOut.package.extraDep, Lake.FacetOut.package.optBarrel, Lake.FacetOut.package.optCache, Lake.FacetOut.package.optRelease, Lake.FacetOut.package.release, Lake.FacetOut.package.transDeps, Lake.OpaqueConfigTarget.def; permitted: Classical.choice, Quot.sound, propext"
+    ]
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "leanprover/lean-beam",
+    "commit": "8bcac69d31e4738542a8278af524a816b99b5400",
+    "tree": "94dfcbf48ee805216a53f610e6a7c185fd9a648e",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.36.0-rc1",
+    "leanVersion": "4.36.0-rc1",
+    "leanGithash": "c9afcddf514a6772bd4d649f7cfc04eff0b9f15e"
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "8298d4412a1f8986b5dbfd1d9925211778d8d320fc47b72040c8fdfdd5b603d5"
+  },
+  "exports": [
+    {
+      "role": "project",
+      "sha256": "c23b5eae52dddd84aecbf3807242b4c6ab3f65985f11e606d1018686780f7846",
+      "bytes": 775112777,
+      "constants": 190688,
+      "records": 181459
+    },
+    {
+      "role": "trusted-init",
+      "sha256": "1573315ae61a6c87f5a9eebaab09df148f77b5f5bbc66b6be23a995be31be9ed",
+      "bytes": 347771444,
+      "constants": 59978,
+      "records": 58546
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "a53ba2f4ce2445d77ef7b1434df8aca1d63c6320ea13a0399135ba709c091917",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 184592,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 182895,
+      "declarations": 181456
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "8241c5e6baa29490aa118d382f97961b208ae730fdb96545c2abed74c9ece5a8",
+      "result": {
+        "kind": "Rejected",
+        "reason": "nanoda exited with 101"
+      },
+      "evidence": "ran",
+      "durationMs": 15256,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "a6380d68b4fb364189821dd4692569c11536de0a1e3aaefea06028c0d67bb193",
+      "result": {
+        "kind": "Rejected",
+        "reason": "con-leche: 51 inductive blocks modelled in-process: Lean.PersistentHashMap.Node, Lean.Meta.DiscrTree.Trie, Lean.Syntax, Lean.IR.IRType, Lean.Json, Lean.PersistentArrayNode, Lean.PrefixTreeNode, Lean.MessageData, Lean.Elab.InfoTree, Lean.Language.SnapshotTree, Lean.Elab.Tactic.TacticParsedSnapshot, Lean.Meta.Grind.Arith.Linear.RingIneqCnstr, Lean.Meta.Grind.Arith.Linear.RingEqCnstr, Lean.Meta.Grind.Arith.Linear.RingDiseqCnstr, Lean.Meta.Grind.Arith.Linear.EqCnstr, Lean.Data.Trie, Lean.Compiler.LCNF.UnreachableBranches.Value, Lean.Doc.Inline, Lean.Doc.Block, Lean.Doc.Part, Lake.Dynlib, Lake.Pattern, Lake.BuildTrace, Lake.Package, Lean.Level.PP.Result, Lean.Meta.Grind.AC.EqCnstr, Lean.Meta.Grind.AC.DiseqCnstr, Lean.Meta.Grind.Arith.Cutsat.EqCnstr, Lean.Compiler.LCNF.Alt, Lean.Widget.TaggedText, Lean.Widget.HighlightedMsgEmbed, Lake.Toml.Value, Lean.Language.Lean.CommandParsedSnapshot, Lean.AsyncList, Lean.Widget.MsgEmbed, Lean.Lsp.Ipc.ModuleHierarchy, Lean.Elab.Term.Do.Code, Lean.Lsp.DocumentSymbol, Lean.Meta.Grind.Arith.CommRing.EqCnstr, Lean.Html, Lean.Meta.Match.Pattern, Lean.Server.Test.Runner.Client.HighlightedMsgEmbed, Lean.IR.Alt, Lean.PostprocessTraces.TraceTree, Lean.Parser.Tactic.MCasesPat, Lean.Server.Test.Runner.Client.MsgEmbed, Lean.Elab.Tactic.RCases.RCasesPatt, Lean.Lsp.Ipc.CallHierarchy, Lean.Meta.Match.Example, Lean.Parser.Tactic.MRefinePat, _private.Lean.Elab.ConfigEval.DeriveEvalConfigItem.0.Lean.Elab.ConfigEval.HandlerTrie (2337 generated records, checked by the fold as declarations and not counted as records of the file)"
+      },
+      "evidence": "ran",
+      "durationMs": 25264,
+      "declarations": null
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "4e5616d94374cae37324dad2594f6230c2bb2297240249fc78ff508f3bc5acef",
+      "result": {
+        "kind": "Rejected",
+        "reason": "con-ron: 51 inductive blocks modelled in-process: Lean.PersistentHashMap.Node, Lean.Meta.DiscrTree.Trie, Lean.Syntax, Lean.IR.IRType, Lean.Json, Lean.PersistentArrayNode, Lean.PrefixTreeNode, Lean.MessageData, Lean.Elab.InfoTree, Lean.Language.SnapshotTree, Lean.Elab.Tactic.TacticParsedSnapshot, Lean.Meta.Grind.Arith.Linear.RingIneqCnstr, Lean.Meta.Grind.Arith.Linear.RingEqCnstr, Lean.Meta.Grind.Arith.Linear.RingDiseqCnstr, Lean.Meta.Grind.Arith.Linear.EqCnstr, Lean.Data.Trie, Lean.Compiler.LCNF.UnreachableBranches.Value, Lean.Doc.Inline, Lean.Doc.Block, Lean.Doc.Part, Lake.Dynlib, Lake.Pattern, Lake.BuildTrace, Lake.Package, Lean.Level.PP.Result, Lean.Meta.Grind.AC.EqCnstr, Lean.Meta.Grind.AC.DiseqCnstr, Lean.Meta.Grind.Arith.Cutsat.EqCnstr, Lean.Compiler.LCNF.Alt, Lean.Widget.TaggedText, Lean.Widget.HighlightedMsgEmbed, Lake.Toml.Value, Lean.Language.Lean.CommandParsedSnapshot, Lean.AsyncList, Lean.Widget.MsgEmbed, Lean.Lsp.Ipc.ModuleHierarchy, Lean.Elab.Term.Do.Code, Lean.Lsp.DocumentSymbol, Lean.Meta.Grind.Arith.CommRing.EqCnstr, Lean.Html, Lean.Meta.Match.Pattern, Lean.Server.Test.Runner.Client.HighlightedMsgEmbed, Lean.IR.Alt, Lean.PostprocessTraces.TraceTree, Lean.Parser.Tactic.MCasesPat, Lean.Server.Test.Runner.Client.MsgEmbed, Lean.Elab.Tactic.RCases.RCasesPatt, Lean.Lsp.Ipc.CallHierarchy, Lean.Meta.Match.Example, Lean.Parser.Tactic.MRefinePat, _private.Lean.Elab.ConfigEval.DeriveEvalConfigItem.0.Lean.Elab.ConfigEval.HandlerTrie (2337 generated records, checked by the fold as declarations and not counted as records of the file)"
+      },
+      "evidence": "ran",
+      "durationMs": 28858,
+      "declarations": null
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.36.0-rc1",
+      "binarySha256": "2b2ff08805ace61c935b023f8114ac3f7f1d3bc79cb4e8c47ef7801a5af58798",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 132564,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "primitives",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": {
+        "kind": "Rejected",
+        "reason": "uses Lake.DataType.bool, Lake.DataType.dynlib, Lake.DataType.extern_lib, Lake.DataType.filepath, Lake.DataType.input_dir, Lake.DataType.input_file, Lake.DataType.lean_exe, Lake.DataType.lean_lib, Lake.DataType.module, Lake.DataType.package, Lake.DataType.unit, Lake.FacetOut.extern_lib.default, Lake.FacetOut.extern_lib.dynlib, Lake.FacetOut.extern_lib.shared, Lake.FacetOut.extern_lib.static, Lake.FacetOut.input_dir.default, Lake.FacetOut.input_file.default, Lake.FacetOut.lean_exe.default, Lake.FacetOut.lean_exe.exe, Lake.FacetOut.lean_lib.default, Lake.FacetOut.lean_lib.elabArts, Lake.FacetOut.lean_lib.extraDep, Lake.FacetOut.lean_lib.irArts, Lake.FacetOut.lean_lib.leanArts, Lake.FacetOut.lean_lib.modules, Lake.FacetOut.lean_lib.shared, Lake.FacetOut.lean_lib.static, Lake.FacetOut.lean_lib.static.export, Lake.FacetOut.module.bc, Lake.FacetOut.module.bc.o, Lake.FacetOut.module.c, Lake.FacetOut.module.c.o, Lake.FacetOut.module.c.o.export, Lake.FacetOut.module.c.o.noexport, Lake.FacetOut.module.depHash, Lake.FacetOut.module.depTrace, Lake.FacetOut.module.deps, Lake.FacetOut.module.dynlib, Lake.FacetOut.module.elabArts, Lake.FacetOut.module.exportInfo, Lake.FacetOut.module.header, Lake.FacetOut.module.ilean, Lake.FacetOut.module.importAllArts, Lake.FacetOut.module.importArts, Lake.FacetOut.module.importInfo, Lake.FacetOut.module.imports, Lake.FacetOut.module.input, Lake.FacetOut.module.ir, Lake.FacetOut.module.ir.sig, Lake.FacetOut.module.irArts, Lake.FacetOut.module.lean, Lake.FacetOut.module.leanArts, Lake.FacetOut.module.linkInfoExport, Lake.FacetOut.module.linkInfoNoExport, Lake.FacetOut.module.ltar, Lake.FacetOut.module.metaExportInfo, Lake.FacetOut.module.o, Lake.FacetOut.module.o.export, Lake.FacetOut.module.o.noexport, Lake.FacetOut.module.olean, Lake.FacetOut.module.olean.private, Lake.FacetOut.module.olean.server, Lake.FacetOut.module.precompileImports, Lake.FacetOut.module.presetup, Lake.FacetOut.module.setup, Lake.FacetOut.module.transImports, Lake.FacetOut.package.barrel, Lake.FacetOut.package.cache, Lake.FacetOut.package.defaultModules, Lake.FacetOut.package.deps, Lake.FacetOut.package.extraDep, Lake.FacetOut.package.optBarrel, Lake.FacetOut.package.optCache, Lake.FacetOut.package.optRelease, Lake.FacetOut.package.release, Lake.FacetOut.package.transDeps, Lake.OpaqueConfigTarget.def; permitted: Classical.choice, Quot.sound, propext"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [
+    {
+      "rootSet": "project",
+      "roots": 130710,
+      "axioms": [
+        "Classical.choice",
+        "Lake.DataType.bool",
+        "Lake.DataType.dynlib",
+        "Lake.DataType.extern_lib",
+        "Lake.DataType.filepath",
+        "Lake.DataType.input_dir",
+        "Lake.DataType.input_file",
+        "Lake.DataType.lean_exe",
+        "Lake.DataType.lean_lib",
+        "Lake.DataType.module",
+        "Lake.DataType.package",
+        "Lake.DataType.unit",
+        "Lake.FacetOut.extern_lib.default",
+        "Lake.FacetOut.extern_lib.dynlib",
+        "Lake.FacetOut.extern_lib.shared",
+        "Lake.FacetOut.extern_lib.static",
+        "Lake.FacetOut.input_dir.default",
+        "Lake.FacetOut.input_file.default",
+        "Lake.FacetOut.lean_exe.default",
+        "Lake.FacetOut.lean_exe.exe",
+        "Lake.FacetOut.lean_lib.default",
+        "Lake.FacetOut.lean_lib.elabArts",
+        "Lake.FacetOut.lean_lib.extraDep",
+        "Lake.FacetOut.lean_lib.irArts",
+        "Lake.FacetOut.lean_lib.leanArts",
+        "Lake.FacetOut.lean_lib.modules",
+        "Lake.FacetOut.lean_lib.shared",
+        "Lake.FacetOut.lean_lib.static",
+        "Lake.FacetOut.lean_lib.static.export",
+        "Lake.FacetOut.module.bc",
+        "Lake.FacetOut.module.bc.o",
+        "Lake.FacetOut.module.c",
+        "Lake.FacetOut.module.c.o",
+        "Lake.FacetOut.module.c.o.export",
+        "Lake.FacetOut.module.c.o.noexport",
+        "Lake.FacetOut.module.depHash",
+        "Lake.FacetOut.module.depTrace",
+        "Lake.FacetOut.module.deps",
+        "Lake.FacetOut.module.dynlib",
+        "Lake.FacetOut.module.elabArts",
+        "Lake.FacetOut.module.exportInfo",
+        "Lake.FacetOut.module.header",
+        "Lake.FacetOut.module.ilean",
+        "Lake.FacetOut.module.importAllArts",
+        "Lake.FacetOut.module.importArts",
+        "Lake.FacetOut.module.importInfo",
+        "Lake.FacetOut.module.imports",
+        "Lake.FacetOut.module.input",
+        "Lake.FacetOut.module.ir",
+        "Lake.FacetOut.module.ir.sig",
+        "Lake.FacetOut.module.irArts",
+        "Lake.FacetOut.module.lean",
+        "Lake.FacetOut.module.leanArts",
+        "Lake.FacetOut.module.linkInfoExport",
+        "Lake.FacetOut.module.linkInfoNoExport",
+        "Lake.FacetOut.module.ltar",
+        "Lake.FacetOut.module.metaExportInfo",
+        "Lake.FacetOut.module.o",
+        "Lake.FacetOut.module.o.export",
+        "Lake.FacetOut.module.o.noexport",
+        "Lake.FacetOut.module.olean",
+        "Lake.FacetOut.module.olean.private",
+        "Lake.FacetOut.module.olean.server",
+        "Lake.FacetOut.module.precompileImports",
+        "Lake.FacetOut.module.presetup",
+        "Lake.FacetOut.module.setup",
+        "Lake.FacetOut.module.transImports",
+        "Lake.FacetOut.package.barrel",
+        "Lake.FacetOut.package.cache",
+        "Lake.FacetOut.package.defaultModules",
+        "Lake.FacetOut.package.deps",
+        "Lake.FacetOut.package.extraDep",
+        "Lake.FacetOut.package.optBarrel",
+        "Lake.FacetOut.package.optCache",
+        "Lake.FacetOut.package.optRelease",
+        "Lake.FacetOut.package.release",
+        "Lake.FacetOut.package.transDeps",
+        "Lake.OpaqueConfigTarget.def",
+        "Quot.sound",
+        "propext"
+      ],
+      "closureKey": null
+    }
+  ],
+  "reuse": {
+    "mode": "off",
+    "declarations": 190688,
+    "reused": 0,
+    "rechecked": 190688,
+    "unmatched": 0,
+    "keySetSha256": "eceff746f11abe59e571b37fde197d321ce9d5623a695e4b149107c8619b36cd",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 15832,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 1,
+      "durationMs": 632153,
+      "sandboxed": true
+    },
+    {
+      "command": "LAKE_CHECK_EXPORT=1 lake check (the export half, outside the sandbox)",
+      "exitCode": 0,
+      "durationMs": 36873,
+      "sandboxed": false
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

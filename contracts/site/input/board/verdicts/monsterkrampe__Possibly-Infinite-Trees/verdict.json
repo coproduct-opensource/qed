@@ -1,0 +1,183 @@
+{
+  "schema": "qed-check-verdict/1",
+  "outcome": {
+    "kind": "Accepted"
+  },
+  "weaker": [],
+  "subject": {
+    "repository": "monsterkrampe/Possibly-Infinite-Trees",
+    "commit": "ba3f9b6d8e37391245061eb8343bbc46032c8be2",
+    "tree": "9305ad0de7d2788f2a46a3283ec7434b60fc3639",
+    "project": "."
+  },
+  "toolchain": {
+    "name": "leanprover/lean4:v4.36.0",
+    "leanVersion": "4.36.0",
+    "leanGithash": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9"
+  },
+  "exporter": {
+    "name": "leanexport",
+    "version": "3.1.0",
+    "format": "3.1.0",
+    "binarySha256": "8298d4412a1f8986b5dbfd1d9925211778d8d320fc47b72040c8fdfdd5b603d5"
+  },
+  "exports": [
+    {
+      "role": "project",
+      "sha256": "cb0ffcf365c97ef165977df733bc9d64d1dda2e5820408e1d4b14ef5c97875d7",
+      "bytes": 353541062,
+      "constants": 60924,
+      "records": 59484
+    },
+    {
+      "role": "trusted-init",
+      "sha256": "93b61a432ed4241b1d2184de65354e0b98333bf4403a8d63922da18e10b430ba",
+      "bytes": 347772063,
+      "constants": 59979,
+      "records": 58547
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Lean paranoid",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "cd9a6ddb5fbf8f649c789dc905236e1ddee9fb32a323c141a4e63478f72e47b6",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 76328,
+      "declarations": null
+    },
+    {
+      "name": "lean4lean",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "baaec030a70c78562ced2c75866ab0d2410e81ce680b835179ed16570ad5ef97",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 85987,
+      "declarations": 59481
+    },
+    {
+      "name": "nanoda",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "8241c5e6baa29490aa118d382f97961b208ae730fdb96545c2abed74c9ece5a8",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 15852,
+      "declarations": null
+    },
+    {
+      "name": "con-leche",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "a6380d68b4fb364189821dd4692569c11536de0a1e3aaefea06028c0d67bb193",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 25632,
+      "declarations": 59479
+    },
+    {
+      "name": "con-ron",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "4e5616d94374cae37324dad2594f6230c2bb2297240249fc78ff508f3bc5acef",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 36754,
+      "declarations": 59479
+    },
+    {
+      "name": "Lean default",
+      "version": "bundled with Lean 4.36.0",
+      "binarySha256": "2b2ff08805ace61c935b023f8114ac3f7f1d3bc79cb4e8c47ef7801a5af58798",
+      "result": {
+        "kind": "Accepted"
+      },
+      "evidence": "ran",
+      "durationMs": 75631,
+      "declarations": null
+    }
+  ],
+  "gates": [
+    {
+      "name": "build",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "primitives",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "axioms agree",
+      "result": {
+        "kind": "Accepted"
+      }
+    },
+    {
+      "name": "toolchain intact",
+      "result": {
+        "kind": "Accepted"
+      }
+    }
+  ],
+  "axioms": [
+    {
+      "rootSet": "project",
+      "roots": 945,
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "closureKey": null
+    }
+  ],
+  "reuse": {
+    "mode": "off",
+    "declarations": 60924,
+    "reused": 0,
+    "rechecked": 60924,
+    "unmatched": 0,
+    "keySetSha256": "d99bdba527309febe59af71e8a5fd84210eff335df3c0eab5df5d76849dd68a2",
+    "cacheSha256": null
+  },
+  "browser": null,
+  "steps": [
+    {
+      "command": "leanexport Init (cleared environment, empty directory)",
+      "exitCode": 0,
+      "durationMs": 16136,
+      "sandboxed": false
+    },
+    {
+      "command": "lake check --paranoid",
+      "exitCode": 0,
+      "durationMs": 341465,
+      "sandboxed": true
+    },
+    {
+      "command": "LAKE_CHECK_EXPORT=1 lake check (the export half, outside the sandbox)",
+      "exitCode": 0,
+      "durationMs": 16235,
+      "sandboxed": false
+    }
+  ],
+  "generatedBy": "qed-check 0.1.0"
+}

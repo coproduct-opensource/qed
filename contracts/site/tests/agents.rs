@@ -367,6 +367,15 @@ fn outbound(site: &str) -> Vec<String> {
     ]
     .iter()
     .map(|s| (*s).to_owned())
+    // Each row of the Lean Proof Board links its repository, and only that
+    // repository: the list is the board's own input, not all of GitHub.
+    .chain(
+        nucleus_site::proof_board::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .unwrap()
+            .into_iter()
+            .flat_map(|loaded| loaded.board.rows)
+            .map(|row| row.url),
+    )
     .collect()
 }
 
