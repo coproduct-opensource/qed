@@ -171,6 +171,21 @@ fn run(args: &[String]) -> Res<()> {
                     Path::new(state).join(nucleus_site::status::SERVED_HTML).display()
                 );
             }
+            if pass.market.is_some() {
+                println!(
+                    "wrote {}, {} and {}",
+                    Path::new(state).join(nucleus_site::status::MARKET_JSON).display(),
+                    Path::new(state).join(nucleus_site::status::MARKET_MD).display(),
+                    Path::new(state).join(nucleus_site::status::MARKET_HTML).display()
+                );
+            }
+            if let Some(scan) = pass
+                .snapshot
+                .as_ref()
+                .and_then(|s| s["market"]["scan"].as_object())
+            {
+                println!("market index: {}", serde_json::Value::Object(scan.clone()));
+            }
             match (pass.failure, pass.pages.is_some()) {
                 (None, _) => Ok(()),
                 (Some(why), true) => Err(format!(
