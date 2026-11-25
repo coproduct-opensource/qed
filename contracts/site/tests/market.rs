@@ -224,3 +224,19 @@ fn rounds_on_base() {
         "taken by round 1 before r1 opened"
     );
 }
+
+/// The committed fixture names no wallet beyond the contracts, the token
+/// and the three published ones.
+#[test]
+fn the_fixture_names_no_other_wallet() {
+    let input = nucleus_site::Input::read(std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/input/arbitrum-sepolia.json"
+    )))
+    .unwrap();
+    let text = include_str!("fixtures/market-base.json");
+    assert_eq!(
+        nucleus_site::status::foreign_addresses(&input, text),
+        Vec::<String>::new()
+    );
+}

@@ -1122,6 +1122,9 @@ pub fn filtered(index: &Index, names: &Names) -> Index {
                     .any(|b| b != b'0')
                 {
                     *royalty_payee = names.party(royalty_payee);
+                } else {
+                    // No royalty: no payee (the zero address would read as one).
+                    royalty_payee.clear();
                 }
             }
             Event::Refunded { buyer, .. } => *buyer = names.party(buyer),

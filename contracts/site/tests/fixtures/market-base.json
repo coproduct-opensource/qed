@@ -53,7 +53,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -180,7 +180,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -687,7 +687,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "24937500",
       "feeOwed": "62500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -760,7 +760,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "24937500",
       "feeOwed": "62500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -833,7 +833,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "24937500",
       "feeOwed": "62500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -906,7 +906,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "24937500",
       "feeOwed": "62500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -979,7 +979,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -1052,7 +1052,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -1125,7 +1125,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -1198,7 +1198,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
@@ -1271,7 +1271,7 @@
       "artifactHash": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
       "sellerOwed": "997500",
       "feeOwed": "2500",
-      "royaltyPayee": "0x0000000000000000000000000000000000000000",
+      "royaltyPayee": "",
       "royaltyOwed": "0"
     },
     {
