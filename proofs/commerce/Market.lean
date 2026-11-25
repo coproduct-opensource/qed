@@ -667,3 +667,173 @@ namespace Nucleus.ProofCommerce.Market
 /-- info: 'Nucleus.ProofCommerce.Market.taken_stays' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms taken_stays
 end Nucleus.ProofCommerce.Market
+
+/-! ## The real events
+
+Base (chain 8453), board `0xd968d5659b3c63cd74d7b4d09345ff3417711038`, vault
+`0x952c31aa208dd129059f6065a26b57c930c6ab3c`, read by `nucleus-site
+market-capture` to block 62256533 (2026-11-25 21:21 UTC) and replayed in
+`contracts/site/tests/market.rs` against the same table. The subset: the
+first bounty post (withdrawn), round 1's refunded order, the four
+settlements by the seller outside the authors, and round r1's five posts.
+`ctx` is the table of keccak-256 contexts the Rust test recomputes. -/
+namespace Nucleus.ProofCommerce.Market.Real
+open Nucleus.ProofCommerce.Market
+
+def buyer : Nat := 0x133c25a80fb323de143e8ad5c6c620bf8713edfd
+def statement : Nat := 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c
+
+/-- keccak256(keccak256("NucleusContextV1") ‖ id ‖ keyBinding), for each
+    post here (one key binding, the bounty buyer's). -/
+def table : List (Nat × Nat) := [
+  (0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd, 0x59596d4ce2add9f61560384abf166e7074dfa13126b745180c7250ae8c155f54),
+  (0x2ca29bcf72cfddc732019e72d64750a13f458590bd042804ec07e5ea66b48812, 0x5b6e8ee307d614489776fd8725a45c880f2cbe2e8c6ce79adb1841ebca91663f),
+  (0xb454a434583caf2c899e4d48b18d4776951128bbe029fd73f5c57a4c31a3bf7e, 0xe822fb25d1e4cc66aecf2b928d9e6495a54051d8b2682baf956d4c42f3920f94),
+  (0x7b746a3c85353e75d03acbf0b1bd22ea3be925b583808f6a059ad8a409f35eb7, 0xd0d7f94faa8419f9bc81831c54ddc9a04e9eac068c7cc14a41caac0f7b3cc4d5),
+  (0xec8668825da64c8724ae06170db5d42226cf34524795fe3799f727caa8e51bba, 0xb24d0bba9ea90262ec441448c30c1c95056067e9ab3e16f8d250ffd45df98902),
+  (0x625e31dab83ec36ff2b3babc3be3e61ca9f1ea7ab39d32fe85c42989c49cba6b, 0x08770b74dba1a800a78f85b235cb8d92b27bf51a9e80bf531f8afb0bfe630370),
+  (0xafa53fb047f9618d58ddb6d173abf031ec741c40ed44d3ac815391b182394727, 0xa1c0369fd35a3f2efc5cce7182544495e07615e47a576f5568958e8de7dc3bd3),
+  (0x41099437d91be57496eb2a6207f3c017a3b2a675768926cf36cd9782cc81e353, 0x991bac0166894d824c265792f3109ad18a3ee6188333b6802e04275bb2d53522),
+  (0xa739b0af1703182ac734efed744237f62dc93c61b6a49a354ee5ffcd9722b299, 0x998e2b4a7d895f6cf37f517782cba19f767818b2487c634717f8fd51adee1d5b),
+  (0x34f01e4c96f3a234590bfd6f157bfff002e29828c9c4f3733d4869ae727f761c, 0xaa6233c4a19742bdef130a47958e2a9a2465057f8c0e8de8b310f0d1f8a15171),
+  (0x86fff8186702d87007c8383584af57dc88a512c17b03f136095b27c290459485, 0xec3f72259e9fad2ff626e866db3cbfc871a9e3a7326499b64771ffa8b93a96d1)]
+
+def ctx : Ctx := fun id _ => ((table.find? (·.1 == id)).map (·.2)).getD 0
+
+def events : List Event := [
+  .posted ⟨0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1794698957, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 57110912⟩,
+  .withdrawn 0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd,
+  .posted ⟨0x2ca29bcf72cfddc732019e72d64750a13f458590bd042804ec07e5ea66b48812, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795044835, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 58840301⟩,
+  .funded 0x70a767b953b1acb3c20d99a8709101d7ca9e0c4ed7b19a19b3067d2543dc3214
+    0x5b6e8ee307d614489776fd8725a45c880f2cbe2e8c6ce79adb1841ebca91663f 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xb134f0487483dfb8a362e03036409b5701e69ea32d73fcf4f00616d445b1b7df 25000000,
+  .refunded 0x70a767b953b1acb3c20d99a8709101d7ca9e0c4ed7b19a19b3067d2543dc3214,
+  .claimed 0x20f1a8ba11cedece31fdf2522044cd0c325cb0aede99845aa3662fc57593ddf4,
+  .posted ⟨0xb454a434583caf2c899e4d48b18d4776951128bbe029fd73f5c57a4c31a3bf7e, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795596145, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 61596854⟩,
+  .funded 0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24
+    0xe822fb25d1e4cc66aecf2b928d9e6495a54051d8b2682baf956d4c42f3920f94 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8 25000000,
+  .settled 0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24,
+  .claimed 0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8,
+  .posted ⟨0x7b746a3c85353e75d03acbf0b1bd22ea3be925b583808f6a059ad8a409f35eb7, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795662587, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 61929064⟩,
+  .funded 0xb5c5bdf7feaeb0d2b93d188facfd17812fe78e0047ef458067ecf4e0fbf7859a
+    0xd0d7f94faa8419f9bc81831c54ddc9a04e9eac068c7cc14a41caac0f7b3cc4d5 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8 25000000,
+  .settled 0xb5c5bdf7feaeb0d2b93d188facfd17812fe78e0047ef458067ecf4e0fbf7859a,
+  .claimed 0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8,
+  .posted ⟨0xec8668825da64c8724ae06170db5d42226cf34524795fe3799f727caa8e51bba, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795665703, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 61944643⟩,
+  .funded 0xf894cd7e822b16dfc96059edb16ef0226a4453fb7e9bcc3f91411d44d9f14881
+    0xb24d0bba9ea90262ec441448c30c1c95056067e9ab3e16f8d250ffd45df98902 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8 25000000,
+  .settled 0xf894cd7e822b16dfc96059edb16ef0226a4453fb7e9bcc3f91411d44d9f14881,
+  .claimed 0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8,
+  .posted ⟨0x625e31dab83ec36ff2b3babc3be3e61ca9f1ea7ab39d32fe85c42989c49cba6b, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795667715, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 61954704⟩,
+  .funded 0x47e69316147efd3853a60912e499b84f8a9c42e6ff265bb85197c10d97906885
+    0x08770b74dba1a800a78f85b235cb8d92b27bf51a9e80bf531f8afb0bfe630370 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8 25000000,
+  .settled 0x47e69316147efd3853a60912e499b84f8a9c42e6ff265bb85197c10d97906885,
+  .claimed 0x391711497fd15f8052e6b4021f1567a9f51f2e19e799a87db1547080408c6ae8,
+  .posted ⟨0xafa53fb047f9618d58ddb6d173abf031ec741c40ed44d3ac815391b182394727, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795677106, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 62001659⟩,
+  .funded 0xe8c1e899d062f838109deb4a798d5fb5e0c212384ba9c632d0a6c85a3cd5ec91
+    0xa1c0369fd35a3f2efc5cce7182544495e07615e47a576f5568958e8de7dc3bd3 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593 1000000,
+  .settled 0xe8c1e899d062f838109deb4a798d5fb5e0c212384ba9c632d0a6c85a3cd5ec91,
+  .claimed 0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593,
+  .posted ⟨0x41099437d91be57496eb2a6207f3c017a3b2a675768926cf36cd9782cc81e353, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795684847, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 62040362⟩,
+  .funded 0x61e5e951e5cc7573f73b01465d898061a3cc288a3794a1cdb16a215b5fdb8035
+    0x991bac0166894d824c265792f3109ad18a3ee6188333b6802e04275bb2d53522 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593 1000000,
+  .settled 0x61e5e951e5cc7573f73b01465d898061a3cc288a3794a1cdb16a215b5fdb8035,
+  .claimed 0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593,
+  .posted ⟨0xa739b0af1703182ac734efed744237f62dc93c61b6a49a354ee5ffcd9722b299, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795685421, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 62043232⟩,
+  .funded 0xf491d331c15faf758860004518209e592475d9cd5e2300a3116a5881d6daaf18
+    0x998e2b4a7d895f6cf37f517782cba19f767818b2487c634717f8fd51adee1d5b 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593 1000000,
+  .settled 0xf491d331c15faf758860004518209e592475d9cd5e2300a3116a5881d6daaf18,
+  .claimed 0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593,
+  .posted ⟨0x34f01e4c96f3a234590bfd6f157bfff002e29828c9c4f3733d4869ae727f761c, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795685994, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 62046100⟩,
+  .funded 0x22bbc2209751d3de037e784a7766b9a02dbc97a09e855335eaf14de0b48ffcb1
+    0xaa6233c4a19742bdef130a47958e2a9a2465057f8c0e8de8b310f0d1f8a15171 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593 1000000,
+  .settled 0x22bbc2209751d3de037e784a7766b9a02dbc97a09e855335eaf14de0b48ffcb1,
+  .claimed 0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593,
+  .posted ⟨0x86fff8186702d87007c8383584af57dc88a512c17b03f136095b27c290459485, 0x3a6e9e05ca618436d2df7c4e6a0cbd28878d45e3d040da75a867b9ce9676e9d8, 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e, 0x9480265e16ead4f5064949d07886c5ef9fdba6fa250ed235072bc2ce56f6dc1c, 1795686613, 0x133c25a80fb323de143e8ad5c6c620bf8713edfd, 62049193⟩,
+  .funded 0xf1ca16808f625519faa0355253396cd7937ae676d30019c434187f1ca92848ec
+    0xec3f72259e9fad2ff626e866db3cbfc871a9e3a7326499b64771ffa8b93a96d1 0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e
+    0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593 1000000,
+  .settled 0xf1ca16808f625519faa0355253396cd7937ae676d30019c434187f1ca92848ec,
+  .claimed 0xad239bb5e3f37554ffb48e70fe9c313e47fb6d0bc07d19f4de6a27d9a4ed4593
+]
+
+def none_ : Post := ⟨0, 0, 0, 0, 0, 0, 0⟩
+def post (id : Nat) (m : Market) : Post := (m.posts.find? (·.id == id)).getD none_
+
+/-- Read at block 62256533, 2026-11-25 21:21:22 UTC. -/
+def now : Nat := 1795641682
+def atNow : Market := apply (replay empty events) (.tick now)
+
+/-- r1 opened with its first post, block 62001659 (2026-11-25 07:11:47 UTC):
+    the events before its first funding, and that block's time. -/
+def atR1Open : Market := apply (replay empty (events.take 23)) (.tick 1795590707)
+
+/-- Round 1: the bounty buyer's posts from its first (block 57110912) to
+    r1's first (block 62001659). Round r1: from block 62001659. -/
+def round1 : Round := ⟨100000000, 4, fun p => p.poster == buyer && 57110912 ≤ p.block && p.block < 62001659⟩
+def roundR1 : Round := ⟨5000000, 5, fun p => p.poster == buyer && 62001659 ≤ p.block⟩
+
+/-- The four outside settlements each join their own round-1 post, which
+    shows claimed. -/
+theorem outside_settlements_join_round1 :
+    [0xb454a434583caf2c899e4d48b18d4776951128bbe029fd73f5c57a4c31a3bf7e,
+     0x7b746a3c85353e75d03acbf0b1bd22ea3be925b583808f6a059ad8a409f35eb7,
+     0xec8668825da64c8724ae06170db5d42226cf34524795fe3799f727caa8e51bba,
+     0x625e31dab83ec36ff2b3babc3be3e61ca9f1ea7ab39d32fe85c42989c49cba6b].all
+      (fun id => round1.member (post id atNow) && state ctx atNow (post id atNow) == .claimed)
+    = true := by decide
+
+theorem outside_settlement_orders :
+    ((atNow.orders.filter (joins ctx (post 0xb454a434583caf2c899e4d48b18d4776951128bbe029fd73f5c57a4c31a3bf7e atNow))).map (·.digest))
+      = [0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24] := by decide
+
+/-- The first bounty post was withdrawn; round 1's other funded post was
+    refunded. -/
+theorem withdrawn_and_refunded :
+    state ctx atNow (post 0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd atNow) = .withdrawn ∧
+    state ctx atNow (post 0x2ca29bcf72cfddc732019e72d64750a13f458590bd042804ec07e5ea66b48812 atNow) = .refunded := by
+  decide
+
+/-- Round 1: five orders funded (125 USDC), one refunded (25 USDC): 0 of 4
+    tasks and 0 of 100 USDC remain, with no truncation. -/
+theorem round1_spent :
+    fundedAmt ctx atNow round1 = 125000000 ∧ refundAmt ctx atNow round1 = 25000000 ∧
+    remaining ctx atNow round1 = 0 ∧ remainingTasks ctx atNow round1 = 0 ∧
+    fundedAmt ctx atNow round1 ≤ round1.budget + refundAmt ctx atNow round1 := by decide
+
+/-- r1 at its first post: the post is listed, 5 of 5 tasks and 5 of 5 USDC
+    remain, and its statement is already taken by round 1's settlements. -/
+theorem r1_at_open :
+    state ctx atR1Open (post 0xafa53fb047f9618d58ddb6d173abf031ec741c40ed44d3ac815391b182394727 atR1Open) = .listed ∧
+    remaining ctx atR1Open roundR1 = 5000000 ∧ remainingTasks ctx atR1Open roundR1 = 5 ∧
+    taken ctx atR1Open statement = true := by decide
+
+/-- r1 at block 62256533: its five posts each settled and claimed; 0 of 5
+    tasks and 0 of 5 USDC remain. -/
+theorem r1_now :
+    remaining ctx atNow roundR1 = 0 ∧ remainingTasks ctx atNow roundR1 = 0 ∧
+    fundedAmt ctx atNow roundR1 = 5000000 ∧
+    state ctx atNow (post 0xafa53fb047f9618d58ddb6d173abf031ec741c40ed44d3ac815391b182394727 atNow) = .claimed := by
+  decide
+
+/-- No order here is counted in both rounds, and each joins exactly one post. -/
+theorem each_order_one_post :
+    atNow.orders.all (fun o => (atNow.posts.filter (fun p => joins ctx p o)).length == 1) = true ∧
+    atNow.orders.all (fun o => !(inRound ctx atNow round1 o && inRound ctx atNow roundR1 o)) = true := by
+  decide
+
+/-- M4 on the real round 1: counting Funded without refunds says 125 USDC
+    spent of a 100 USDC budget; remaining plus spent is not the budget. -/
+theorem mutant_round1_without_refunds :
+    (round1.budget - fundedAmt ctx atNow round1) + fundedAmt ctx atNow round1 ≠ round1.budget := by
+  decide
+
+end Nucleus.ProofCommerce.Market.Real
