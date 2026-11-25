@@ -170,13 +170,28 @@
       "decimals": 6
     },
     "bounty": {
-      "price": 25000000,
-      "budget": 100000000,
-      "tasks": 4,
       "postWindowSeconds": 86400,
       "program": "704bdf3b650500801060d74c132acabbf3a01ef4c12445e656acab94d59142ed",
-      "firstPostTransaction": "0xfc3307091908f7ce2252ee5498137370afb61e9da1c61ffe8a27eb87a379fc42",
-      "firstTask": "0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd"
+      "rounds": [
+        {
+          "name": "1",
+          "price": 25000000,
+          "budget": 100000000,
+          "tasks": 4,
+          "opened": "2026-11-13",
+          "firstPostTransaction": "0xfc3307091908f7ce2252ee5498137370afb61e9da1c61ffe8a27eb87a379fc42",
+          "firstTask": "0x28daaf524e25938fc92d7c55cab97516f4e55b3cbd120b6de885e3e4cd2098dd"
+        },
+        {
+          "name": "r1",
+          "price": 1000000,
+          "budget": 5000000,
+          "tasks": 5,
+          "opened": "2026-11-25",
+          "firstPostTransaction": "0x0304420cd325dd103859b6cab7c409386d0fc304b72530432356d9fce2a30c02",
+          "firstTask": "0xafa53fb047f9618d58ddb6d173abf031ec741c40ed44d3ac815391b182394727"
+        }
+      ]
     },
     "status": {
       "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",

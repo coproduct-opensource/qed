@@ -218,22 +218,54 @@ pub struct StatusVault {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Bounty {
-    pub price: u64,
-    pub budget: u64,
-    pub tasks: u32,
     pub post_window_seconds: u64,
     /// The order program the posts name.
     pub program: String,
+    /// Oldest first; the last is the open one. A round's posts are the
+    /// bounty buyer's from the block of its first post (read from the
+    /// chain, `first_task`) to the next round's.
+    pub rounds: Vec<BountyRound>,
+}
+
+/// One round of the bounty: its price, budget and task count.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BountyRound {
+    /// How the pages name it ("1", "r1").
+    pub name: String,
+    pub price: u64,
+    pub budget: u64,
+    pub tasks: u32,
+    /// The day the authors opened it, UTC.
+    pub opened: String,
     pub first_post_transaction: String,
     pub first_task: String,
+}
+
+impl Bounty {
+    /// The open round: the last one.
+    pub fn current(&self) -> &BountyRound {
+        static NONE: std::sync::OnceLock<BountyRound> = std::sync::OnceLock::new();
+        self.rounds.last().unwrap_or_else(|| {
+            NONE.get_or_init(|| BountyRound {
+                name: String::new(),
+                price: 0,
+                budget: 0,
+                tasks: 0,
+                opened: String::new(),
+                first_post_transaction: String::new(),
+                first_task: String::new(),
+            })
+        })
+    }
 }
 
 impl Mainnet {
     /// What a seller receives for one task: the price less the fee, which is
     /// rounded up as the vault rounds it.
     pub fn seller_receives(&self) -> u64 {
-        let fee = (self.bounty.price * u64::from(self.vault.fee_bps)).div_ceil(10_000);
-        self.bounty.price - fee
+        let fee = (self.bounty.current().price * u64::from(self.vault.fee_bps)).div_ceil(10_000);
+        self.bounty.current().price - fee
     }
 }
 
@@ -588,15 +620,17 @@ fn mainnet_deployment(m: &Mainnet) -> Value {
         },
         "token": m.token,
         "bounty": {
-            "price": m.bounty.price,
+            "price": m.bounty.current().price,
             "sellerReceives": m.seller_receives(),
-            "budget": m.bounty.budget,
-            "tasks": m.bounty.tasks,
+            "budget": m.bounty.current().budget,
+            "tasks": m.bounty.current().tasks,
             "oneOpenAtATime": true,
             "postWindowSeconds": m.bounty.post_window_seconds,
             "program": m.bounty.program,
-            "firstPostTransaction": m.bounty.first_post_transaction,
-            "firstTask": m.bounty.first_task,
+            "firstPostTransaction": m.bounty.current().first_post_transaction,
+            "firstTask": m.bounty.current().first_task,
+            "round": m.bounty.current().name,
+            "rounds": m.bounty.rounds,
             "page": "/bounty",
         },
     })
@@ -849,10 +883,10 @@ fn bounty_sentence(input: &Input, site: Option<&str>) -> String {
     format!(
         " A standing bounty on {} pays {} {} per task ({} after the fee), at most {} tasks, one open at a time: {page}.",
         m.network.name,
-        amount(m.bounty.price, m.token.decimals),
+        amount(m.bounty.current().price, m.token.decimals),
         m.token.name,
         amount(m.seller_receives(), m.token.decimals),
-        m.bounty.tasks,
+        m.bounty.current().tasks,
     )
 }
 
@@ -1150,17 +1184,54 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
                 r["vault"]
                     .as_str()
                     .is_some_and(|v| v.eq_ignore_ascii_case(&m.vault.address))
-                    && r["order"]["amount"].as_str() == Some(m.bounty.price.to_string().as_str())
             })
             .collect();
-        docs_list.push(pages::bounty(m, &vectors, &programs, &outside));
+        let rounds = status_snapshot
+            .as_ref()
+            .and_then(|s| s.get("market"))
+            .and_then(|v| serde_json::from_value::<market::Index>(v.clone()).ok())
+            .zip(m.status.as_ref())
+            .map(|(i, st)| market::view::rounds(&i, i.cursor_time, m, &st.buyer));
+        docs_list.push(pages::bounty(
+            m,
+            &vectors,
+            &programs,
+            &outside,
+            rounds.as_deref(),
+        ));
         docs_list.push(post::page(m, fee_bps));
     }
     if let Some(page) = status::page(input, status_snapshot.as_ref()) {
         docs_list.push(page);
     }
+    // The market: every post joined to its orders, from the same snapshot
+    // (src/market.rs); the host's reader rewrites both files.
+    let mut market_files: Vec<(String, Vec<u8>)> = Vec::new();
+    {
+        let public = status_snapshot
+            .as_ref()
+            .map(|s| status::public(s, &status::default_names(input)));
+        let known = options
+            .ledger
+            .map(|(_, s)| market::view::Known::from_ledger(s))
+            .unwrap_or_default();
+        if let Some(page) =
+            market::view::page_from(input, public.as_ref(), status::Source::Build, &known)
+        {
+            docs_list.push(page);
+        }
+        if let Some((s, index)) = public.as_ref().and_then(|s| {
+            serde_json::from_value::<market::Index>(s.get("market")?.clone())
+                .ok()
+                .map(|i| (s, i))
+        }) {
+            let data = market::view::data(input, &index, s["takenAt"].as_u64().unwrap_or(0));
+            market_files.push((market::view::JSON_PATH.into(), pretty(&data)?));
+        }
+    }
     docs_list.push(visits::page(input, repository, options.ledger.is_some())?);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    files.extend(market_files);
     // The Lean Proof Board, when the input has one: the page, and each
     // row's verdict file byte for byte beside it (src/proof_board.rs).
     if let Some(loaded) = proof_board::read(repository)? {

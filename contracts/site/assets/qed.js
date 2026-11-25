@@ -1,7 +1,7 @@
 // QED's only script. Every page reads in full without it. (1) Copy buttons
 // for preformatted text. (2) On /verify, the acceptance rule run in this
 // tab, downloaded only when asked for. (3) On the ledger page, the live list
-// of board posts, read in the browser from a public RPC endpoint. (4) One
+// of board posts, from the site's market index, checked against a public RPC endpoint on request. (4) One
 // visit beacon per page label per UTC day to this site's /analytics/beacon:
 // the page's label and whether this browser sent one earlier that UTC day
 // (the date and today's labels, kept in this browser's storage). No cookie,
@@ -275,73 +275,103 @@
     return body.result;
   }
 
+  // The listing: the site's market index (/market/market.json, rewritten
+  // by the host's reader every 10 minutes), not a scan of the chain from
+  // the board's deploy block, which outgrew one page's queries. The check
+  // below re-reads each listed post's Posted log, and the blocks after the
+  // index, from the endpoint in the form.
+  var listing = null;
+  function row(post) {
+    var tr = el("tr");
+    var first = el("td");
+    var link = el("a", null, { href: site.network.explorer + "/tx/" + post.transaction, rel: "noopener" });
+    link.appendChild(mono(post.id));
+    first.appendChild(link);
+    tr.appendChild(first);
+    var state = post.state + (post.taken && post.state !== "settled" && post.state !== "claimed" ? ", statement taken" : "");
+    tr.appendChild(el("td", state, { class: post.state === "listed" ? "ok" : "muted" }));
+    tr.appendChild(el("td", units(post.maximumAmount)));
+    tr.appendChild(el("td", when(post.fundBy)));
+    tr.appendChild(el("td", when(post.deliverBy)));
+    var statement = el("td"); statement.appendChild(mono(post.statementSha256)); tr.appendChild(statement);
+    var program = el("td"); program.appendChild(mono(post.program));
+    if (site.programs.indexOf(post.program.substr(2)) < 0) program.appendChild(el("span", " (not a program listed here)", { class: "muted" }));
+    tr.appendChild(program);
+    var node = el("td"); node.appendChild(mono(post.buyerNode)); tr.appendChild(node);
+    var poster = el("td");
+    if (post.posterRole === "bounty buyer" || post.posterRole === "ladder buyer") poster.appendChild(el("span", "the " + post.posterRole));
+    else if (post.poster === "elided") poster.appendChild(el("span", "elided", { class: "muted" }));
+    else poster.appendChild(mono(post.poster));
+    tr.appendChild(poster);
+    return tr;
+  }
+
   async function load() {
     var status = document.getElementById("tasks-status");
     var table = document.getElementById("tasks-table");
     var rows = document.getElementById("tasks-rows");
-    var url = document.getElementById("rpc-url").value.trim();
-    rows.textContent = "";
-    table.hidden = true;
     status.className = "";
-    status.textContent = "Reading the board from " + url + " …";
+    status.textContent = "Reading the site's market index …";
+    try {
+      var response = await fetch("/market/market.json", { credentials: "omit" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      listing = await response.json();
+      if (listing.chainId !== site.network.chainId || String(listing.board).toLowerCase() !== site.board.address) {
+        throw new Error("the index is for another board");
+      }
+      rows.textContent = "";
+      listing.posts.forEach(function (post) { rows.appendChild(row(post)); });
+      var listed = listing.posts.filter(function (p) { return p.state === "listed"; }).length;
+      status.textContent = listing.posts.length + " post" + (listing.posts.length === 1 ? "" : "s") + " in the site's index at block " + listing.block + " (" + when(listing.blockTimestamp) + "), " + listed + " listed. States and joined orders: /market. Check them against the chain with the form below.";
+      table.hidden = listing.posts.length === 0;
+    } catch (error) {
+      status.className = "bad";
+      status.textContent = "Could not read the site's market index: " + error.message + ". The form below reads the board from the chain instead.";
+    }
+  }
+
+  // Each listed post's Posted log, read at its block, against the index;
+  // then the board's logs after the index's block (at most 40 queries).
+  async function check() {
+    var status = document.getElementById("tasks-status");
+    var url = document.getElementById("rpc-url").value.trim();
+    status.className = "";
+    status.textContent = "Checking against " + url + " …";
     try {
       var chain = Number(BigInt(await rpc(url, "eth_chainId", [])));
       if (chain !== site.network.chainId) throw new Error("that endpoint serves chain " + chain + ", not " + site.network.chainId);
       var head = Number(BigInt(await rpc(url, "eth_blockNumber", [])));
-      var now = Number(BigInt((await rpc(url, "eth_getBlockByNumber", ["latest", false])).timestamp));
-      var posts = [], withdrawn = {}, queries = 0;
-      for (var from = site.board.deployBlock; from <= head; from += CHUNK) {
-        var to = Math.min(head, from + CHUNK - 1);
-        if (++queries > 40) throw new Error("the board's history is longer than this page will scan (40 queries)");
-        var logs = await rpc(url, "eth_getLogs", [{
-          address: site.board.address, fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16)
-        }]);
-        logs.forEach(function (log) {
-          // Only the board's own logs count, whatever the endpoint returns.
-          if (String(log.address).toLowerCase() !== site.board.address) return;
-          try {
-            var notice = decodeLog(log);
-            if (notice.kind === "withdrawn") withdrawn[notice.id] = true;
-            else { notice.transaction = log.transactionHash; posts.push(notice); }
-          } catch (error) { /* not a post this page can read; left out */ }
+      var posts = listing ? listing.posts : [];
+      var differ = [];
+      for (var i = 0; i < posts.length; i++) {
+        var post = posts[i], at = "0x" + post.block.toString(16);
+        var logs = await rpc(url, "eth_getLogs", [{ address: site.board.address, fromBlock: at, toBlock: at, topics: [POSTED, post.id] }]);
+        var found = logs.filter(function (l) { return String(l.address).toLowerCase() === site.board.address; });
+        if (found.length !== 1) { differ.push(short(post.id) + ": " + found.length + " Posted logs at its block"); continue; }
+        var read = decodeLog(found[0]);
+        Object.keys(read).forEach(function (key) {
+          if (key === "kind" || (key === "poster" && post.poster === "elided") || (key === "buyerAddress" && post.buyerAddress === "elided")) return;
+          if (String(read[key]) !== String(post[key])) differ.push(short(post.id) + ": " + key);
         });
       }
-      posts.reverse();
-      posts.forEach(function (post) {
-        var state = withdrawn[post.id] ? "withdrawn"
-          : post.vault !== site.vault.address ? "names another vault"
-          : Number(post.fundBy) < now ? "funding window closed" : "listed";
-        var row = el("tr");
-        var first = el("td");
-        var link = el("a", null, { href: site.network.explorer + "/tx/" + post.transaction, rel: "noopener" });
-        link.appendChild(mono(post.id));
-        first.appendChild(link);
-        row.appendChild(first);
-        row.appendChild(el("td", state, { class: state === "listed" ? "ok" : "muted" }));
-        row.appendChild(el("td", units(post.maximumAmount)));
-        row.appendChild(el("td", when(post.fundBy)));
-        row.appendChild(el("td", when(post.deliverBy)));
-        var statement = el("td"); statement.appendChild(mono(post.statementSha256)); row.appendChild(statement);
-        var program = el("td"); program.appendChild(mono(post.program));
-        if (site.programs.indexOf(post.program.substr(2)) < 0) program.appendChild(el("span", " (not a program listed here)", { class: "muted" }));
-        row.appendChild(program);
-        var node = el("td"); node.appendChild(mono(post.buyerNode)); row.appendChild(node);
-        var poster = el("td"); poster.appendChild(mono(post.poster));
-        if (site.ours.indexOf(post.poster) >= 0) poster.appendChild(el("span", " (ours)", { class: "muted" }));
-        row.appendChild(poster);
-        rows.appendChild(row);
-      });
-      var open = posts.filter(function (p) { return !withdrawn[p.id] && p.vault === site.vault.address && Number(p.fundBy) >= now; }).length;
-      status.textContent = posts.length + " post" + (posts.length === 1 ? "" : "s") + " on the board since block " + site.board.deployBlock + ", " + open + " listed (not withdrawn, funding window not yet closed), read at block " + head + ". A post is a notice: it does not show that the buyer has funds or will sign, and the board does not record whether a task has since been funded or settled.";
-      table.hidden = posts.length === 0;
+      var newer = 0, queries = 0, from = (listing ? listing.block : site.board.deployBlock - 1) + 1;
+      for (; from <= head; from += CHUNK) {
+        if (++queries > 40) throw new Error(differ.length + " differences in the listed posts; the blocks after the index are more than 40 queries");
+        var to = Math.min(head, from + CHUNK - 1);
+        var later = await rpc(url, "eth_getLogs", [{ address: site.board.address, fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16), topics: [POSTED] }]);
+        newer += later.length;
+      }
+      status.className = differ.length ? "bad" : "ok";
+      status.textContent = (differ.length ? "Differs from the chain: " + differ.join("; ") + "." : "All " + posts.length + " listed posts match their Posted logs on chain.") +
+        " " + newer + " post" + (newer === 1 ? "" : "s") + " after the index's block " + (listing ? listing.block : "") + ", read at block " + head + ".";
     } catch (error) {
       status.className = "bad";
-      status.textContent = "Could not read the board from " + url + ": " + error.message + ". The rest of this page does not depend on it. Try another endpoint for chain " + site.network.chainId + ".";
+      status.textContent = "Could not check against " + url + ": " + error.message + ". Try another endpoint for chain " + site.network.chainId + ".";
     }
   }
 
   document.getElementById("live").hidden = false;
-  document.getElementById("rpc-form").addEventListener("submit", function (event) { event.preventDefault(); load(); });
+  document.getElementById("rpc-form").addEventListener("submit", function (event) { event.preventDefault(); check(); });
   if (new URLSearchParams(location.search).get("selftest") === "1") {
     var failures = selfTest();
     var box = document.getElementById("selftest");

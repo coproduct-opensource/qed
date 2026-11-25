@@ -240,3 +240,122 @@ fn the_fixture_names_no_other_wallet() {
         Vec::<String>::new()
     );
 }
+
+fn input() -> nucleus_site::Input {
+    nucleus_site::Input::read(std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/input/arbitrum-sepolia.json"
+    )))
+    .unwrap()
+}
+const OUTSIDER: &str = "0xd15c105ed0d15c105ed0d15c105ed0d15c105ed0";
+const SITE: &str = "https://qed.example.test";
+
+/// The committed snapshot with one elided poster replaced by an outside
+/// address, as a reader holding the authors' list would publish it.
+fn with_outside_poster() -> serde_json::Value {
+    let mut s: serde_json::Value =
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    let events = s["market"]["events"].as_array_mut().unwrap();
+    let posted = events
+        .iter_mut()
+        .find(|e| e["event"] == "Posted" && e["poster"] == "elided")
+        .unwrap();
+    posted["poster"] = serde_json::json!(OUTSIDER);
+    s
+}
+
+#[test]
+fn the_market_page_names_outside_posters_and_refuses_an_authors_wallet() {
+    use nucleus_site::{market, status};
+    let i = input();
+    let known = market::view::Known::default();
+    let s = with_outside_poster();
+    let names = status::default_names(&i);
+    let (md, html, json) =
+        status::render_market(&i, &s, status::Source::Build, SITE, &names, &known)
+            .unwrap()
+            .unwrap();
+    assert!(
+        md.contains(&format!("`{OUTSIDER}`")),
+        "the poster by address"
+    );
+    assert!(html.contains(OUTSIDER) && json.contains(OUTSIDER));
+    assert!(
+        md.contains("**Round r1: 0 of 5 tasks, 0 USDC of 5 USDC remain.**"),
+        "{md}"
+    );
+    assert!(md.contains("**Round 1: 0 of 4 tasks, 0 USDC of 100 USDC remain.**"));
+    // Red: the same address on the authors' list: refused, nothing written.
+    let authors = market::Names {
+        published: names.published.clone(),
+        authors: Some([OUTSIDER.to_owned()].into()),
+    };
+    let refused = status::render_market(&i, &s, status::Source::Build, SITE, &authors, &known);
+    assert!(refused.is_err());
+    // check-live: the poster market.json shows is admitted; a planted one
+    // is not.
+    let built = status::render_market(&i, &s, status::Source::Build, SITE, &names, &known)
+        .unwrap()
+        .unwrap();
+    let now = s["blockTimestamp"].as_u64().unwrap() + 60;
+    assert_eq!(
+        market::view::check_served(&built.1, &built.0, &html, &md, &json, now),
+        Vec::<String>::new()
+    );
+    let planted = html.replacen(
+        "<h2",
+        "<p>0xfeedfacefeedfacefeedfacefeedfacefeedface</p><h2",
+        1,
+    );
+    let found = market::view::check_served(&built.1, &built.0, &planted, &md, &json, now);
+    assert!(
+        found.iter().any(|f| f.contains("does not name")),
+        "{found:?}"
+    );
+    let found = market::view::check_served(&built.1, &built.0, &html, &md, "{}", now);
+    assert!(
+        found.iter().any(|f| f.contains("is not a qed-market/1")),
+        "{found:?}"
+    );
+}
+
+/// A reader pass writes the market page and its data beside /status.
+#[test]
+fn a_pass_renders_the_market_beside_the_status_page() {
+    use nucleus_site::{market, status};
+    let i = input();
+    let s: serde_json::Value =
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    let now = s["takenAt"].as_u64().unwrap() + 600;
+    let names = status::default_names(&i);
+    let good = status::pass_with(
+        &i,
+        SITE,
+        Some(&s),
+        None,
+        Ok(s.clone()),
+        now,
+        &names,
+        &market::view::Known::default(),
+    )
+    .unwrap();
+    let (md, _, json) = good.market.unwrap();
+    assert!(md.contains("Reread every 10 minutes"));
+    let data: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(data["posts"].as_array().unwrap().len(), 25);
+    assert_eq!(data["rounds"][1]["remainingTasks"], 0);
+    // A failed read keeps the last good market, saying so.
+    let failed = status::pass_with(
+        &i,
+        SITE,
+        Some(&s),
+        Some(&s),
+        Err("timeout".into()),
+        now,
+        &names,
+        &market::view::Known::default(),
+    )
+    .unwrap();
+    assert!(failed.market.unwrap().0.contains("Reread failed at "));
+}

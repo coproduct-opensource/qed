@@ -392,7 +392,7 @@ fn cautions(input: &Input) -> Vec<Block> {
             items.push(vec![
                 strong(format!(
                     "{} {} a task, to anyone:",
-                    amount(m.bounty.price, m.token.decimals),
+                    amount(m.bounty.current().price, m.token.decimals),
                     m.token.name
                 )),
                 t(" "),
@@ -889,7 +889,7 @@ pub fn participate(input: &Input) -> Doc {
                 "/bounty",
                 format!(
                     "The bounty: {} {} a task",
-                    amount(m.bounty.price, m.token.decimals),
+                    amount(m.bounty.current().price, m.token.decimals),
                     m.token.name
                 ),
             ),
@@ -1555,7 +1555,7 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
                     "p",
                     &[],
                     &format!(
-                        "Read with eth_getLogs from this {} endpoint:",
+                        "Check the listing against this {} endpoint (eth_getLogs):",
                         b.network.name
                     ),
                 ),
@@ -1573,7 +1573,7 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
                                 ("required", "required"),
                             ],
                         ),
-                        crate::html::tx("button", &[("type", "submit")], "Read again"),
+                        crate::html::tx("button", &[("type", "submit")], "Check against the chain"),
                     ],
                 ),
                 crate::html::el("p", &[("id", "selftest"), ("hidden", "")], []),
@@ -1585,7 +1585,11 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
                         "table",
                         &[("id", "tasks-table"), ("hidden", "")],
                         [
-                            crate::html::tx("caption", &[], "Posts on the board, read live"),
+                            crate::html::tx(
+                                "caption",
+                                &[],
+                                "Posts on the board, from the site's market index",
+                            ),
                             crate::html::el(
                                 "thead",
                                 &[],
@@ -1616,7 +1620,7 @@ fn live_board(b: Board, vectors: &Value, programs: &[Published]) -> (Block, Valu
     let block = Block::Rendered {
         html: live,
         markdown: format!(
-            "The live list of posts is read from the chain by the page's script. To read it yourself, call eth_getLogs on the board {} from block {} on {} (chain {}); the events are decoded as in /verification/test-vectors.",
+            "The page's script lists the posts from /market/market.json and checks them against the chain on request. To read them yourself, call eth_getLogs on the board {} from block {} on {} (chain {}); the events are decoded as in /verification/test-vectors.",
             b.board.address,
             b.board.deploy_block.unwrap_or(0),
             b.network.name,
@@ -1717,7 +1721,14 @@ pub const SELLER_RELEASE: SellerRelease = SellerRelease {
 /// builds this page only when the source is public.
 /// `outside`: the ledger's settlements on this bounty whose note names a
 /// party other than the authors, oldest first ([`crate::ledger::Snapshot::outside`]).
-pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&Value]) -> Doc {
+pub fn bounty(
+    m: &Mainnet,
+    vectors: &Value,
+    programs: &[Published],
+    outside: &[&Value],
+    rounds: Option<&[crate::market::view::RoundView]>,
+) -> Doc {
+    let round = m.bounty.current();
     let usdc = |units: u64| format!("{} {}", amount(units, m.token.decimals), m.token.name);
     let ex = &m.network.explorer;
     let mut blocks = vec![
@@ -1734,18 +1745,20 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&
                 "Price".into(),
                 vec![t(format!(
                     "{} a task, the cap in each post. The seller receives {}; the fee, {}, goes to the vault's treasury, {}.",
-                    usdc(m.bounty.price),
+                    usdc(m.bounty.current().price),
                     usdc(m.seller_receives()),
-                    usdc(m.bounty.price - m.seller_receives()),
+                    usdc(m.bounty.current().price - m.seller_receives()),
                     m.treasury_kind
                 ))],
             ),
             (
                 "Budget".into(),
                 vec![t(format!(
-                    "{}: at most {} tasks, one post open at a time.",
-                    usdc(m.bounty.budget),
-                    m.bounty.tasks
+                    "{}: at most {} tasks, one post open at a time. Round {}, opened {}.",
+                    usdc(round.budget),
+                    round.tasks,
+                    round.name,
+                    round.opened
                 ))],
             ),
             (
@@ -1777,6 +1790,7 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&
                 ))],
             ),
         ]),
+        h2("rounds", "Rounds"),
         h2("board", "The board now"),
         p(vec![
             t("Board "),
@@ -1793,12 +1807,13 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&
                 m.vault.address.clone(),
             ),
             t(format!(
-                ". The first post was task {} in ",
-                short(&m.bounty.first_task)
+                ". Round {}'s first post was task {} in ",
+                round.name,
+                short(&round.first_task)
             )),
             code_link(
-                format!("{ex}/tx/{}", m.bounty.first_post_transaction),
-                short(&m.bounty.first_post_transaction),
+                format!("{ex}/tx/{}", m.bounty.current().first_post_transaction),
+                short(&m.bounty.current().first_post_transaction),
             ),
             t("."),
         ]),
@@ -1852,7 +1867,7 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&
         Block::Ul(vec![
             vec![t(format!(
                 "At most one {} deposit is in the vault at a time.",
-                usdc(m.bounty.price)
+                usdc(m.bounty.current().price)
             ))],
             vec![t(format!(
                 "Circle, the issuer of {}, can freeze an address; the vault cannot pay a frozen one.",
@@ -1872,29 +1887,95 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&
     if outside.is_empty() {
         blocks.push(para(&format!("{SHOWS} None has yet.")));
     } else {
-        let mut line = vec![t(format!(
-            "{SHOWS} It has happened: {} of the {} tasks were settled with a seller the authors do not know, each paid by the contract: ",
-            outside.len(),
-            m.bounty.tasks
-        ))];
-        for (n, r) in outside.iter().enumerate() {
-            let id = s(r, "id");
-            if n > 0 {
-                line.push(t(", "));
+        // Grouped by round, by the order's amount: each round has its price.
+        let mut line = vec![t(format!("{SHOWS} It has happened: "))];
+        let mut first = true;
+        for r in &m.bounty.rounds {
+            let ids: Vec<&str> = outside
+                .iter()
+                .filter(|x| x["order"]["amount"].as_str() == Some(r.price.to_string().as_str()))
+                .map(|x| s(x, "id"))
+                .collect();
+            if ids.is_empty() {
+                continue;
             }
-            line.push(code_link(format!("/transactions/{id}"), short(id)));
+            if !first {
+                line.push(t("; "));
+            }
+            first = false;
+            line.push(t(format!(
+                "{} of round {}'s {} tasks were settled with a seller the authors do not know, each paid by the contract: ",
+                ids.len(),
+                r.name,
+                r.tasks
+            )));
+            for (n, id) in ids.iter().enumerate() {
+                if n > 0 {
+                    line.push(t(", "));
+                }
+                line.push(code_link(format!("/transactions/{id}"), short(id)));
+            }
         }
         line.push(t("."));
         blocks.push(p(line));
     }
+    // Every round, from the build's market index: the open one and the
+    // history. Live numbers are on /status.
+    let round_rows: Vec<Vec<Line>> = m
+        .bounty
+        .rounds
+        .iter()
+        .rev()
+        .map(|r| {
+            let read = rounds.and_then(|rs| rs.iter().find(|x| x.name == r.name));
+            vec![
+                vec![t(r.name.clone())],
+                vec![t(r.opened.clone())],
+                vec![t(usdc(r.price))],
+                vec![t(r.tasks.to_string())],
+                vec![t(usdc(r.budget))],
+                vec![t(
+                    read.map_or("not read".into(), |x| x.settled_tasks.to_string())
+                )],
+                vec![t(read.map_or("not read".into(), |x| {
+                    match x.remaining_tasks {
+                        Some(n) => n.to_string(),
+                        None => "over budget".into(),
+                    }
+                }))],
+            ]
+        })
+        .collect();
+    let rounds_at = blocks
+        .iter()
+        .position(|b| matches!(b, Block::Heading { id, .. } if id == "rounds"))
+        .map_or(0, |k| k + 1);
+    blocks.insert(
+        rounds_at,
+        Block::Table {
+            caption: "Rounds, from the build's market index; live on /status".into(),
+            head: [
+                "Round",
+                "Opened",
+                "Price",
+                "Tasks",
+                "Budget",
+                "Settled",
+                "Tasks left",
+            ]
+            .map(String::from)
+            .to_vec(),
+            rows: round_rows,
+        },
+    );
     let mut d = doc(
         "bounty",
-        &format!("Bounty: {} a task", usdc(m.bounty.price)),
+        &format!("Bounty: {} a task", usdc(m.bounty.current().price)),
         &format!(
             "A standing bounty on {}: {} per task to the first seller whose proof passes, at most {} tasks. Anyone may take part; the steps, measured times and risks.",
             m.network.name,
-            usdc(m.bounty.price),
-            m.bounty.tasks
+            usdc(m.bounty.current().price),
+            m.bounty.current().tasks
         ),
         blocks,
     );
@@ -2756,7 +2837,7 @@ fn seller_json(m: &Mainnet) -> String {
         m.board.deploy_block.unwrap_or(0),
         file_name(STATEMENT_FILE),
         file_name(PROOF_FILE),
-        m.bounty.price,
+        m.bounty.current().price,
     )
 }
 
@@ -3195,7 +3276,7 @@ fn from_source(m: &Mainnet, repo: &str) -> Vec<Block> {
                 "{{\n  \"deployment\": \"base.json\",\n  \"keys\": \"seller.keys\",\n  \"board\": \"{}\",\n  \"startBlock\": {},\n  \"relay\": \"default\",\n  \"prover\": [\"contracts/agents/target/release/nucleus-fixture-prover\",\n             \"{BOUNTY_STATEMENT}\",\n             \"{BOUNTY_PROOF}\"],\n  \"proverTimeoutSeconds\": 60,\n  \"price\": \"{}\",\n  \"proofHost\": \"contracts/proof-acceptance/zkvm/target/release/nucleus-acceptance-host\",\n  \"groth16\": \"native\",\n  \"expectedProvingSeconds\": 1200,\n  \"workDir\": \"seller-work\"\n}}",
                 m.board.address,
                 m.board.deploy_block.unwrap_or(0),
-                m.bounty.price,
+                m.bounty.current().price,
             ),
         ),
         p(vec![

@@ -119,7 +119,23 @@ fn run(args: &[String]) -> Res<()> {
                     .join(nucleus_site::status::DELIVERIES_FILE),
             )
             .ok();
-            let value = nucleus_site::status::snapshot(&input, now, deliveries.as_deref())?;
+            // The committed snapshot's index is filtered, so this reads the
+            // chain from the deploy blocks; the copy written is filtered again.
+            let dir = path.parent().ok_or("input path")?;
+            let names = nucleus_site::market::names(&input, dir)?;
+            let value = nucleus_site::status::snapshot(&input, now, deliveries.as_deref(), None)?;
+            let mut value = nucleus_site::status::public(&value, &names);
+            // Without a fresh deliveries.jws, keep the record the committed
+            // snapshot carries, with its own read time.
+            let out_path = dir.join("status.snapshot.json");
+            if deliveries.is_none()
+                && let Ok(old) = fs::read(&out_path)
+                && let Ok(old) = serde_json::from_slice::<serde_json::Value>(&old)
+                && old["deliveries"]["jws"].is_string()
+            {
+                value["deliveries"] = old["deliveries"].clone();
+                println!("no {}: kept the committed delivery record", nucleus_site::status::DELIVERIES_FILE);
+            }
             let out = path.parent().ok_or("input path")?.join("status.snapshot.json");
             fs::write(&out, serde_json::to_string_pretty(&value)? + "\n")?;
             println!(

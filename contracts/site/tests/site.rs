@@ -378,6 +378,9 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
     let (fresh_html, fresh_md) = refreshed_status(now - 60);
     std::fs::write(served.join("status/index.html"), &fresh_html).unwrap();
     std::fs::write(served.join("status/index.md"), &fresh_md).unwrap();
+    let (market_html, market_md) = refreshed_market(now - 60);
+    std::fs::write(served.join("market/index.html"), &market_html).unwrap();
+    std::fs::write(served.join("market/index.md"), &market_md).unwrap();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let dir = served.clone();
@@ -388,13 +391,13 @@ fn the_serving_table_the_caddy_block_and_the_preview_agree_and_check_live_finds_
     let findings = live::check(&base, &other).unwrap();
     let paths: Vec<&str> = findings.iter().map(|(p, _)| p.as_str()).collect();
     assert_eq!(paths, ["/deployment.json", "/protocol"], "{findings:?}");
-    // Red: the build-time page from the committed snapshot, days old: the
-    // one finding is its age (check-live did not fetch /status before).
-    let built_status = built(&input(), Some(SITE));
-    for name in ["status/index.html", "status/index.md"] {
-        let bytes = &built_status.iter().find(|(p, _)| p == name).unwrap().1;
-        std::fs::write(served.join(name), bytes).unwrap();
-    }
+    // Red: a page whose values are three days old: the one finding is its
+    // age (check-live did not fetch /status before). Until 2026-11-25 this
+    // served the build's page, which was old only while the committed
+    // snapshot was.
+    let (old_html, old_md) = refreshed_status(now - 3 * 86_400);
+    std::fs::write(served.join("status/index.html"), &old_html).unwrap();
+    std::fs::write(served.join("status/index.md"), &old_md).unwrap();
     let stale = live::check(&base, &other).unwrap();
     let stale: Vec<&(String, String)> = stale.iter().filter(|(p, _)| p == "/status").collect();
     assert_eq!(stale.len(), 1, "{stale:?}");
@@ -501,9 +504,11 @@ fn the_bounty_page_states_the_input_and_names_no_mainnet_treasury() {
     let bare = treasury.trim_start_matches("0x").to_owned();
     let files = built(&i, Some(SITE));
     let page = file(&files, "bounty/index.html");
-    let price = nucleus_site::amount(m.bounty.price, m.token.decimals);
+    let price = nucleus_site::amount(m.bounty.current().price, m.token.decimals);
     let receives = nucleus_site::amount(m.seller_receives(), m.token.decimals);
-    assert_eq!(receives, "24.9375", "25 USDC less 25 basis points");
+    assert_eq!(receives, "0.9975", "round r1: 1 USDC less 25 basis points");
+    // Round 1 stays on the page as history, with its own price.
+    assert!(page.contains("25 USDC"), "round 1 in the rounds table");
     for needle in [
         format!("{price} {}", m.token.name),
         format!("{receives} {}", m.token.name),
@@ -546,16 +551,19 @@ fn no_page_loads_anything_from_another_site() {
         assert!(!html.contains("<style"), "{path}: inline style");
     }
     let js = file(&files, "qed.js");
-    // Six network calls: the live list's and the status page's balance
-    // reads, each to the endpoint the reader sees and can edit; the two
+    // Seven network calls: the live list's check and the status page's
+    // balance reads, each to the endpoint the reader sees and can edit; the
+    // live list's market index (/market/market.json, since 2026-11-25), a
+    // fixed path on this site, without credentials; the two
     // checkers' (/verify, /visits), only to paths on this site (each guard
     // refuses anything else, and the checker pages' CSP admits only 'self');
     // and the visit beacon and the /visits table, each to one fixed path on
     // this site, without credentials.
-    assert_eq!(js.matches("fetch(").count(), 6);
+    assert_eq!(js.matches("fetch(").count(), 7);
+    assert_eq!(js.matches("fetch(\"/market/market.json\", {").count(), 1);
     assert_eq!(js.matches("fetch(\"/analytics/beacon\", {").count(), 1);
     assert_eq!(js.matches("fetch(\"/analytics/published\", {").count(), 1);
-    assert_eq!(js.matches("credentials: \"omit\"").count(), 4);
+    assert_eq!(js.matches("credentials: \"omit\"").count(), 5);
     assert!(!js.contains("document.cookie"));
     assert_eq!(js.matches("await fetch(url, {").count(), 3);
     assert_eq!(js.matches("return fetch(url, {").count(), 1);
@@ -790,7 +798,10 @@ fn who_has_traded_follows_the_ledgers_counterparty_notes() {
     }
     let bounty = file(&files, "bounty/index.md");
     assert!(!bounty.contains("None has yet"), "{bounty}");
-    assert!(bounty.contains("4 of the 4 tasks were settled with a seller the authors do not know"));
+    assert!(
+        bounty
+            .contains("4 of round 1's 4 tasks were settled with a seller the authors do not know")
+    );
     for id in &outside {
         assert!(bounty.contains(&format!("/transactions/{id}")), "{id}");
     }
@@ -1347,6 +1358,26 @@ fn elided_party_wallets_read_as_not_listed_and_nothing_else_changes() {
 
 /// The status page as the host's reader writes it, from the committed
 /// snapshot moved to `made` (its block's time).
+/// /market as the host's reader writes it, from the committed snapshot
+/// with its block made at `made`.
+fn refreshed_market(made: u64) -> (String, String) {
+    use nucleus_site::{doc, market, pages, status};
+    let mut s: Value = serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    s["blockTimestamp"] = json!(made);
+    s["takenAt"] = json!(made + 5);
+    let d = market::view::page_from(
+        &input(),
+        Some(&s),
+        status::Source::Refreshed { failed_at: None },
+        &market::view::Known::default(),
+    )
+    .unwrap();
+    (
+        doc::page(&d, Some(SITE), &pages::footer()),
+        doc::markdown(&d, Some(SITE)),
+    )
+}
+
 fn refreshed_status(made: u64) -> (String, String) {
     use nucleus_site::{doc, pages, status};
     let mut s: Value = serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();

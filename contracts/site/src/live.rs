@@ -203,7 +203,27 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
         .join(format!("{}/index.html", crate::status::STATUS_PATH))
         .is_file()
     {
-        findings.extend(check_status(&agent, base, built, https)?);
+        findings.extend(check_status(
+            &agent,
+            base,
+            built,
+            https,
+            crate::status::STATUS_PATH,
+        )?);
+    }
+    // /market and its market.json, rewritten by the same reader since
+    // 2026-11-25: the same rule, with the posters market.json shows.
+    if built
+        .join(format!("{}/index.html", crate::market::view::MARKET_PATH))
+        .is_file()
+    {
+        findings.extend(check_status(
+            &agent,
+            base,
+            built,
+            https,
+            crate::market::view::MARKET_PATH,
+        )?);
     }
     // A missing path: status 404, the built not-found page, as HTML. An
     // empty body with no media type is what Safari offered to download.
@@ -242,8 +262,13 @@ pub fn check(base: &str, built: &Path) -> Res<Vec<Finding>> {
 /// `/status`, which the web host rewrites every 10 minutes between releases
 /// (docs/rfcs/qed-status-refresh-2026-11-17.md §7): the same headers as any
 /// document, and `status::check_served` in place of a byte comparison.
-fn check_status(agent: &ureq::Agent, base: &str, built: &Path, https: bool) -> Res<Vec<Finding>> {
-    let path = crate::status::STATUS_PATH;
+fn check_status(
+    agent: &ureq::Agent,
+    base: &str,
+    built: &Path,
+    https: bool,
+    path: &str,
+) -> Res<Vec<Finding>> {
     let mut findings = Vec::new();
     let mut fail = |what: String| findings.push((format!("/{path}"), what));
     let built_html = fs::read_to_string(built.join(format!("{path}/index.html")))?;
@@ -312,7 +337,31 @@ fn check_status(agent: &ureq::Agent, base: &str, built: &Path, https: bool) -> R
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    for what in crate::status::check_served(&built_html, &built_md, &served[0], &served[1], now) {
+    let found = if path == crate::market::view::MARKET_PATH {
+        let json_path = crate::market::view::JSON_PATH;
+        let json = match agent.get(format!("{base}/{json_path}")).call() {
+            Ok(mut r) if r.status() == 200 => r.body_mut().read_to_string()?,
+            Ok(r) => {
+                fail(format!("/{json_path}: status {}", r.status()));
+                String::new()
+            }
+            Err(error) => {
+                fail(format!("/{json_path}: no response: {error}"));
+                String::new()
+            }
+        };
+        crate::market::view::check_served(
+            &built_html,
+            &built_md,
+            &served[0],
+            &served[1],
+            &json,
+            now,
+        )
+    } else {
+        crate::status::check_served(&built_html, &built_md, &served[0], &served[1], now)
+    };
+    for what in found {
         fail(what);
     }
     Ok(findings)

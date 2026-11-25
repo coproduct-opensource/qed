@@ -1149,6 +1149,9 @@ pub fn shown_posters(index: &Index) -> BTreeSet<String> {
         .collect()
 }
 
+#[path = "market/view.rs"]
+pub mod view;
+
 #[cfg(test)]
 #[path = "market/tests.rs"]
 mod tests;

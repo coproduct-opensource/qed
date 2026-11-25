@@ -229,7 +229,9 @@ fn author_wallets_appear_only_where_published() {
                 continue;
             }
             let chain_data = path.starts_with("receipts/0x") || path.starts_with("transactions/0x");
-            let status = path.starts_with("status/");
+            // /market names posters by address (owner decision, 2026-11-25):
+            // the published wallets may appear there as on /status.
+            let status = path.starts_with("status/") || path.starts_with("market/");
             let text = String::from_utf8_lossy(bytes).to_lowercase();
             for w in wallets {
                 let allowed = chain_data || (status && published.contains(w));
