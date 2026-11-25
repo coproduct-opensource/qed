@@ -17,6 +17,11 @@
 //!     written atomically under STATE_DIR/site/status/. On a failed read,
 //!     the last good values are shown with their age, and it exits 1.
 //!     Needs no key. docs/rfcs/qed-status-refresh-2026-11-17.md.
+//! nucleus-site market-capture INPUT OUT
+//!     Scan the main network's board and vaults from their deploy blocks
+//!     (read-only JSON-RPC) and write the market index, addresses filtered
+//!     for publication, to OUT: the fixture of contracts/site/tests/market.rs.
+//!     The authors' wallet list is read from authors-wallets.txt beside INPUT.
 //! nucleus-site card-key-create FILE
 //!     Make a new ES256 card-signing key file (mode 0600); refuses to overwrite.
 //! nucleus-site preview DIR 127.0.0.1:PORT
@@ -80,6 +85,27 @@ fn run(args: &[String]) -> Res<()> {
             } else {
                 Err(format!("{} finding(s)", findings.len()).into())
             }
+        }
+        [command, input_file, out] if command == "market-capture" => {
+            let path = Path::new(input_file);
+            let input = Input::read(path)?;
+            let chain = nucleus_site::market::chain_of(&input)?;
+            let url = input.mainnet.as_ref().ok_or("main network")?.network.rpc.clone();
+            let (index, _) = nucleus_site::market::read(
+                &mut |method, params| ledger::rpc(&url, method, params),
+                &chain,
+                None,
+            )?;
+            let names = nucleus_site::market::names(&input, path.parent().ok_or("input path")?)?;
+            let public = nucleus_site::market::filtered(&index, &names);
+            fs::write(out, serde_json::to_string_pretty(&public)? + "\n")?;
+            println!(
+                "block {}; {} events; {} calls; wrote {out}",
+                public.cursor,
+                public.events.len(),
+                public.scan.calls
+            );
+            Ok(())
         }
         [command, input_file, now] if command == "snapshot-status" => {
             let path = Path::new(input_file);

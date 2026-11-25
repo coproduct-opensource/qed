@@ -1,3 +1,4 @@
 target/
 .lake/
 *.keys
+contracts/site/input/authors-wallets.txt

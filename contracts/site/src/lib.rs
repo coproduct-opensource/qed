@@ -14,6 +14,7 @@ pub mod harness;
 pub mod html;
 pub mod ledger;
 pub mod live;
+pub mod market;
 pub mod pages;
 pub mod post;
 pub mod preview;
