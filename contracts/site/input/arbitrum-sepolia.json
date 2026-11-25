@@ -59,7 +59,8 @@
     "audited": false,
     "review": "Each had one read-only review by an AI model, which ran nothing: not an audit.",
     "counterparties": {
-      "kind": "authors-only"
+      "kind": "outside",
+      "firstOutsideSettlement": "0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24"
     }
   },
   "software": {

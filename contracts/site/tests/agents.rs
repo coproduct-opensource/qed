@@ -3,7 +3,7 @@
 //! Each check passes on the real build and is then driven red on a copy
 //! broken in exactly the way the check exists to catch.
 use nucleus_site::{
-    AUTHORS_ONLY, CARD_PATH, Input, Options, SPEC_PATH,
+    CARD_PATH, Input, Options, SPEC_PATH,
     harness::{self, Response},
     ledger::{LedgerInput, Snapshot},
     site,
@@ -81,17 +81,17 @@ impl Drop for Served {
 
 /// What the home page must show without scripts (owner review, 2026-11-14):
 /// the claim, the prompt to check it, the terms line (fee from the deployed
-/// vault), the maturity caveat (from the ledger's counterparty notes) and
+/// vault), the maturity line (from the ledger's counterparty notes: since 2026-11-25,
+/// a party other than the authors) and
 /// one real payment, with its amounts read from its receipt. The cautions
 /// the page carried until then are on the technical reference.
-const FACTS: [&str; 11] = [
+const FACTS: [&str; 10] = [
     "Q.E.D.",
     "COPRODUCT / NUCLEUS",
     "When the proof checks, the contract pays.",
     "Don't trust this explanation. Ask your agent.",
     "Base mainnet · 0.25% settlement fee · Unaudited.",
-    AUTHORS_ONLY,
-    "Independent third-party commerce is unproven.",
+    "A party other than the authors has settled through these contracts:",
     "A payment that actually happened",
     "1 USDC",
     "0.9975 USDC",

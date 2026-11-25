@@ -239,7 +239,7 @@ fn every_document_has_html_and_markdown_and_the_markdown_says_the_same_facts() {
     }
     let home = file(&files, "index.md");
     for fact in [
-        AUTHORS_ONLY,
+        "A party other than the authors has settled through these contracts:",
         "Unaudited.",
         "Don't trust this explanation. Ask your agent.",
         CARD_PATH,
@@ -476,7 +476,7 @@ fn author_addresses_are_not_named_unless_the_input_says_so() {
     let off = built(&i, Some(SITE));
     assert_eq!(labelled(&off, &i), Vec::<String>::new());
     assert!(
-        file(&off, "index.html").contains(&nucleus_site::html::esc(AUTHORS_ONLY)),
+        file(&off, "index.html").contains("A party other than the authors has settled"),
         "the general statement stays"
     );
     i.disclose_author_addresses = true;
@@ -673,16 +673,17 @@ fn the_receipts_are_the_snapshot_and_their_artifacts_hash_to_the_vaults_record()
         let html = file(&files, &format!("transactions/{id}/index.html"));
         assert!(html.contains(id));
     }
-    // Three settlements were in real money, all on Base (the second-form
-    // vault, the first relayed trade on the third-form vault, and the first
-    // trade on the vault of the reproducible programs); the rest were in
-    // test tokens.
+    // Seven settlements were in real money, all on Base (the second-form
+    // vault, the first relayed trade on the third-form vault, the first
+    // trade on the vault of the reproducible programs, and the bounty's four
+    // tasks settled by a seller the authors do not know, 2026-11-25); the
+    // rest were in test tokens.
     let real: Vec<_> = snap
         .receipts()
         .iter()
         .filter(|r| !r["asserted"]["realMoney"].is_null())
         .collect();
-    assert_eq!(real.len(), 3);
+    assert_eq!(real.len(), 7);
     assert!(real.iter().all(|r| r["network"]["chainId"] == 8453));
 }
 
@@ -742,36 +743,85 @@ fn the_decoders_test_logs_are_published_and_embedded_for_the_ledger_page() {
 /// card say so; one receipt recorded with an outside party moves every one
 /// of them, with no edit to the site's input. The input may not claim an
 /// outside trade the receipts do not show.
+///
+/// Since 2026-11-25 the real ledger carries four outside settlements (the
+/// bounty's four tasks, settled by a seller the authors do not know), so the
+/// authors-only case is built here from the same ledger with every note set
+/// to the authors'.
 #[test]
 fn who_has_traded_follows_the_ledgers_counterparty_notes() {
-    let input = input();
+    let key = test_key();
+    let build = |input: &Input, l: &LedgerInput, s: &Snapshot| {
+        let options = Options {
+            site_url: Some(SITE),
+            ledger: Some((l, s)),
+            card_key: Some(&key),
+            source_commit: Some("0123456789ab"),
+        };
+        site(input, repository(), &options)
+    };
+    // The real data: the first outside settlement, from the ledger's notes,
+    // and the bounty page counting them with a link to each.
+    let real = input();
+    let (l, s) = ledger();
+    let outside: Vec<String> = s
+        .outside()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(outside.len(), 4);
     assert!(matches!(
-        input.assurance.counterparties,
-        Counterparties::AuthorsOnly
+        &real.assurance.counterparties,
+        Counterparties::Outside { first_outside_settlement } if *first_outside_settlement == outside[0]
     ));
-    let files = built(&input, Some(SITE));
+    let files = built(&real, Some(SITE));
+    let home = file(&files, "index.html");
+    assert!(home.contains("A party other than the authors"));
+    assert!(home.contains(&format!("/transactions/{}", outside[0])));
+    // The featured payment predates it and is still the authors' own.
+    assert!(home.contains(&nucleus_site::html::esc(
+        "The authors' own test transaction"
+    )));
+    for page in ["index.html", "transactions/index.html", CARD_PATH] {
+        assert!(
+            !file(&files, page).contains(&nucleus_site::html::esc(AUTHORS_ONLY)),
+            "{page} still says authors only"
+        );
+    }
+    let bounty = file(&files, "bounty/index.md");
+    assert!(!bounty.contains("None has yet"), "{bounty}");
+    assert!(bounty.contains("4 of the 4 tasks were settled with a seller the authors do not know"));
+    for id in &outside {
+        assert!(bounty.contains(&format!("/transactions/{id}")), "{id}");
+    }
+    // Every note the authors', the input saying so: authors only, and the
+    // bounty page says none has yet.
+    let mut authors = real.clone();
+    authors.assurance.counterparties = Counterparties::AuthorsOnly;
+    let mut s = s.clone();
+    for r in s.value["receipts"].as_array_mut().unwrap() {
+        r["asserted"]["counterparties"] = json!(nucleus_site::ledger::AUTHORS_HELD);
+    }
+    let only = build(&authors, &l, &s).unwrap();
     for page in ["index.html", "transactions/index.html"] {
         assert!(
-            file(&files, page).contains(&nucleus_site::html::esc(AUTHORS_ONLY)),
+            file(&only, page).contains(&nucleus_site::html::esc(AUTHORS_ONLY)),
             "{page}"
         );
     }
-    assert!(file(&files, "index.html").contains("Independent third-party commerce is unproven."));
-    assert!(file(&files, CARD_PATH).contains(AUTHORS_ONLY));
+    assert!(file(&only, "index.html").contains("Independent third-party commerce is unproven."));
+    assert!(file(&only, CARD_PATH).contains(AUTHORS_ONLY));
+    assert!(file(&only, "bounty/index.md").contains("None has yet."));
     // One outside settlement in the ledger, nothing else changed.
-    let (l, mut s) = ledger();
-    let last = s.value["receipts"].as_array().unwrap().len() - 1;
-    s.value["receipts"][last]["asserted"]["counterparties"] =
+    let mut one = s.clone();
+    let last = one.value["receipts"].as_array().unwrap().len() - 1;
+    one.value["receipts"][last]["asserted"]["counterparties"] =
         json!("The seller was not the authors: a stranger's wallet.");
-    let outside_id = s.value["receipts"][last]["id"].as_str().unwrap().to_owned();
-    let key = test_key();
-    let options = Options {
-        site_url: Some(SITE),
-        ledger: Some((&l, &s)),
-        card_key: Some(&key),
-        source_commit: Some("0123456789ab"),
-    };
-    let flipped = site(&input, repository(), &options).unwrap();
+    let outside_id = one.value["receipts"][last]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let flipped = build(&authors, &l, &one).unwrap();
     let home = file(&flipped, "index.html");
     assert!(home.contains("A party other than the authors"));
     assert!(home.contains(&format!("/transactions/{outside_id}")));
@@ -783,38 +833,18 @@ fn who_has_traded_follows_the_ledgers_counterparty_notes() {
     }
     // Every note says the authors: the input claiming an outside trade is
     // refused.
-    let (l, mut s) = ledger();
-    for r in s.value["receipts"].as_array_mut().unwrap() {
-        r["asserted"]["counterparties"] = json!(nucleus_site::ledger::AUTHORS_HELD);
-    }
-    let mut claims = input.clone();
-    claims.assurance.counterparties = Counterparties::Outside {
-        first_outside_settlement: "0x".to_owned() + &"1".repeat(64),
-    };
-    let options = Options {
-        site_url: Some(SITE),
-        ledger: Some((&l, &s)),
-        card_key: Some(&key),
-        source_commit: Some("0123456789ab"),
-    };
-    assert!(site(&claims, repository(), &options).is_err());
-    // No notes at all (the public copy of the snapshot, from which the
-    // release tool removes them): the ledger cannot say, and an absent note
-    // is not an outside trade. Found 2026-11-14 when the public tree's tests
-    // ran: the first version read an absent note as an outside party.
+    assert!(build(&real, &l, &s).is_err());
+    // No notes at all (the release tool's public copy before 2026-11-25):
+    // the ledger cannot say, and an absent note is not an outside trade.
+    // Found 2026-11-14 when the public tree's tests ran: the first version
+    // read an absent note as an outside party.
     for r in s.value["receipts"].as_array_mut().unwrap() {
         r["asserted"]
             .as_object_mut()
             .unwrap()
             .remove("counterparties");
     }
-    let options = Options {
-        site_url: Some(SITE),
-        ledger: Some((&l, &s)),
-        card_key: Some(&key),
-        source_commit: Some("0123456789ab"),
-    };
-    let noteless = site(&input, repository(), &options).unwrap();
+    let noteless = build(&authors, &l, &s).unwrap();
     let home = file(&noteless, "index.html");
     assert!(home.contains(&nucleus_site::html::esc(AUTHORS_ONLY)));
     assert!(!home.contains("A party other than the authors"));
@@ -1149,6 +1179,12 @@ fn the_status_page_shows_the_buyers_signed_delivery_counts_or_could_not_read() {
     ] {
         assert!(md.contains(row), "{row} missing:\n{md}");
     }
+    // Every read record is bounded by its signature: it says nothing of
+    // what came after.
+    assert!(
+        md.contains("The record says nothing of later attempts; settlements are on chain, in the [ledger](/transactions)."),
+        "{md}"
+    );
     assert!(
         md.contains("signed by the bounty buyer, 2026-11-14"),
         "{md}"
@@ -1162,12 +1198,17 @@ fn the_status_page_shows_the_buyers_signed_delivery_counts_or_could_not_read() {
         "{md}"
     );
 
-    // Nothing recorded: said so, with the date the record began.
+    // Nothing recorded: said so, bounded by the record's own dates, never
+    // "since" (2026-11-25: sellers settled on chain after a record that
+    // read "none since 2026-11-14").
     let md = page(Some(&signed(&record(&[]), &buyer_key)));
     assert!(
-        md.contains("No delivery attempt has been recorded since 2026-11-14"),
+        md.contains(
+            "No delivery attempt was recorded from 2026-11-14 21:00 UTC to 2026-11-14 21:10 UTC."
+        ),
         "{md}"
     );
+    assert!(!md.contains("recorded since"), "{md}");
     assert!(!md.contains(COUNTS));
 
     // An unreadable line is shown, not folded into the counts.
@@ -1194,7 +1235,7 @@ fn the_status_page_shows_the_buyers_signed_delivery_counts_or_could_not_read() {
             "{md}"
         );
         assert!(!md.contains(COUNTS));
-        assert!(!md.contains("No delivery attempt has been recorded"));
+        assert!(!md.contains("No delivery attempt was recorded"));
     }
     // An input without the buyer's key reads nothing.
     let mut bare = input.clone();

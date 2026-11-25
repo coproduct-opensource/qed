@@ -1,13 +1,13 @@
 {
   "networks": [
     {
-      "block": 328993694,
+      "block": 332512591,
       "chainId": 421614,
       "key": "arbitrum-sepolia",
       "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
     },
     {
-      "block": 57146040,
+      "block": 61978436,
       "chainId": 8453,
       "key": "base",
       "rpc": "https://base-rpc.publicnode.com"
@@ -24,14 +24,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First settlement on a public chain, in a test token deployed by the authors.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
-        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)"
+        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)",
+        "what": "First settlement on a public chain, in a test token deployed by the authors."
       },
       "booked": {
         "fee": "2500",
@@ -74,7 +74,7 @@
         "transaction": "0x57c9eda037f2a7e474d8f0117220a4bba69c2c494547fb7bc6b2b83f75ec4218"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -95,14 +95,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Same vault, paid in Circle's test USDC.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
-        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)"
+        "vaultName": "First form: paid the fee to the treasury inside settle (source removed 2026-11-12)",
+        "what": "Same vault, paid in Circle's test USDC."
       },
       "booked": {
         "fee": "2500",
@@ -145,7 +145,7 @@
         "transaction": "0x7a60799f0933a51e86d844e81c85360a80c27905aa438507536aa94ea550e780"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -166,14 +166,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Second form: the fee booked in settle and swept to the treasury afterwards.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
-        "vaultName": "Second form: fee booked, then swept"
+        "vaultName": "Second form: fee booked, then swept",
+        "what": "Second form: the fee booked in settle and swept to the treasury afterwards."
       },
       "booked": {
         "fee": "2500",
@@ -216,7 +216,7 @@
         "transaction": "0x00528f833084175726816eb3b8da3fcbb47e1bbe9fefd1262617bc42443d993e"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -237,7 +237,6 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Settlement in USDC on Base (mainnet): 0.40 USDC, fee 0.001 USDC.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
@@ -247,7 +246,8 @@
           "what": "USDC issued by Circle on Base"
         },
         "record": "docs/rfcs/proof-commerce-thin-vault-2026-11-11.md",
-        "vaultName": "Second form on Base (mainnet)"
+        "vaultName": "Second form on Base (mainnet)",
+        "what": "Settlement in USDC on Base (mainnet): 0.40 USDC, fee 0.001 USDC."
       },
       "booked": {
         "fee": "1000",
@@ -290,7 +290,7 @@
         "transaction": "0x785ca37eb6360b4f44f1f42a4ce0c4cc02fdf193208c18ad5621c33680368acf"
       },
       "snapshot": {
-        "block": 57146040,
+        "block": 61978436,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -311,14 +311,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Buyer and seller as two processes talking over iroh.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-harness-and-iroh-2026-11-12.md",
-        "vaultName": "Second form: fee booked, then swept"
+        "vaultName": "Second form: fee booked, then swept",
+        "what": "Buyer and seller as two processes talking over iroh."
       },
       "booked": {
         "fee": "625",
@@ -361,7 +361,7 @@
         "transaction": "0x0459ba1e98d495ddf25dc996b93cd9d89311c271220aa3d055a810419337ef66"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -382,14 +382,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First trade found through the task board.",
         "program": {
           "name": "second-form order program",
           "status": "not-distributed"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-task-board-2026-11-12.md",
-        "vaultName": "Second form: fee booked, then swept"
+        "vaultName": "Second form: fee booked, then swept",
+        "what": "First trade found through the task board."
       },
       "booked": {
         "fee": "625",
@@ -432,7 +432,7 @@
         "transaction": "0xfe7e8855170f71532e6200feef0d5685868565d05216dd0426d6cb7d7cc4825c"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -453,14 +453,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Third form: everything booked and claimed.",
         "program": {
           "name": "third-form order program, no bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-third-vault-2026-11-12.md",
-        "vaultName": "Third form, with a registry that has no entries"
+        "vaultName": "Third form, with a registry that has no entries",
+        "what": "Third form: everything booked and claimed."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -506,7 +506,7 @@
         "transaction": "0x91bd2e1c4a9391314e04fea4abb069bf8e1f15cb8bc24df576345ee499eeb7c7"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -527,14 +527,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Groth16 seal produced by the native Rust wrap, with no container on the seller.",
         "program": {
           "name": "third-form order program, no bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-native-groth16-2026-11-12.md",
-        "vaultName": "Third form, with a registry that has no entries"
+        "vaultName": "Third form, with a registry that has no entries",
+        "what": "Groth16 seal produced by the native Rust wrap, with no container on the seller."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -580,7 +580,7 @@
         "transaction": "0x14c95288fd99780b54f176a7cfdf5d025861a4779346d83073ec14603b5bb44d"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -601,14 +601,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Order on a registered base: seller, treasury and the base's payee each owed a share.",
         "program": {
           "name": "third-form order program with bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-checked-bases-2026-11-12.md",
-        "vaultName": "Third form, first base registry"
+        "vaultName": "Third form, first base registry",
+        "what": "Order on a registered base: seller, treasury and the base's payee each owed a share."
       },
       "booked": {
         "basePayee": "elided",
@@ -654,7 +654,7 @@
         "transaction": "0xbca25630daae42796b0f111beaeaf1f0fab207cc34f8e87dac3894350b83dbfa"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -675,14 +675,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Seller behind home NAT, buyer on a cloud machine, reached by node ID through a relay.",
         "program": {
           "name": "third-form order program with bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-cross-machine-2026-11-13.md",
-        "vaultName": "Third form, with a registry that has no entries"
+        "vaultName": "Third form, with a registry that has no entries",
+        "what": "Seller behind home NAT, buyer on a cloud machine, reached by node ID through a relay."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -728,7 +728,7 @@
         "transaction": "0xc18d56efb6e7a210800e10f0fe8694c89d197f33d21d4df8f0c3cae75fdd42c4"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -749,14 +749,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Seller on a CPU-only Linux cloud machine.",
         "program": {
           "name": "third-form order program with bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-linux-seller-2026-11-13.md",
-        "vaultName": "Third form, with a registry that has no entries"
+        "vaultName": "Third form, with a registry that has no entries",
+        "what": "Seller on a CPU-only Linux cloud machine."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -802,7 +802,7 @@
         "transaction": "0x3b6cd2fe1f6e9b93b66ebce8b59dd6c6160bcb8dafc6629f219210704c9fd322"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -823,14 +823,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First task of the standing bounty.",
         "program": {
           "name": "third-form order program with bases",
           "status": "retired"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-standing-bounty-2026-11-13.md",
-        "vaultName": "Third form, with a registry that has no entries"
+        "vaultName": "Third form, with a registry that has no entries",
+        "what": "First task of the standing bounty."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -876,7 +876,7 @@
         "transaction": "0xb90258b2ccbc4fb76dbc4653a222252cbfca05918f6f8868360e76861df38549"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -897,14 +897,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Standing bounty on the rebuilt programs.",
         "program": {
           "name": "third-form order program (nucleus-vault3-acceptance.bin)",
           "status": "published"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-program-rebuild-2026-11-13.md",
-        "vaultName": "Third form, programs rebuilt without build paths"
+        "vaultName": "Third form, programs rebuilt without build paths",
+        "what": "Standing bounty on the rebuilt programs."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -950,7 +950,7 @@
         "transaction": "0x6af0909f2b2cefc8fe8fd3ae0913e9f97c68e4b3fed753d34c42ca7b476b080f"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -971,14 +971,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Buyer speaking only A2A over iroh.",
         "program": {
           "name": "third-form order program (nucleus-vault3-acceptance.bin)",
           "status": "published"
         },
         "realMoney": null,
         "record": "docs/rfcs/a2a-over-iroh-binding-2026-11-13.md",
-        "vaultName": "Third form, programs rebuilt without build paths"
+        "vaultName": "Third form, programs rebuilt without build paths",
+        "what": "Buyer speaking only A2A over iroh."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -1024,7 +1024,7 @@
         "transaction": "0xa5e4a883c4d666b798147acc3cb9d5b94a0dd68e64fbfc56404a7420adb34130"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1045,14 +1045,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First task about Nucleus's own code: should_gate on the extracted pure core of Kernel::decide (gate completeness).",
         "program": {
           "name": "third-form order program (nucleus-vault3-acceptance.bin)",
           "status": "published"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-nucleus-open-obligations-2026-11-13.md",
-        "vaultName": "Third form, programs rebuilt without build paths"
+        "vaultName": "Third form, programs rebuilt without build paths",
+        "what": "First task about Nucleus's own code: should_gate on the extracted pure core of Kernel::decide (gate completeness)."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -1098,7 +1098,7 @@
         "transaction": "0x22187b899f01999abef5b4c1d483d0e5d684b141cf73e054bd9afd1770974899"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1119,14 +1119,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "Standing bounty on the statement format v2 programs.",
         "program": {
           "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)",
           "status": "published"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-statement-format-v2-2026-11-13.md",
-        "vaultName": "Third form, statement format v2 programs"
+        "vaultName": "Third form, statement format v2 programs",
+        "what": "Standing bounty on the statement format v2 programs."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -1172,7 +1172,7 @@
         "transaction": "0xcb960e4ebf84ce7c5efce8da572416babbe1f157ddccecb1eb53993065b758c4"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1193,14 +1193,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty.",
         "program": {
           "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)",
           "status": "published"
         },
         "realMoney": null,
         "record": "docs/rfcs/proof-commerce-redeploy-fmt2-2026-11-13.md",
-        "vaultName": "Third form, statement format v2 programs"
+        "vaultName": "Third form, statement format v2 programs",
+        "what": "First order on the registered Nucleus library base: the credential obligation, proved on a GPU, paying the base's payee its royalty."
       },
       "booked": {
         "basePayee": "elided",
@@ -1246,7 +1246,7 @@
         "transaction": "0x864dca39d42bc9497bf5e5d719ec0be221a94970c86860e5fed8f824bd81e7d3"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1267,7 +1267,6 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First trade on the Base third-form vault: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.",
         "program": {
           "name": "third-form order program, statement format v2 (nucleus-order-fmt2.bin)",
           "status": "published"
@@ -1277,7 +1276,8 @@
           "what": "USDC issued by Circle on Base"
         },
         "record": "docs/rfcs/qed-relayer-2026-11-13.md",
-        "vaultName": "Third form on Base (mainnet), statement format v2 programs"
+        "vaultName": "Third form on Base (mainnet), statement format v2 programs",
+        "what": "First trade on the Base third-form vault: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -1323,7 +1323,7 @@
         "transaction": "0x441087830f76dcfca37e7127cf1dd19ff7a3e9741ef2a0562507503ffd59b5c8"
       },
       "snapshot": {
-        "block": 57146040,
+        "block": 61978436,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -1344,14 +1344,14 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First trade on the programs that rebuild from source: a task on the registered toy base, with the vault that checks its registry's ceiling at construction.",
         "program": {
           "name": "third-form order program, statement format v2, rebuilds from source (nucleus-order-fmt2r.bin)",
-          "status": "published"
+          "status": "superseded"
         },
         "realMoney": null,
         "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md",
-        "vaultName": "Third form, reproducible programs; refuses a registry whose ceiling exceeds its fee room"
+        "vaultName": "Third form, reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "First trade on the programs that rebuild from source: a task on the registered toy base, with the vault that checks its registry's ceiling at construction."
       },
       "booked": {
         "basePayee": "elided",
@@ -1397,7 +1397,7 @@
         "transaction": "0x617c633ffc1990ac62774ac415deb41b1f1e92bd39aea5f205777f8640dc85a8"
       },
       "snapshot": {
-        "block": 328993694,
+        "block": 332512591,
         "rpc": "https://sepolia-rollup.arbitrum.io/rpc"
       },
       "token": {
@@ -1418,17 +1418,17 @@
       },
       "asserted": {
         "assertedBy": "authors",
-        "what": "First trade on the Base vault of the reproducible programs: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer.",
         "program": {
           "name": "third-form order program, statement format v2, rebuilds from source (nucleus-order-fmt2r.bin)",
-          "status": "published"
+          "status": "superseded"
         },
         "realMoney": {
           "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
           "what": "USDC issued by Circle on Base"
         },
         "record": "docs/rfcs/qed-reproducible-switch-2026-11-13.md",
-        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room"
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "First trade on the Base vault of the reproducible programs: 1 USDC, a seller holding no ETH, fund, settle and claim sent by the gas relayer."
       },
       "booked": {
         "basePayee": "0x0000000000000000000000000000000000000000",
@@ -1474,7 +1474,319 @@
         "transaction": "0x89c770c44b57f11c2ae1efb5b69628ae8cf5cc3512e023f7d9b66a87dc5bb0d1"
       },
       "snapshot": {
-        "block": 57146040,
+        "block": 61978436,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "counterparties": "The seller was not the authors: a wallet unknown to them, paid through the gas relayer.",
+        "program": {
+          "name": "third-form order program, statement format v2, refuses kernel-reserved names (nucleus-order-fmt2s.bin)",
+          "status": "published"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/qed-first-outside-settlements-2026-11-25.md",
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "Bounty task 1 of 4, settled by a seller unknown to the authors: 25 USDC, the published proof, fund, settle and claim through the gas relayer."
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "62500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "24937500"
+      },
+      "funding": {
+        "block": 61917840,
+        "timestamp": 1795573943,
+        "transaction": "0x8a8abe9b44946f32a7efc90040543717cd6499937672a3f38f849aa84d3c0948"
+      },
+      "id": "0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "25000000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",
+        "context": "0xe822fb25d1e4cc66aecf2b928d9e6495a54051d8b2682baf956d4c42f3920f94",
+        "deliverBy": 1795584742,
+        "fundBy": 1795574842,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0xbfe27f646aebc83cb345913450b426ed8a941b3103c1089debb55116df2336d8",
+        "salt": "0xe29f3d54feb0715d84d483cd343fdb913d94a82749df965220ac000f92040877",
+        "seller": "0xe7747c9034cb460080f95a438e76c9d3ac740f82",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xcdea51489e4a4e03a07d63d5443a4f978e93b94a6ca1850ab242458fe8946c24",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 61927422,
+        "from": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+        "gasUsed": 331877,
+        "timestamp": 1795575860,
+        "transaction": "0x5b2a55604a0abfbb5d5b1a2f8ccb4fe782e000f6ab7186aa71b90f1e8e0d9b59"
+      },
+      "snapshot": {
+        "block": 61978436,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "counterparties": "The seller was not the authors: a wallet unknown to them, paid through the gas relayer.",
+        "program": {
+          "name": "third-form order program, statement format v2, refuses kernel-reserved names (nucleus-order-fmt2s.bin)",
+          "status": "published"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/qed-first-outside-settlements-2026-11-25.md",
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "Bounty task 2 of 4, settled by a seller unknown to the authors: 25 USDC, the published proof, fund, settle and claim through the gas relayer."
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "62500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "24937500"
+      },
+      "funding": {
+        "block": 61934676,
+        "timestamp": 1795577310,
+        "transaction": "0xd72be857a91970a2d6a7c6b3dcc1946f09d6923a4719ca2a2b2cfe81e5c18cd2"
+      },
+      "id": "0xb5c5bdf7feaeb0d2b93d188facfd17812fe78e0047ef458067ecf4e0fbf7859a",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "25000000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",
+        "context": "0xd0d7f94faa8419f9bc81831c54ddc9a04e9eac068c7cc14a41caac0f7b3cc4d5",
+        "deliverBy": 1795588109,
+        "fundBy": 1795578209,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0xbfe27f646aebc83cb345913450b426ed8a941b3103c1089debb55116df2336d8",
+        "salt": "0xd94063556e97f63cdc37c0c34bc6d6c6965dd4ce6e9a27066318b1cfb4ce6eaf",
+        "seller": "0xe7747c9034cb460080f95a438e76c9d3ac740f82",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xb5c5bdf7feaeb0d2b93d188facfd17812fe78e0047ef458067ecf4e0fbf7859a",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 61944213,
+        "from": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+        "gasUsed": 331889,
+        "timestamp": 1795579218,
+        "transaction": "0xa4c899060ecb19aa16c1b3f5889c1daf5687576dd13aa3b92e2f0b83a55394d7"
+      },
+      "snapshot": {
+        "block": 61978436,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "counterparties": "The seller was not the authors: a wallet unknown to them, paid through the gas relayer.",
+        "program": {
+          "name": "third-form order program, statement format v2, refuses kernel-reserved names (nucleus-order-fmt2s.bin)",
+          "status": "published"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/qed-first-outside-settlements-2026-11-25.md",
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "Bounty task 3 of 4, settled by a seller unknown to the authors: 25 USDC, the published proof, fund, settle and claim through the gas relayer."
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "62500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "24937500"
+      },
+      "funding": {
+        "block": 61944678,
+        "timestamp": 1795579311,
+        "transaction": "0xc5bf0e53ef4e5eafb63232cb7163ae3945f06b56f5e7e38b3b0f38920248819b"
+      },
+      "id": "0xf894cd7e822b16dfc96059edb16ef0226a4453fb7e9bcc3f91411d44d9f14881",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "25000000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",
+        "context": "0xb24d0bba9ea90262ec441448c30c1c95056067e9ab3e16f8d250ffd45df98902",
+        "deliverBy": 1795590110,
+        "fundBy": 1795580210,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0xbfe27f646aebc83cb345913450b426ed8a941b3103c1089debb55116df2336d8",
+        "salt": "0xec24333207cddb18cc9b33126f15d1138842d0116144f7b3a009bdff0117953f",
+        "seller": "0xe7747c9034cb460080f95a438e76c9d3ac740f82",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0xf894cd7e822b16dfc96059edb16ef0226a4453fb7e9bcc3f91411d44d9f14881",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 61954293,
+        "from": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+        "gasUsed": 331877,
+        "timestamp": 1795581234,
+        "transaction": "0x0f9deaa1e05f26bf02894939ecc1d8285d9a5226d06571b035195693c2dc01b7"
+      },
+      "snapshot": {
+        "block": 61978436,
+        "rpc": "https://base-rpc.publicnode.com"
+      },
+      "token": {
+        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "decimals": 6,
+        "name": "USD Coin",
+        "symbol": "USDC"
+      },
+      "vault": "0x952c31aa208dd129059f6065a26b57c930c6ab3c"
+    },
+    {
+      "artifact": {
+        "bytes": 285,
+        "inSettledLog": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "keccak256": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "recordedByVault": "0xec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "url": "/artifacts/ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8.bin"
+      },
+      "asserted": {
+        "assertedBy": "authors",
+        "counterparties": "The seller was not the authors: a wallet unknown to them, paid through the gas relayer.",
+        "program": {
+          "name": "third-form order program, statement format v2, refuses kernel-reserved names (nucleus-order-fmt2s.bin)",
+          "status": "published"
+        },
+        "realMoney": {
+          "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+          "what": "USDC issued by Circle on Base"
+        },
+        "record": "docs/rfcs/qed-first-outside-settlements-2026-11-25.md",
+        "vaultName": "Third form on Base (mainnet), reproducible programs; refuses a registry whose ceiling exceeds its fee room",
+        "what": "Bounty task 4 of 4, settled by a seller unknown to the authors: 25 USDC, the published proof, fund, settle and claim through the gas relayer."
+      },
+      "booked": {
+        "basePayee": "0x0000000000000000000000000000000000000000",
+        "fee": "62500",
+        "kind": "owed, paid out by claim",
+        "royalty": "0",
+        "seller": "24937500"
+      },
+      "funding": {
+        "block": 61954727,
+        "timestamp": 1795581321,
+        "transaction": "0xc0f11fa0b13b1993f66c44213e08bb23fb69c9e060687bc27750ad3eaa124eaa"
+      },
+      "id": "0x47e69316147efd3853a60912e499b84f8a9c42e6ff265bb85197c10d97906885",
+      "network": {
+        "chainId": 8453,
+        "name": "Base",
+        "testnet": false
+      },
+      "order": {
+        "amount": "25000000",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "base": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "buyer": "0x133c25a80fb323de143e8ad5c6c620bf8713edfd",
+        "context": "0x08770b74dba1a800a78f85b235cb8d92b27bf51a9e80bf531f8afb0bfe630370",
+        "deliverBy": 1795592120,
+        "fundBy": 1795582220,
+        "policyHash": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "program": "0xbfe27f646aebc83cb345913450b426ed8a941b3103c1089debb55116df2336d8",
+        "salt": "0x3271b9612a638432e2e9d0b823aa32e5aacb216bd667649442bda297ca733952",
+        "seller": "0xe7747c9034cb460080f95a438e76c9d3ac740f82",
+        "verifier": "0x8c915b5071206c6e328bc18529586c513408ab3b"
+      },
+      "orderDigest": "0x47e69316147efd3853a60912e499b84f8a9c42e6ff265bb85197c10d97906885",
+      "orderLayout": "twelve-field",
+      "phaseAtSnapshot": "settled",
+      "schema": "qed-receipt/1",
+      "settlement": {
+        "block": 61964374,
+        "from": "0x7dca2f7e7e06b155f74a3dfb0ea90f8de776c218",
+        "gasUsed": 331865,
+        "timestamp": 1795583250,
+        "transaction": "0xaac441097d14b8f20d047099edb92364e2449f1958c0d4466c87d4487bd986c2"
+      },
+      "snapshot": {
+        "block": 61978436,
         "rpc": "https://base-rpc.publicnode.com"
       },
       "token": {
@@ -1487,6 +1799,6 @@
     }
   ],
   "schema": "qed-ledger-snapshot/1",
-  "takenAt": 1794619583,
+  "takenAt": 1795586062,
   "elided": "order.buyer, order.seller, settlement.from and booked.basePayee read \"elided\" where they are the authors' own wallets, other than the bounty buyer and the relayer. Each receipt keeps its funding and settlement transaction hashes; the order, and so these addresses, are in those transactions on chain."
 }

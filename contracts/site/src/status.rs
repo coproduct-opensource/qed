@@ -478,10 +478,17 @@ fn deliveries_section(st: &StatusInput, snap: &Value, source: Source) -> (Vec<Bl
         }
         Deliveries::Read(s) => s,
     };
-    blocks.push(para(&format!(
-        "Off-chain offers, signed by the bounty buyer, {}.{as_of}",
-        date(s.signed_at)
-    )));
+    // Bounded by the signature's date: the record says nothing of what came
+    // after it (2026-11-25, when a seller settled four tasks on chain after a
+    // record that still read as current).
+    blocks.push(p(vec![
+        t(format!(
+            "Off-chain offers, signed by the bounty buyer, {}.{as_of} The record says nothing of later attempts; settlements are on chain, in the ",
+            date(s.signed_at)
+        )),
+        link("/transactions", "ledger"),
+        t("."),
+    ]));
     let line = vec![
         strong("Delivery attempts:"),
         t(format!(
@@ -491,9 +498,11 @@ fn deliveries_section(st: &StatusInput, snap: &Value, source: Source) -> (Vec<Bl
         )),
     ];
     if s.records == 0 && s.unreadable == 0 && s.unrecorded == 0 {
+        // Not "since": the record ends when it was signed.
         blocks.push(para(&format!(
-            "No delivery attempt has been recorded since {}.",
-            date(s.opened)
+            "No delivery attempt was recorded from {} to {}.",
+            date(s.opened),
+            date(s.signed_at)
         )));
     } else {
         let count = |what: String, n: u64| vec![vec![t(what)], vec![t(n.to_string())]];

@@ -18,8 +18,11 @@ Read this before anything else.
 
 - **The contracts are unaudited.** Each has had one read-only review by an AI
   model, not by a person.
-- **Every settlement so far was between the authors' own keys.** Nobody else
-  has bought or sold through these contracts yet.
+- **A seller the authors do not know has been paid.** On 2026-11-25 one
+  wallet outside the authors' list settled all four bounty tasks on Base,
+  delivering the published proof through the gas relayer; every settlement
+  before those was between the authors' own keys. The receipts are at
+  https://qed.coproduct.dev/transactions.
 - **Base mainnet is the only live offer.** Its board, with Circle's USDC,
   carries a standing bounty: 25 USDC a task, at most four tasks, paid to the
   first seller whose proof settles. The bounty's statement has a public
@@ -29,11 +32,14 @@ Read this before anything else.
 - **The test deployment (Arbitrum Sepolia, test tokens) is history.** No
   buyer runs there since 2026-11-14; its settlements stay in the ledger at
   https://qed.coproduct.dev/transactions.
-- **Two settlements used real money**, both between the authors' keys: 0.40
-  USDC on Base mainnet through an earlier vault (`NucleusVault2`,
-  `0x30f522bc30d46b3a4089931d698f04656fa23b8d`), and 1 USDC through the
-  previous third-form vault (`0x8917c501755f966a5b5f20d6608e297e7066f13b`),
-  every call sent by the gas relayer.
+- **Seven settlements used real money**, all USDC on Base mainnet. Three
+  were between the authors' keys: 0.40 USDC through an earlier vault
+  (`NucleusVault2`, `0x30f522bc30d46b3a4089931d698f04656fa23b8d`), 1 USDC
+  through the previous third-form vault
+  (`0x8917c501755f966a5b5f20d6608e297e7066f13b`) and 1 USDC through the
+  current one (`0x952c31aa208dd129059f6065a26b57c930c6ab3c`), the last two
+  with every call sent by the gas relayer. The other four are the bounty
+  tasks above, 25 USDC each.
 - **The proof programs rebuild from source, byte for byte.** One command
   rebuilds both in RISC Zero's builder image and compares image IDs and
   bytes. See "Checking the published programs" below.

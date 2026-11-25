@@ -201,11 +201,7 @@ impl Snapshot {
     /// tool removes them), and an absent note is not an outside trade.
     pub fn counterparties(&self) -> Option<crate::Counterparties> {
         let note = |r: &Value| r["asserted"]["counterparties"].as_str().map(str::to_owned);
-        if let Some(r) = self
-            .receipts()
-            .iter()
-            .find(|r| note(r).is_some_and(|n| n != AUTHORS_HELD))
-        {
+        if let Some(r) = self.outside().first() {
             return Some(crate::Counterparties::Outside {
                 first_outside_settlement: r["id"].as_str().unwrap_or_default().to_owned(),
             });
@@ -214,6 +210,28 @@ impl Snapshot {
             .iter()
             .all(|r| note(r).as_deref() == Some(AUTHORS_HELD))
             .then_some(crate::Counterparties::AuthorsOnly)
+    }
+    /// Receipts whose note names a party other than the authors, oldest
+    /// first. An absent note is not an outside trade.
+    pub fn outside(&self) -> Vec<&Value> {
+        self.receipts()
+            .iter()
+            .filter(|r| {
+                r["asserted"]["counterparties"]
+                    .as_str()
+                    .is_some_and(|n| n != AUTHORS_HELD)
+            })
+            .collect()
+    }
+    /// Whether `receipt` settled before the receipt `id`. Unknown `id` or
+    /// timestamps: false, which claims less.
+    pub fn settled_before(&self, receipt: &Value, id: &str) -> bool {
+        let at = |r: &Value| r["settlement"]["timestamp"].as_u64();
+        let other = self
+            .receipts()
+            .iter()
+            .find(|r| r["id"].as_str() == Some(id));
+        matches!((at(receipt), other.and_then(at)), (Some(a), Some(b)) if a < b)
     }
     /// Receipts paid in a token the ledger names as real money.
     pub fn real_money(&self) -> Vec<&Value> {

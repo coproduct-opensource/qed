@@ -603,11 +603,14 @@ fn mainnet_deployment(m: &Mainnet) -> Value {
 
 /// A receipt as published. With author addresses not disclosed, the
 /// per-settlement note on who held the keys is dropped: it would mark that
-/// receipt's buyer and seller as the authors'. The site-wide statement
-/// `AUTHORS_ONLY` still says it of every settlement.
+/// receipt's buyer and seller as the authors'. A note naming a party other
+/// than the authors marks no wallet as theirs and stays.
 pub fn elide_counterparties(receipt: &Value, disclose: bool) -> Value {
     let mut receipt = receipt.clone();
-    if !disclose && let Some(asserted) = receipt["asserted"].as_object_mut() {
+    if !disclose
+        && let Some(asserted) = receipt["asserted"].as_object_mut()
+        && asserted.get("counterparties").and_then(Value::as_str) == Some(ledger::AUTHORS_HELD)
+    {
         asserted.remove("counterparties");
     }
     receipt
@@ -1136,7 +1139,20 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
     // from the public source, so the page exists only when there is both a
     // main-network bounty and public source.
     if let (Some(m), Software::Public { .. }) = (&input.mainnet, &input.software) {
-        docs_list.push(pages::bounty(m, &vectors, &programs));
+        // The bounty's own settlements with a party other than the authors.
+        let outside: Vec<&Value> = options
+            .ledger
+            .map(|(_, s)| s.outside())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|r| {
+                r["vault"]
+                    .as_str()
+                    .is_some_and(|v| v.eq_ignore_ascii_case(&m.vault.address))
+                    && r["order"]["amount"].as_str() == Some(m.bounty.price.to_string().as_str())
+            })
+            .collect();
+        docs_list.push(pages::bounty(m, &vectors, &programs, &outside));
         docs_list.push(post::page(m, fee_bps));
     }
     if let Some(page) = status::page(input, status_snapshot.as_ref()) {

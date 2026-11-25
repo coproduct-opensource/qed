@@ -583,7 +583,16 @@ pub fn home(input: &Input, build: &Build, fee_bps: u16) -> Res<Doc> {
             .iter()
             .find(|r| r["id"].as_str() == Some(id.as_str()))
             .ok_or_else(|| format!("the featured settlement {id} is not in the ledger snapshot"))?;
-        blocks.extend(featured(r, input));
+        // Without its own note (the public copy), a receipt settled before the
+        // first outside settlement is one of the authors' own: until then the
+        // site said so of every settlement.
+        let authors = match &input.assurance.counterparties {
+            Counterparties::AuthorsOnly => true,
+            Counterparties::Outside {
+                first_outside_settlement,
+            } => snap.settled_before(r, first_outside_settlement),
+        };
+        blocks.extend(featured(r, input, authors));
     }
     let mut d = doc(
         "",
@@ -597,7 +606,7 @@ pub fn home(input: &Input, build: &Build, fee_bps: u16) -> Res<Doc> {
 }
 
 /// One settlement explained in plain words, every value from its receipt.
-fn featured(r: &Value, input: &Input) -> Vec<Block> {
+fn featured(r: &Value, input: &Input, authors: bool) -> Vec<Block> {
     let id = s(r, "id");
     let net = &r["network"];
     let booked = &r["booked"];
@@ -627,7 +636,7 @@ fn featured(r: &Value, input: &Input) -> Vec<Block> {
             vec![t(match r["asserted"]["counterparties"].as_str() {
                 Some(AUTHORS_HELD) => "The authors' own test transaction",
                 Some(_) => "A trade with a party other than the authors",
-                None if input.authors_only() => "The authors' own test transaction",
+                None if authors => "The authors' own test transaction",
                 None => "Not recorded for this settlement",
             })],
         ),
@@ -1706,7 +1715,9 @@ pub const SELLER_RELEASE: SellerRelease = SellerRelease {
 /// what it costs in time and what can go wrong. How to take part is on the
 /// seller page, whose from-source steps need public source, so the caller
 /// builds this page only when the source is public.
-pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published]) -> Doc {
+/// `outside`: the ledger's settlements on this bounty whose note names a
+/// party other than the authors, oldest first ([`crate::ledger::Snapshot::outside`]).
+pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published], outside: &[&Value]) -> Doc {
     let usdc = |units: u64| format!("{} {}", amount(units, m.token.decimals), m.token.name);
     let ex = &m.network.explorer;
     let mut blocks = vec![
@@ -1854,8 +1865,28 @@ pub fn bounty(m: &Mainnet, vectors: &Value, programs: &[Published]) -> Doc {
             ],
         ]),
         h2("proves", "What a settlement here shows"),
-        para("That a stranger can find a post, prove and be paid by the contract without contacting the authors. None has yet."),
     ]);
+    // Derived from the ledger's notes, so the next outside settlement
+    // changes this with no edit here.
+    const SHOWS: &str = "That a stranger can find a post, prove and be paid by the contract without contacting the authors.";
+    if outside.is_empty() {
+        blocks.push(para(&format!("{SHOWS} None has yet.")));
+    } else {
+        let mut line = vec![t(format!(
+            "{SHOWS} It has happened: {} of the {} tasks were settled with a seller the authors do not know, each paid by the contract: ",
+            outside.len(),
+            m.bounty.tasks
+        ))];
+        for (n, r) in outside.iter().enumerate() {
+            let id = s(r, "id");
+            if n > 0 {
+                line.push(t(", "));
+            }
+            line.push(code_link(format!("/transactions/{id}"), short(id)));
+        }
+        line.push(t("."));
+        blocks.push(p(line));
+    }
     let mut d = doc(
         "bounty",
         &format!("Bounty: {} a task", usdc(m.bounty.price)),
