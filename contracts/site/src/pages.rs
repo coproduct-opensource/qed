@@ -1740,6 +1740,22 @@ pub fn bounty(
             )),
         ]),
         h2("offer", "The offer"),
+    ];
+    // The current round as the build's index read it: when its budget is
+    // spent, say so above the terms instead of offering them as open.
+    if let Some(r) = rounds
+        .and_then(|rs| rs.iter().find(|r| r.name == round.name))
+        .filter(|r| r.remaining == Some(0))
+    {
+        blocks.push(p(vec![
+            strong(format!("Round {} is spent.", r.name)),
+            t(format!(
+                " All {} of its tasks were funded and {} settled, at the build's read of the chain. Its terms are below for the record; /status shows whether the next round has opened.",
+                r.funded_tasks, r.settled_tasks
+            )),
+        ]));
+    }
+    blocks.extend([
         Block::Dl(vec![
             (
                 "Price".into(),
@@ -1817,7 +1833,7 @@ pub fn bounty(
             ),
             t("."),
         ]),
-    ];
+    ]);
     let (live, data) = live_board(
         Board {
             network: &m.network,
