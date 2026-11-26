@@ -484,3 +484,24 @@ fn publication_shows_outside_posters_only_with_the_authors_list() {
 fn hash(n: u64) -> String {
     format!("0x{n:064x}")
 }
+
+#[test]
+fn the_authors_list_reads_bare_hex_and_never_echoes_a_bad_line() {
+    let dir = std::env::temp_dir().join(format!("qed-authors-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("a.txt");
+    let bare = "00000000000000000000000000000000000000aa";
+    std::fs::write(
+        &p,
+        format!("{bare}\n0x00000000000000000000000000000000000000BB # x\n\n"),
+    )
+    .unwrap();
+    let set = Names::read_authors(&p).unwrap().unwrap();
+    assert!(set.contains(&format!("0x{bare}")));
+    assert!(set.contains("0x00000000000000000000000000000000000000bb"));
+    std::fs::write(&p, "secretish-not-hex\n").unwrap();
+    let e = Names::read_authors(&p).unwrap_err().to_string();
+    assert!(e.contains("line 1") && !e.contains("secretish"), "{e}");
+    assert!(Names::read_authors(&dir.join("absent")).unwrap().is_none());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

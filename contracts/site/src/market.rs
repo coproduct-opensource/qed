@@ -1027,14 +1027,27 @@ impl Names {
         match std::fs::read_to_string(path) {
             Ok(text) => {
                 let mut set = BTreeSet::new();
-                for line in text.lines() {
+                // With or without `0x`: the release audit's list is bare hex.
+                // A bad line is reported by number, not echoed: the file is
+                // private and its lines are wallets.
+                for (n, line) in text.lines().enumerate() {
                     let line = line.split('#').next().unwrap_or("").trim();
                     if line.is_empty() {
                         continue;
                     }
-                    let a = line.to_ascii_lowercase();
-                    if a.len() != 42 || !a.starts_with("0x") || unhex(&a).is_err() {
-                        return Err(format!("{}: not an address: {line}", path.display()).into());
+                    let lower = line.to_ascii_lowercase();
+                    let a = if lower.starts_with("0x") {
+                        lower
+                    } else {
+                        format!("0x{lower}")
+                    };
+                    if a.len() != 42 || unhex(&a).is_err() {
+                        return Err(format!(
+                            "{}: line {} is not an address",
+                            path.display(),
+                            n + 1
+                        )
+                        .into());
                     }
                     set.insert(a);
                 }
