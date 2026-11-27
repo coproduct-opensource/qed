@@ -1,5 +1,6 @@
 //! What the market index shows: rounds, posts with their joined orders,
 //! `market.json`, and the `/market` page. Built from a filtered index only.
+use super::promotion::{self, Match, PromotionInput};
 use super::{Event, Index, Market, ModelPost, Round, model_events, word};
 use crate::doc::{Block, Doc, Line, code, code_link, h2, link, p, para, strong, t};
 use crate::html::{self, Html};
@@ -146,6 +147,11 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
     let buyer = m.status.as_ref().map_or("", |s| s.buyer.as_str());
     let now = index.cursor_time;
     let market = Market::replay(&model_events(index, now));
+    let matches: Vec<Match> = m
+        .promotion
+        .as_ref()
+        .map(|p| promotion::decide(index, p))
+        .unwrap_or_default();
     let starts = round_starts(index, m);
     // Per order: where it was funded, settled, refunded and claimed.
     let mut orders: BTreeMap<String, Value> = BTreeMap::new();
@@ -256,6 +262,10 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
             })
             .collect();
         let round = round_of(&starts, buyer, mp).map(|k| m.bounty.rounds[k].name.clone());
+        let matched = matches.iter().find(|g| g.post == mp.id).map(|g| {
+            json!({"amount": g.amount.to_string(), "seller": g.seller,
+                   "order": super::hx(&g.digest), "block": g.block})
+        });
         posts.push(json!({
             "id": id, "state": state.name(),
             "taken": market.taken(&word(statement_sha256)),
@@ -266,6 +276,7 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
             "buyerNode": buyer_node, "buyerKeyBinding": buyer_key_binding, "salt": salt,
             "buyerAddress": buyer_address, "block": l.block, "transaction": l.transaction,
             "withdrawnIn": withdrawn_in, "orders": joined,
+            "matched": matched,
         }));
     }
     posts.reverse();
@@ -292,6 +303,7 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
         "model": "proofs/commerce/Market.lean",
         "joinRule": "an order joins a post iff its context is keccak256(keccak256(\"NucleusContextV1\") || post id || buyerKeyBinding) and its policyHash is the post's",
         "rounds": rounds,
+        "promotion": promotion_data(m, &matches),
         "posts": posts,
     })
 }
@@ -339,13 +351,129 @@ pub fn round_lines(m: &Mainnet, rounds: &[RoundView]) -> Vec<Line> {
         .collect()
 }
 
-fn state_cell(post: &Value) -> Line {
+fn state_cell(m: &Mainnet, post: &Value) -> Line {
     let mut line = vec![t(post["state"].as_str().unwrap_or("").to_owned())];
     let settled = matches!(post["state"].as_str(), Some("settled" | "claimed"));
     if post["taken"] == true && !settled {
         line.push(t(", statement taken"));
     }
+    if let Some(a) = post["matched"]["amount"].as_str() {
+        line.push(t(format!(", matched +{}", usdc(m, a.parse().unwrap_or(0)))));
+    }
     line
+}
+
+/// `market.json`'s `promotion`: the terms and the admitted matches. Null
+/// without a promotion. The matching buyer is named only when the input
+/// publishes wallets.
+fn promotion_data(m: &Mainnet, matches: &[Match]) -> Value {
+    let Some(p) = m.promotion.as_ref() else {
+        return Value::Null;
+    };
+    let published = m.status.as_ref().is_some_and(|s| s.publish_wallets);
+    let total = promotion::paid(matches);
+    json!({
+        "model": "proofs/commerce/Promotion.lean",
+        "startBlock": p.start_block,
+        "pool": p.pool.to_string(),
+        "perPoster": p.per_poster.to_string(),
+        "fractionBps": p.fraction_bps,
+        "perStatement": p.per_statement.to_string(),
+        "listed": p.listed,
+        "matchingBuyer": if published { json!(p.matching_buyer) } else { Value::Null },
+        "matched": total.to_string(),
+        "left": u128::from(p.pool).saturating_sub(total).to_string(),
+        "matches": matches.iter().map(|g| json!({
+            "post": super::hx(&g.post), "statementSha256": super::hx(&g.statement),
+            "order": super::hx(&g.digest), "seller": g.seller, "block": g.block,
+            "price": g.price.to_string(), "amount": g.amount.to_string(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn percent(bps: u64) -> String {
+    if bps.is_multiple_of(100) {
+        format!("{} %", bps / 100)
+    } else {
+        format!("{}.{:02} %", bps / 100, bps % 100)
+    }
+}
+
+/// The promotion's section: what it pays, to whom, and what it has matched.
+fn promotion_blocks(
+    m: &Mainnet,
+    terms: &PromotionInput,
+    data: &Value,
+    known: &Known,
+) -> Vec<Block> {
+    let published = m.status.as_ref().is_some_and(|s| s.publish_wallets);
+    let matched: u128 = data["matched"]
+        .as_str()
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(0);
+    let left: u128 = data["left"]
+        .as_str()
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(0);
+    let n = data["matches"].as_array().map_or(0, Vec::len);
+    let buyer = if published {
+        vec![
+            t("The matching buyer, "),
+            code(terms.matching_buyer.clone()),
+            t(", pays it"),
+        ]
+    } else {
+        vec![t(
+            "The matching buyer (its address is not listed here) pays it",
+        )]
+    };
+    let mut owed = vec![t("A match shown here is owed, not yet paid. ")];
+    owed.extend(buyer);
+    owed.push(t(
+        " as a second order on the same statement, and that order then shows under the post.",
+    ));
+    let listed: Vec<Line> = terms
+        .listed
+        .iter()
+        .map(|s| {
+            let sha = s.trim_start_matches("0x");
+            match known.statements.get(sha) {
+                Some(file) => vec![code_link(format!("/statements/{file}"), short(sha))],
+                None => vec![code(short(sha))],
+            }
+        })
+        .collect();
+    vec![
+        h2("promotion", "Bootstrap matching"),
+        para(&format!(
+            "From block {}, the first settlement of a statement on the reviewed list earns that settlement's seller a match: {} of the post's price (or of the order's amount, when lower), at most {} for one statement and {} across one poster's posts, from a pool of {}.",
+            terms.start_block,
+            percent(terms.fraction_bps),
+            usdc(m, u128::from(terms.per_statement)),
+            usdc(m, u128::from(terms.per_poster)),
+            usdc(m, u128::from(terms.pool)),
+        )),
+        para(&format!(
+            "Matched so far: {} for {n} statement{}; {} of the pool left.",
+            usdc(m, matched),
+            if n == 1 { "" } else { "s" },
+            usdc(m, left),
+        )),
+        para(
+            "Nothing is matched for posting, or for a later settlement of a statement already settled. One wallet can post, fund, and settle its own post from a second wallet, and the chain shows two strangers; only a first proof of a reviewed statement earns a match.",
+        ),
+        p(owed),
+        para(&format!(
+            "The reviewed list, {} statements (SHA-256):",
+            terms.listed.len()
+        )),
+        Block::Ul(listed),
+        p(vec![
+            t("The rules: "),
+            code("proofs/commerce/Promotion.lean"),
+            t("."),
+        ]),
+    ]
 }
 
 /// The `/market` page, from a snapshot whose `market` index is filtered.
@@ -415,6 +543,9 @@ pub fn page_from(
     let mut summary = vec![vec![strong(format!("{} posts: {tally}.", posts.len()))]];
     summary.extend(round_lines(m, &rv));
     blocks.push(Block::Ul(summary));
+    if let Some(p) = m.promotion.as_ref() {
+        blocks.extend(promotion_blocks(m, p, &data["promotion"], known));
+    }
     blocks.push(h2("posts", "Posts"));
     let ex = &m.network.explorer;
     let rows: Vec<Vec<Line>> = posts
@@ -466,7 +597,7 @@ pub fn page_from(
                     format!("{ex}/tx/{}", post["transaction"].as_str().unwrap_or("")),
                     short(id),
                 )],
-                state_cell(post),
+                state_cell(m, post),
                 vec![t(post["round"].as_str().unwrap_or("").to_owned())],
                 vec![t(usdc(
                     m,

@@ -158,6 +158,10 @@ pub struct Mainnet {
     /// What the status page reads from the chain. Absent: no status page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<StatusInput>,
+    /// The bootstrap matching promotion (proofs/commerce/Promotion.lean).
+    /// Absent: no promotion, and the pages say nothing of one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub promotion: Option<market::promotion::PromotionInput>,
 }
 
 /// The wallets and limits the status page's queries name.
@@ -435,7 +439,7 @@ pub fn unhex(text: &str) -> Res<Vec<u8>> {
         .collect()
 }
 
-fn address_shape(text: &str) -> Res<()> {
+pub(crate) fn address_shape(text: &str) -> Res<()> {
     let ok = text.len() == 42
         && text.starts_with("0x")
         && text
@@ -449,7 +453,7 @@ fn address_shape(text: &str) -> Res<()> {
     }
 }
 
-fn word_shape(text: &str, prefixed: bool) -> Res<()> {
+pub(crate) fn word_shape(text: &str, prefixed: bool) -> Res<()> {
     let digits = if prefixed {
         text.strip_prefix("0x").ok_or("missing 0x")?
     } else {
@@ -521,6 +525,9 @@ impl Input {
         }
         if self.vault.fee_bps == 0 || self.vault.fee_bps > self.vault.maximum_fee_bps {
             return Err("fee outside its cap".into());
+        }
+        if let Some(p) = self.mainnet.as_ref().and_then(|m| m.promotion.as_ref()) {
+            p.check()?;
         }
         Ok(())
     }
