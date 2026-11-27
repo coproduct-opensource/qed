@@ -25,6 +25,7 @@ pub mod dpop;
 pub mod http;
 pub mod iroh_net;
 pub mod job;
+pub mod ladder;
 pub mod message;
 pub mod ops;
 pub mod post;

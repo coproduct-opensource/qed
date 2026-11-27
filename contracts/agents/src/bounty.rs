@@ -729,19 +729,31 @@ fn locked(journal: &Shared) -> Res<std::sync::MutexGuard<'_, Journal>> {
 }
 
 /// Every deposit the vault took from this buyer since the checkpoint must be
-/// for an order this journal signed.
+/// for an order this journal signed (rule 8).
 fn attribute(journal: &Shared, market: &mut dyn Market) -> Res<()> {
-    let (from, known) = {
-        let journal = locked(journal)?;
-        (journal.ledger().checkpoint, journal.ledger().signed.clone())
+    attribute_all(std::slice::from_ref(journal), market)
+}
+
+/// Rule 8 for a desk with several rows on one wallet: every deposit the
+/// vault took from this buyer since the earliest of the journals'
+/// checkpoints must be for an order one of them signed (`ladder::explains`;
+/// `restart_admitted` in proofs/commerce/LadderMulti.lean). Checked against
+/// each journal alone, one row's funded order stops every other row's
+/// restart (`mutant_perRow_breaks_restart_admitted`).
+pub(crate) fn attribute_all(journals: &[Shared], market: &mut dyn Market) -> Res<()> {
+    let mut ledgers = vec![];
+    for journal in journals {
+        ledgers.push(locked(journal)?.ledger().clone());
+    }
+    let Some(from) = ledgers.iter().map(|ledger| ledger.checkpoint).min() else {
+        return Ok(());
     };
     let to = market.block()?;
-    for digest in market.deposits(from, to)? {
-        if !known.contains(&digest) {
-            return Err(Irreconcilable::UnknownDeposit(digest).into());
-        }
+    let deposits = market.deposits(from, to)?;
+    match crate::ladder::unexplained(&ledgers, &deposits) {
+        Some(digest) => Err(Irreconcilable::UnknownDeposit(digest).into()),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 /// Run the bounty until a limit stops it. A transient failure (R-2) is
@@ -760,7 +772,11 @@ pub fn run(limits: Limits, journal: &Shared, market: &mut dyn Market) -> Res<Sto
         }
         .and_then(|()| {
             attributed = true;
-            step(limits, journal, market, first)
+            step(limits, journal, market, first, 0).and_then(|next| match next {
+                Next::Stop(stop) => Ok(Some(stop)),
+                Next::Wait(seconds) => market.wait(seconds).map(|()| None),
+                Next::Moved => Ok(None),
+            })
         });
         match outcome {
             Ok(stop) => {
@@ -799,14 +815,30 @@ pub fn run(limits: Limits, journal: &Shared, market: &mut dyn Market) -> Res<Sto
     }
 }
 
+/// What a step leaves for its caller to do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Next {
+    /// The bounty, or this row, stops.
+    Stop(Stop),
+    /// Nothing is due before this many seconds.
+    Wait(u64),
+    /// It moved; the next step may follow at once.
+    Moved,
+}
+
 /// One step of the bounty: look at the journal and the chain, do at most
-/// one thing, and say whether the bounty stops.
-fn step(
+/// one thing, and say whether the bounty stops or what to wait for.
+/// `reserved` is what the desk's other rows have committed the wallet to
+/// (`ladder::committed`): a post is made only when the wallet covers its
+/// cap on top of that (`no_overcommit` in proofs/commerce/LadderMulti.lean).
+/// A one-row desk passes 0, and the check is the one-row check.
+pub(crate) fn step(
     limits: Limits,
     journal: &Shared,
     market: &mut dyn Market,
     first: bool,
-) -> Res<Option<Stop>> {
+    reserved: u64,
+) -> Res<Next> {
     let (open, spent, settled, refunded, failed, posted) = {
         let journal = locked(journal)?;
         let ledger = journal.ledger();
@@ -835,7 +867,7 @@ fn step(
                 Some(Stop::PostLimit)
             } else if spent.saturating_add(limits.price) > limits.budget {
                 Some(Stop::Budget)
-            } else if market.wallet()? < limits.price {
+            } else if !crate::ladder::covered(limits.price, reserved, market.wallet()?) {
                 Some(Stop::Wallet)
             } else if let Some(units) = limits.gas {
                 let (have, price) = market.ether()?;
@@ -848,7 +880,7 @@ fn step(
                 record(Entry::Stopped {
                     reason: stop.to_string(),
                 })?;
-                return Ok(Some(stop));
+                return Ok(Next::Stop(stop));
             }
             if !first {
                 market.wait(limits.pause)?;
@@ -870,7 +902,7 @@ fn step(
                 })?;
             } else if !market.quiet()? {
                 // The post may still be waiting to be mined.
-                market.wait(POLL)?;
+                return Ok(Next::Wait(POLL));
             } else {
                 market.close_desk(task.id)?;
                 record(Entry::Abandoned { task: task.id })?;
@@ -883,12 +915,11 @@ fn step(
             let withdrawal = if market.now()? > task.fund_by {
                 if market.desk_open(task.id)? && !market.close_desk(task.id)? {
                     // Signed for while we looked; the journal has it now.
-                    return Ok(None);
+                    return Ok(Next::Moved);
                 }
                 Some(Withdrawal::WindowEnded)
             } else if market.desk_open(task.id)? {
-                market.wait(POLL)?;
-                None
+                return Ok(Next::Wait(POLL));
             } else {
                 // Nothing was signed for it (a signature is journaled
                 // before it is released), so its desk may be reopened.
@@ -923,10 +954,10 @@ fn step(
         }
         Some(Open::Signed(_, order)) => match follow(journal, market, &order)? {
             Followed::Moved => {}
-            Followed::Waiting(_) => market.wait(POLL)?,
+            Followed::Waiting(_) => return Ok(Next::Wait(POLL)),
         },
     }
-    Ok(None)
+    Ok(Next::Moved)
 }
 
 /// What one look at a signed order did.
@@ -1038,7 +1069,13 @@ impl std::error::Error for Unfinished {}
 /// deadline, journal a settlement or a lapse. Refuses, changing nothing,
 /// when nothing is due yet.
 pub fn finish(journal: &Shared, market: &mut dyn Market) -> Res<()> {
-    attribute(journal, market)?;
+    finish_beside(journal, &[], market)
+}
+
+/// `finish` for one row of a desk with several: the deposits are checked
+/// against this journal and the other rows' (`attribute_all`).
+pub fn finish_beside(journal: &Shared, others: &[Shared], market: &mut dyn Market) -> Res<()> {
+    attribute_all(&[std::slice::from_ref(journal), others].concat(), market)?;
     let mut moved = false;
     loop {
         let open = locked(journal)?.ledger().open.clone();
@@ -1076,7 +1113,13 @@ pub fn finish(journal: &Shared, market: &mut dyn Market) -> Res<()> {
 /// authorization has left this buyer, so the journal has to follow it to a
 /// settlement, a refund or a lapse first (`run` does that).
 pub fn close(journal: &Shared, market: &mut dyn Market) -> Res<()> {
-    attribute(journal, market)?;
+    close_beside(journal, &[], market)
+}
+
+/// `close` for one row of a desk with several: the deposits are checked
+/// against this journal and the other rows' (`attribute_all`).
+pub fn close_beside(journal: &Shared, others: &[Shared], market: &mut dyn Market) -> Res<()> {
+    attribute_all(&[std::slice::from_ref(journal), others].concat(), market)?;
     loop {
         let open = locked(journal)?.ledger().open.clone();
         let record = |entry: Entry| -> Res<()> { locked(journal)?.record(entry) };
@@ -1126,11 +1169,31 @@ pub fn close(journal: &Shared, market: &mut dyn Market) -> Res<()> {
     }
 }
 
-/// The real market: a deployment, a board, this buyer's keys and its desk.
-pub(crate) struct Live {
+/// What every row of one desk shares: the deployment, the board, the
+/// buyer's keys, and the one iroh node, listener and desk it serves on. A
+/// post names the node, and the node key is the buyer's, so one key has one
+/// node; one `Desk` holds every task it opened, by ID, and answers for every
+/// row (proofs/commerce/LadderMulti.lean).
+pub(crate) struct Hub {
     world: World,
     board: Board,
     keys: Keys,
+    bind: String,
+    relay: iroh_net::Relay,
+    node: String,
+    desk: Arc<Mutex<Desk>>,
+    store: crate::blobs::Store,
+    /// The endpoint, until `listen` serves on it.
+    endpoint: Option<iroh::Endpoint>,
+    /// The listener and the runtime it runs on, kept for as long as the hub.
+    router: Option<iroh::protocol::Router>,
+    runtime: tokio::runtime::Runtime,
+}
+
+/// The real market for one row: the hub it shares, and the row's own
+/// statement, terms, journal and status file.
+pub(crate) struct Live {
+    hub: Arc<Hub>,
     /// The statement, or why it could not be read. A missing statement
     /// ends nothing by itself: a signed order is still followed, and an
     /// open post is withdrawn with this as the reason (R-3).
@@ -1142,20 +1205,12 @@ pub(crate) struct Live {
     /// Where a settled artifact that passes the checker is also written,
     /// with its order (`post-tasks`). `None` for the standing bounty.
     delivered: Option<PathBuf>,
-    bind: String,
-    relay: iroh_net::Relay,
-    node: String,
-    desk: Arc<Mutex<Desk>>,
     journal: Shared,
     /// The status file (R-5) and the last error it reported.
     status: PathBuf,
     last_error: Option<(u64, String)>,
     /// Tasks prepared and not yet posted.
     prepared: Vec<(Hash, Task)>,
-    /// The desk's endpoint and the runtime it runs on, kept for as long as
-    /// the market is.
-    _router: iroh::protocol::Router,
-    _runtime: tokio::runtime::Runtime,
 }
 
 /// How long after a post's funding deadline delivery may still take.
@@ -1174,7 +1229,7 @@ struct Statement {
 
 impl Live {
     fn desk(&self) -> Res<std::sync::MutexGuard<'_, Desk>> {
-        self.desk.lock().map_err(|_| "desk poisoned".into())
+        self.hub.desk.lock().map_err(|_| "desk poisoned".into())
     }
     fn statement(&self) -> Res<&Statement> {
         self.statement.as_ref().map_err(|why| why.clone().into())
@@ -1186,23 +1241,23 @@ impl Live {
             statement_sha256: statement.policy.statement_sha256,
             statement_blake3: statement.blake3,
             policy_hash: statement.policy.hash(),
-            asset: self.world.token,
+            asset: self.hub.world.token,
             maximum_amount: U256::from(price).to_be_bytes(),
-            verifier: self.world.verifier,
+            verifier: self.hub.world.verifier,
             program: self.program,
             fund_by,
             deliver_by,
-            buyer_node: board::node_bytes(&self.node)?,
-            buyer_key_binding: self.keys.binding(),
+            buyer_node: board::node_bytes(&self.hub.node)?,
+            buyer_key_binding: self.hub.keys.binding(),
             salt,
-            buyer_address: crate::watch::posted_hint(&self.bind, &self.relay)?,
+            buyer_address: crate::watch::posted_hint(&self.hub.bind, &self.hub.relay)?,
         })
     }
     fn id_of(&self, task: &Task) -> Hash {
         nucleus_board_reference::id(
-            self.world.chain.id,
-            self.board.address,
-            self.keys.address(),
+            self.hub.world.chain.id,
+            self.hub.board.address,
+            self.hub.keys.address(),
             task,
         )
     }
@@ -1223,14 +1278,15 @@ impl Market for Live {
         wall_clock()
     }
     fn block(&mut self) -> Res<u64> {
-        self.board.latest_block()
+        self.hub.board.latest_block()
     }
     fn wallet(&mut self) -> Res<u64> {
-        units(self.world.balance(self.keys.address())?)
+        units(self.hub.world.balance(self.hub.keys.address())?)
     }
     fn ether(&mut self) -> Res<(u128, u128)> {
         // What `Chain::send` offers per gas: the node's price plus 5 %.
         let price = self
+            .hub
             .world
             .chain
             .rpc("eth_gasPrice", json!([]))?
@@ -1239,7 +1295,10 @@ impl Market for Live {
             .ok_or("eth_gasPrice: a quantity expected")?
             .saturating_mul(21)
             / 20;
-        Ok((self.world.chain.balance(self.keys.address())?, price))
+        Ok((
+            self.hub.world.chain.balance(self.hub.keys.address())?,
+            price,
+        ))
     }
     fn prepare(&mut self, price: u64) -> Res<TaskRef> {
         let now = wall_clock()?;
@@ -1274,7 +1333,7 @@ impl Market for Live {
         // Serve before posting, so the first seller to see the post finds the desk.
         let policy = self.statement()?.policy.clone();
         self.desk()?.open(Posted::new(id, posted.clone(), policy)?);
-        let (posted_id, receipt) = self.board.post(&self.keys.wallet, &posted)?;
+        let (posted_id, receipt) = self.hub.board.post(&self.hub.keys.wallet, &posted)?;
         if posted_id != id {
             return Err("the board gave the task another ID than the reference".into());
         }
@@ -1289,12 +1348,12 @@ impl Market for Live {
         Ok(receipt.transaction)
     }
     fn on_board(&mut self, task: Hash) -> Res<bool> {
-        let poster = self.world.chain.call(
+        let poster = self.hub.world.chain.call(
             [0; 20],
-            self.board.address,
+            self.hub.board.address,
             &nucleus_board_reference::poster_of_call(task),
         )?;
-        Ok(poster.get(12..32) == Some(&self.keys.address()[..]))
+        Ok(poster.get(12..32) == Some(&self.hub.keys.address()[..]))
     }
     fn desk_open(&mut self, task: Hash) -> Res<bool> {
         Ok(self.desk()?.open_for_offers(&task))
@@ -1309,7 +1368,7 @@ impl Market for Live {
                 "the journal kept no salt for it (its intent was written before posts could be resumed)",
             );
         };
-        if self.board.withdrawn(task.id)? {
+        if self.hub.board.withdrawn(task.id)? {
             return unresumable("the board shows it withdrawn already");
         }
         let policy = match &self.statement {
@@ -1329,9 +1388,10 @@ impl Market for Live {
         Ok(Resumption::Resumed)
     }
     fn quiet(&mut self) -> Res<bool> {
-        let buyer = hex(&self.keys.address());
+        let buyer = hex(&self.hub.keys.address());
         let count = |block: &str| -> Res<Value> {
-            self.world
+            self.hub
+                .world
                 .chain
                 .rpc("eth_getTransactionCount", json!([buyer, block]))
         };
@@ -1380,7 +1440,7 @@ impl Market for Live {
             "state": state,
             "retryIn": match health { Health::Degraded { retry_in, .. } => json!(retry_in), _ => Value::Null },
             "failuresInARow": match health { Health::Degraded { failures, .. } => *failures, _ => 0 },
-            "lastRpcAnswer": self.world.chain.last_answer(),
+            "lastRpcAnswer": self.hub.world.chain.last_answer(),
             "open": open,
             "lastError": self.last_error.as_ref().map(|(at, error)| json!({"at": at, "error": error})),
             "posted": posted,
@@ -1397,10 +1457,10 @@ impl Market for Live {
         }
     }
     fn withdraw(&mut self, task: Hash) -> Res<String> {
-        if self.board.withdrawn(task)? {
+        if self.hub.board.withdrawn(task)? {
             return Ok("(already withdrawn)".into());
         }
-        let receipt = self.board.withdraw(&self.keys.wallet, task)?;
+        let receipt = self.hub.board.withdraw(&self.hub.keys.wallet, task)?;
         println!(
             "bounty: withdrew task {} in tx {}",
             hex(&task),
@@ -1409,7 +1469,7 @@ impl Market for Live {
         Ok(receipt.transaction)
     }
     fn phase(&mut self, order: &OrderRef) -> Res<Phase> {
-        Ok(match phase_of(&self.world, order.digest)? {
+        Ok(match phase_of(&self.hub.world, order.digest)? {
             0 => Phase::Empty,
             1 => Phase::Funded,
             2 => Phase::Settled,
@@ -1422,9 +1482,9 @@ impl Market for Live {
         // settlement is no earlier.
         let from = locked(&self.journal)?.ledger().checkpoint;
         let artifact = match settled_artifact(
-            self.world.deployment.rules.form(),
-            &self.world.chain,
-            self.world.deployment.vault,
+            self.hub.world.deployment.rules.form(),
+            &self.hub.world.chain,
+            self.hub.world.deployment.vault,
             order.digest,
             from,
         ) {
@@ -1435,9 +1495,9 @@ impl Market for Live {
             }
             Err(error) => return Ok(Err(error.to_string())),
         };
-        let recorded = self.world.chain.call(
+        let recorded = self.hub.world.chain.call(
             [0; 20],
-            self.world.deployment.vault,
+            self.hub.world.deployment.vault,
             &artifactOfCall {
                 d: order.digest.into(),
             }
@@ -1474,11 +1534,11 @@ impl Market for Live {
         )
     }
     fn refund(&mut self, order: &OrderRef) -> Res<String> {
-        let receipt = self.world.chain.send(
-            &self.keys.wallet,
-            Some(self.world.deployment.vault),
+        let receipt = self.hub.world.chain.send(
+            &self.hub.keys.wallet,
+            Some(self.hub.world.deployment.vault),
             0,
-            &refund_data(self.world.deployment.rules.form(), &order.order),
+            &refund_data(self.hub.world.deployment.rules.form(), &order.order),
         )?;
         if !receipt.success {
             return Err("refund reverted".into());
@@ -1492,20 +1552,20 @@ impl Market for Live {
     }
     fn recover(&mut self) -> Res<String> {
         // The second form pays a refund inside `refund`; nothing to claim.
-        if self.world.deployment.rules.form() == vault::Form::Second {
+        if self.hub.world.deployment.rules.form() == vault::Form::Second {
             return Ok("(paid by the refund itself)".into());
         }
-        let buyer = self.keys.address();
-        if self.world.owed(buyer)?.is_zero() {
+        let buyer = self.hub.keys.address();
+        if self.hub.world.owed(buyer)?.is_zero() {
             return Ok("(nothing owed)".into());
         }
-        let receipt = self.world.chain.send(
-            &self.keys.wallet,
-            Some(self.world.deployment.vault),
+        let receipt = self.hub.world.chain.send(
+            &self.hub.keys.wallet,
+            Some(self.hub.world.deployment.vault),
             0,
             &third::claimCall {
                 payee: A::from(buyer),
-                asset: A::from(self.world.token),
+                asset: A::from(self.hub.world.token),
             }
             .abi_encode(),
         )?;
@@ -1517,10 +1577,10 @@ impl Market for Live {
     }
     fn deposits(&mut self, from: u64, to: u64) -> Res<Vec<Hash>> {
         let mut buyer = [0u8; 32];
-        buyer[12..].copy_from_slice(&self.keys.address());
-        let logs = self.world.chain.logs(
+        buyer[12..].copy_from_slice(&self.hub.keys.address());
+        let logs = self.hub.world.chain.logs(
             &json!({
-                "address": hex(&self.world.deployment.vault),
+                "address": hex(&self.hub.world.deployment.vault),
                 "topics": [hex(&funded_topic()), Value::Null, hex(&buyer)],
             }),
             from,
@@ -1746,8 +1806,8 @@ pub struct Terms {
 }
 
 /// The live market for a statement (or why it cannot be read) and terms,
-/// and the journal at `journal_path`. The standing bounty and the ladder
-/// post (`tasks.rs`) both start here.
+/// and the journal at `journal_path`: a hub serving one row. The standing
+/// bounty and a one-row `post-tasks` start here.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn live_with(
     deployment: &str,
@@ -1759,137 +1819,175 @@ pub(crate) fn live_with(
     bind: &str,
     delivered: Option<PathBuf>,
 ) -> Res<(Live, Shared)> {
-    let world = World::read(deployment)?;
-    if !Path::new(keyfile).exists() {
-        return Err("key file does not exist".into());
-    }
-    let keys = Keys::load_or_create(keyfile)?;
-    let board = Board {
-        chain: world.chain.clone(),
-        address: address_arg(board_address)?,
-    };
-    if board.vault()? != world.deployment.vault {
-        return Err("the board is for another vault than this deployment's".into());
-    }
-    let journal: Shared = Arc::new(Mutex::new(Journal::open(
-        journal_path,
-        Header {
-            chain: world.chain.id,
-            vault: world.deployment.vault,
-            board: board.address,
-            token: world.token,
-            buyer: keys.address(),
-            block: board.latest_block()?,
-        },
-    )?));
+    let mut hub = Hub::open(deployment, board_address, keyfile, bind)?;
+    let journal = hub.journal(journal_path)?;
+    hub.listen(std::slice::from_ref(&journal), journal_path)?;
+    let market = Arc::new(hub).row(statement, terms, journal.clone(), journal_path, delivered)?;
+    Ok((market, journal))
+}
 
-    let relay = iroh_net::Relay::from_environment()?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-    let endpoint = runtime
-        .block_on(async { iroh_net::endpoint_in(keys.node, bind.parse()?, &relay).await })
-        .map_err(|e| e.to_string())?;
-    let node = endpoint.id().to_string();
-    let store = {
-        let _guard = runtime.enter();
-        crate::blobs::store()
-    };
-    let statement = match statement {
-        Ok(bytes) => Ok(Statement {
-            policy: Policy {
-                statement_sha256: Sha256::digest(&bytes).into(),
-                claim: terms.claim.clone(),
-                permitted_axioms: terms.permitted_axioms.clone(),
-                maximum_artifact_bytes: terms.maximum_artifact_bytes,
-            },
-            blake3: runtime.block_on(crate::blobs::add(&store, bytes.clone()))?,
-            bytes,
-        }),
-        Err(why) => {
-            println!("bounty: degraded: {why}");
-            Err(why)
+impl Hub {
+    /// The deployment, board and keys, and the node: bound, not yet serving.
+    pub(crate) fn open(
+        deployment: &str,
+        board_address: &str,
+        keyfile: &str,
+        bind: &str,
+    ) -> Res<Self> {
+        let world = World::read(deployment)?;
+        if !Path::new(keyfile).exists() {
+            return Err("key file does not exist".into());
         }
-    };
-
-    let mut desk = Desk::new(
-        world.deployment.clone(),
-        world.domain.clone(),
-        keys.wallet.clone(),
-    );
-    desk.accept_bases(world.bases.clone());
-    // Rule 3: a signed order is in the journal before its authorization leaves.
-    let for_desk = journal.clone();
-    desk.record_signatures(Box::new(move |signed| {
-        let amount = u64::try_from(U256::from_be_bytes(signed.order.amount))
-            .map_err(|_| "amount above u64".to_owned())?;
-        let mut journal = for_desk.lock().map_err(|_| "journal poisoned".to_owned())?;
-        journal
-            .record(Entry::Signed {
-                task: signed.id,
-                order: OrderRef {
-                    digest: signed.digest,
-                    amount,
-                    order: signed.order.clone(),
-                },
-            })
+        let keys = Keys::load_or_create(keyfile)?;
+        let board = Board {
+            chain: world.chain.clone(),
+            address: address_arg(board_address)?,
+        };
+        if board.vault()? != world.deployment.vault {
+            return Err("the board is for another vault than this deployment's".into());
+        }
+        let relay = iroh_net::Relay::from_environment()?;
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+        let endpoint = runtime
+            .block_on(async { iroh_net::endpoint_in(keys.node, bind.parse()?, &relay).await })
             .map_err(|e| e.to_string())?;
+        let node = endpoint.id().to_string();
+        let store = {
+            let _guard = runtime.enter();
+            crate::blobs::store()
+        };
+        let mut desk = Desk::new(
+            world.deployment.clone(),
+            world.domain.clone(),
+            keys.wallet.clone(),
+        );
+        desk.accept_bases(world.bases.clone());
+        Ok(Self {
+            world,
+            board,
+            keys,
+            bind: bind.to_owned(),
+            relay,
+            node,
+            desk: Arc::new(Mutex::new(desk)),
+            store,
+            endpoint: Some(endpoint),
+            router: None,
+            runtime,
+        })
+    }
+
+    /// The journal at `path` for this chain, vault, board, token and buyer,
+    /// created if absent.
+    pub(crate) fn journal(&self, path: &Path) -> Res<Shared> {
+        Ok(Arc::new(Mutex::new(Journal::open(
+            path,
+            Header {
+                chain: self.world.chain.id,
+                vault: self.world.deployment.vault,
+                board: self.board.address,
+                token: self.world.token,
+                buyer: self.keys.address(),
+                block: self.board.latest_block()?,
+            },
+        )?)))
+    }
+
+    /// Serve the desk for these rows' journals. A signature is journaled,
+    /// before it leaves the desk, in the journal of the row whose post it
+    /// is for (rule 3; `ladder::route`, `offer_routed` in
+    /// proofs/commerce/LadderMulti.lean); a signature for a task no row
+    /// holds is not released. Every offer and review the desk answers is
+    /// recorded beside the first row's journal, and its signed summary
+    /// served at GET /deliveries (docs/rfcs/qed-deliveries-2026-11-14.md):
+    /// one node serves one summary.
+    pub(crate) fn listen(&mut self, journals: &[Shared], record_beside: &Path) -> Res<()> {
+        let endpoint = self.endpoint.take().ok_or("the desk is already serving")?;
+        let mut desk = self.desk.lock().map_err(|_| "desk poisoned")?;
+        let for_desk = journals.to_vec();
+        desk.record_signatures(Box::new(move |signed| {
+            crate::ladder::record_signature(&for_desk, signed)?;
+            println!(
+                "bounty: signed order {} for seller {} at {}",
+                hex(&signed.digest),
+                hex(&signed.order.seller),
+                U256::from_be_bytes(signed.order.amount)
+            );
+            Ok(())
+        }));
+        // The authors' wallets come from `ours.txt` beside the journal;
+        // without it every seller is outside.
+        let ours_path = record_beside.with_file_name("ours.txt");
+        let ours = crate::deliveries::ours(&ours_path)?;
         println!(
-            "bounty: signed order {} for seller {} at {amount}",
-            hex(&signed.digest),
-            hex(&signed.order.seller)
+            "bounty: delivery record {}; {} of the authors' wallets in {}",
+            record_beside.with_extension("deliveries.jsonl").display(),
+            ours.len(),
+            ours_path.display()
+        );
+        desk.record_attempts(Box::new(crate::deliveries::Record::open(
+            &record_beside.with_extension("deliveries.jsonl"),
+            &record_beside.with_extension("deliveries.jws"),
+            self.keys.address(),
+            self.keys.possession.clone(),
+            ours,
+        )?));
+        drop(desk);
+        self.router = Some({
+            let _guard = self.runtime.enter();
+            iroh_net::serve_with(endpoint, self.desk.clone(), Some(&self.store))
+        });
+        println!(
+            "bounty: buyer {} node {} (relay {:?})",
+            hex(&self.keys.address()),
+            self.node,
+            self.relay
         );
         Ok(())
-    }));
-    // Every offer and review the desk answers is recorded beside the
-    // journal, and its signed summary served at GET /deliveries
-    // (docs/rfcs/qed-deliveries-2026-11-14.md). The authors' wallets come
-    // from `ours.txt` beside the journal; without it every seller is outside.
-    let ours_path = journal_path.with_file_name("ours.txt");
-    let ours = crate::deliveries::ours(&ours_path)?;
-    println!(
-        "bounty: delivery record {}; {} of the authors' wallets in {}",
-        journal_path.with_extension("deliveries.jsonl").display(),
-        ours.len(),
-        ours_path.display()
-    );
-    desk.record_attempts(Box::new(crate::deliveries::Record::open(
-        &journal_path.with_extension("deliveries.jsonl"),
-        &journal_path.with_extension("deliveries.jws"),
-        keys.address(),
-        keys.possession.clone(),
-        ours,
-    )?));
-    let desk = Arc::new(Mutex::new(desk));
-    let _router = {
-        let _guard = runtime.enter();
-        iroh_net::serve_with(endpoint, desk.clone(), Some(&store))
-    };
-    println!(
-        "bounty: buyer {} node {node} (relay {relay:?})",
-        hex(&keys.address())
-    );
-    let market = Live {
-        world,
-        board,
-        keys,
-        statement,
-        program: terms.program,
-        funding_window: terms.funding_window,
-        delivery_window: terms.delivery_window,
-        delivered,
-        bind: bind.to_owned(),
-        relay,
-        node,
-        desk,
-        journal: journal.clone(),
-        status: journal_path.with_extension("status.json"),
-        last_error: None,
-        prepared: vec![],
-        _router,
-        _runtime: runtime,
-    };
-    Ok((market, journal))
+    }
+
+    /// The market for one row of this desk.
+    pub(crate) fn row(
+        self: Arc<Self>,
+        statement: Result<Vec<u8>, String>,
+        terms: Terms,
+        journal: Shared,
+        journal_path: &Path,
+        delivered: Option<PathBuf>,
+    ) -> Res<Live> {
+        let statement = match statement {
+            Ok(bytes) => Ok(Statement {
+                policy: Policy {
+                    statement_sha256: Sha256::digest(&bytes).into(),
+                    claim: terms.claim.clone(),
+                    permitted_axioms: terms.permitted_axioms.clone(),
+                    maximum_artifact_bytes: terms.maximum_artifact_bytes,
+                },
+                blake3: self
+                    .runtime
+                    .block_on(crate::blobs::add(&self.store, bytes.clone()))?,
+                bytes,
+            }),
+            Err(why) => {
+                println!("bounty: degraded: {why}");
+                Err(why)
+            }
+        };
+        Ok(Live {
+            hub: self,
+            statement,
+            program: terms.program,
+            funding_window: terms.funding_window,
+            delivery_window: terms.delivery_window,
+            delivered,
+            journal,
+            status: journal_path.with_extension("status.json"),
+            last_error: None,
+            prepared: vec![],
+        })
+    }
 }
 
 #[cfg(test)]

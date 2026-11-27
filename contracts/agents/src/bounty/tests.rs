@@ -10,6 +10,7 @@ use crate::chain::{
     Chain as RpcChain,
     fault::{Reply, serve},
 };
+use crate::ladder;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -73,6 +74,9 @@ struct World {
     gas_price: u128,
     /// Posts ever made on the board (a withdrawn post still counts).
     posts_ever: u32,
+    /// Rows of one desk sharing this wallet: that many live posts at once
+    /// (`ladder::run`). Zero is one, the standing bounty's rule 1.
+    rows: u32,
 }
 impl World {
     fn at_risk(&self) -> u64 {
@@ -274,8 +278,8 @@ impl Market for Fake {
         {
             // Rule 1, seen from outside: never two live posts.
             let mut world = self.world.borrow_mut();
-            assert_eq!(
-                world.posts, 0,
+            assert!(
+                world.posts < world.rows.max(1),
                 "a second task was posted while one was open"
             );
             world.posts += 1;
@@ -1483,4 +1487,312 @@ fn a_ladder_post_refuses_a_wallet_short_of_the_cap_or_the_gas() {
     fake.script = Some(eager());
     let limits = Limits { tasks: 1, ..LIMITS };
     assert_eq!(run(limits, &journal, &mut fake).unwrap(), Stop::TaskLimit);
+}
+
+// A desk with several rows (`ladder::run`): one process, one wallet, one
+// journal per row. One `Fake` per row on one world, as one `Live` per row on
+// one hub. proofs/commerce/LadderMulti.lean is the model; the red runs are in
+// docs/rfcs/qed-ladder-multi-row-desk-2026-11-27.md, "Red, then green".
+
+/// The ladder's one-shot limits at a row's cap.
+fn one_shot(price: u64) -> Limits {
+    Limits {
+        price,
+        budget: price,
+        ..ONE_SHOT
+    }
+}
+
+/// A seller answers row `journal`'s open post at its cap: the desk journals
+/// the signature, and the seller funds it.
+fn answer_and_fund(world: &Chain, journal: &Shared) -> Option<Hash> {
+    let task = match &journal.lock().unwrap().ledger().open {
+        Some(Open::Posted(task)) => task.clone(),
+        _ => return None,
+    };
+    let mut digest = task.id;
+    digest[0] ^= 0xff;
+    let order = vault::Order {
+        buyer: BUYER,
+        seller: SELLER,
+        asset: [0x33; 20],
+        amount: U256::from(task.price).to_be_bytes(),
+        verifier: [0x44; 20],
+        program: [0x55; 32],
+        policy_hash: [0x66; 32],
+        base: [0; 32],
+        fund_by: task.fund_by,
+        deliver_by: task.deliver_by,
+        salt: [7; 32],
+        context: [8; 32],
+    };
+    journal
+        .lock()
+        .unwrap()
+        .record(Entry::Signed {
+            task: task.id,
+            order: OrderRef {
+                digest,
+                amount: task.price,
+                order,
+            },
+        })
+        .unwrap();
+    let mut world = world.borrow_mut();
+    world.amounts.insert(digest, task.price);
+    world.phases.insert(digest, Phase::Empty);
+    world.fund(digest);
+    Some(digest)
+}
+
+/// Run the rows as one desk. Between rounds the world's clock moves on and
+/// `between` plays the sellers; `Err` from it is a kill.
+fn run_desk(
+    world: &Chain,
+    rows: &mut [(Fake, Limits)],
+    mut between: impl FnMut(&Chain) -> Res<()>,
+) -> Res<Vec<ladder::Ended>> {
+    let mut desk: Vec<ladder::Row> = rows
+        .iter_mut()
+        .enumerate()
+        .map(|(index, (fake, limits))| ladder::Row {
+            name: format!("row {index}"),
+            limits: *limits,
+            journal: fake.journal.clone(),
+            market: fake,
+        })
+        .collect();
+    let mut rounds = 0;
+    ladder::run(&mut desk, &mut |seconds| {
+        {
+            let mut w = world.borrow_mut();
+            w.clock += seconds;
+            w.block += seconds * 4;
+            w.pending = w.pending.saturating_sub(1);
+        }
+        rounds += 1;
+        assert!(rounds < 10_000, "the desk never stops");
+        between(world)
+    })
+}
+
+fn desk_chain(wallet: u64) -> Chain {
+    let world = ladder_chain();
+    {
+        let mut w = world.borrow_mut();
+        w.wallet = wallet;
+        w.rows = 3;
+    }
+    world
+}
+
+/// `no_overcommit`: three rows at 40, 30 and 40 against 100. The first two
+/// are posted; the third would commit 110, so it stops at `Wallet` and the
+/// others go on to settle. Red with each row checking only its own cap
+/// (`mutant_overcommit_breaks_no_overcommit`): the third is posted too, and
+/// funding it finds the wallet short.
+#[test]
+fn a_row_is_not_posted_when_the_wallet_covers_it_only_alone() {
+    let world = desk_chain(100);
+    let journals = [open(&scratch()), open(&scratch()), open(&scratch())];
+    let mut rows: Vec<(Fake, Limits)> = journals
+        .iter()
+        .zip([40, 30, 40])
+        .map(|(journal, price)| (Fake::new(&world, journal), one_shot(price)))
+        .collect();
+    let answering = journals.clone();
+    let ended = run_desk(&world, &mut rows, |world| {
+        for journal in &answering {
+            if let Some(digest) = answer_and_fund(world, journal) {
+                world.borrow_mut().settle(digest);
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        ended,
+        vec![Ok(Stop::TaskLimit), Ok(Stop::TaskLimit), Ok(Stop::Wallet)]
+    );
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.paid, w.wallet), (2, 70, 30));
+}
+
+/// `restart_admitted`: S0001's row is funded, then the desk is killed. A
+/// one-row process for S0007 refuses to restart over S0001's deposit (rule
+/// 8 on one journal, the finding); the desk, checking the union of its rows'
+/// journals, restarts, settles S0001 and withdraws S0007 at its deadline.
+#[test]
+fn a_funded_row_does_not_stop_another_rows_restart() {
+    let world = desk_chain(110);
+    let (path1, path7) = (scratch(), scratch());
+    {
+        let (j1, j7) = (open(&path1), open(&path7));
+        let mut rows = vec![
+            (Fake::new(&world, &j1), one_shot(40)),
+            (Fake::new(&world, &j7), one_shot(30)),
+        ];
+        let error = run_desk(&world, &mut rows, |world| {
+            answer_and_fund(world, &j1);
+            Err("killed".into())
+        })
+        .unwrap_err();
+        assert_eq!(error.to_string(), "killed");
+        assert_eq!(world.borrow().deposits.len(), 1);
+    }
+    // One process per row, as on 2026-11-19: S0007's refuses.
+    let j7 = open(&path7);
+    let error = run(one_shot(30), &j7, &mut Fake::new(&world, &j7)).unwrap_err();
+    assert!(
+        matches!(
+            error.downcast_ref::<Irreconcilable>(),
+            Some(Irreconcilable::UnknownDeposit(_))
+        ),
+        "{error}"
+    );
+    // One desk for both rows restarts.
+    let j1 = open(&path1);
+    let mut rows = vec![
+        (Fake::new(&world, &j1), one_shot(40)),
+        (Fake::new(&world, &j7), one_shot(30)),
+    ];
+    let funded: Vec<Hash> = world.borrow().deposits.iter().map(|(_, d)| *d).collect();
+    let ended = run_desk(&world, &mut rows, |world| {
+        let mut w = world.borrow_mut();
+        if w.phases.get(&funded[0]) == Some(&Phase::Funded) {
+            w.settle(funded[0]);
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(ended, vec![Ok(Stop::TaskLimit), Ok(Stop::PostLimit)]);
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.paid, w.withdrawals), (2, 40, 1));
+}
+
+/// A deposit no row signed for still stops the whole desk: it is the
+/// wallet's, not a row's.
+#[test]
+fn a_deposit_no_row_signed_for_stops_the_desk() {
+    let world = desk_chain(110);
+    {
+        let mut w = world.borrow_mut();
+        w.amounts.insert([0xee; 32], 40);
+        w.fund([0xee; 32]);
+    }
+    let journals = [open(&scratch()), open(&scratch())];
+    let mut rows: Vec<(Fake, Limits)> = journals
+        .iter()
+        .map(|journal| (Fake::new(&world, journal), one_shot(30)))
+        .collect();
+    let error = run_desk(&world, &mut rows, |_| Ok(())).unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<Irreconcilable>(),
+        Some(&Irreconcilable::UnknownDeposit([0xee; 32]))
+    );
+    assert_eq!(world.borrow().posts_ever, 0);
+}
+
+/// A row that fails leaves the other rows running, and takes its own post
+/// off the desk.
+#[test]
+fn a_row_that_fails_leaves_the_others_running() {
+    let world = desk_chain(110);
+    let journals = [open(&scratch()), open(&scratch())];
+    let mut rows: Vec<(Fake, Limits)> = journals
+        .iter()
+        .zip([40, 30])
+        .map(|(journal, price)| (Fake::new(&world, journal), one_shot(price)))
+        .collect();
+    let (first, second) = (journals[0].clone(), journals[1].clone());
+    let ended = run_desk(&world, &mut rows, |world| {
+        // The first row's post vanishes from the board: its journal cannot
+        // be reconciled (`PostMissing`); the second row is answered.
+        if let Some(Open::Posted(task)) = &first.lock().unwrap().ledger().open {
+            world.borrow_mut().board.remove(&task.id);
+        }
+        if let Some(digest) = answer_and_fund(world, &second) {
+            world.borrow_mut().settle(digest);
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert!(
+        matches!(&ended[0], Err(why) if why.contains("the board does not know it")),
+        "{ended:?}"
+    );
+    assert_eq!(ended[1], Ok(Stop::TaskLimit));
+    assert!(
+        !rows[0].0.desks.iter().any(|_| true),
+        "the failed row's post is still on the desk"
+    );
+}
+
+/// Backward compatibility, one row: the S0001 journal v0.2.4 wrote, run by
+/// `post-tasks` with one task file (`bounty::run`, as before), resumes its
+/// post and posts nothing new.
+#[test]
+fn a_v024_journal_resumes_alone_as_before() {
+    let path = crate::ladder::tests::scratch("s0001");
+    let journal = crate::ladder::tests::reopen(&path, crate::ladder::tests::S0001_V024);
+    let task = match &journal.lock().unwrap().ledger().open {
+        Some(Open::Posted(task)) => task.clone(),
+        other => panic!("{other:?}"),
+    };
+    let world = ladder_chain();
+    {
+        let mut w = world.borrow_mut();
+        w.wallet = 110_000_000;
+        w.board.insert(task.id, false);
+        w.posts = 1;
+        w.clock = task.fund_by - 100;
+    }
+    let mut fake = Fake::new(&world, &journal);
+    assert_eq!(
+        run(one_shot(40_000_000), &journal, &mut fake).unwrap(),
+        Stop::PostLimit
+    );
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.withdrawals), (0, 1));
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.starts_with(crate::ladder::tests::S0001_V024), "{text}");
+    assert_eq!(text.matches("\"intent\"").count(), 1);
+}
+
+/// The host desk of 2026-11-27: S0001 and S0007 resumed from the journals
+/// v0.2.4 wrote, S0006 new, on one desk and one wallet of 110 USDC. S0006 is
+/// posted (40 on top of 70), S0001 and S0007 are not posted again, and each
+/// is withdrawn at its own funding deadline.
+#[test]
+fn the_v024_journals_and_a_new_row_run_as_one_desk() {
+    use crate::ladder::tests::{S0001_V024, S0007_V024, reopen, scratch as row};
+    let (p1, p7, p6) = (row("s0001"), row("s0007"), row("s0006"));
+    let (j1, j7) = (reopen(&p1, S0001_V024), reopen(&p7, S0007_V024));
+    let header = replay(S0001_V024).unwrap().header;
+    let j6 = Arc::new(Mutex::new(Journal::open(&p6, header).unwrap()));
+    let world = desk_chain(110_000_000);
+    {
+        let mut w = world.borrow_mut();
+        for journal in [&j1, &j7] {
+            if let Some(Open::Posted(task)) = &journal.lock().unwrap().ledger().open {
+                w.board.insert(task.id, false);
+            }
+        }
+        w.posts = 2;
+        w.clock = 1_796_286_711 - 100;
+    }
+    let mut rows = vec![
+        (Fake::new(&world, &j1), one_shot(40_000_000)),
+        (Fake::new(&world, &j7), one_shot(30_000_000)),
+        (Fake::new(&world, &j6), one_shot(40_000_000)),
+    ];
+    let ended = run_desk(&world, &mut rows, |_| Ok(())).unwrap();
+    assert_eq!(ended, vec![Ok(Stop::PostLimit); 3]);
+    let w = world.borrow();
+    assert_eq!((w.posts_ever, w.withdrawals, w.paid), (1, 3, 0));
+    for (path, text) in [(&p1, S0001_V024), (&p7, S0007_V024)] {
+        let now = fs::read_to_string(path).unwrap();
+        assert!(now.starts_with(text));
+        assert_eq!(now.matches("\"intent\"").count(), 1, "{now}");
+    }
 }
