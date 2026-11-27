@@ -435,7 +435,7 @@ pub fn unhex(text: &str) -> Res<Vec<u8>> {
         .collect()
 }
 
-fn address_shape(text: &str) -> Res<()> {
+pub(crate) fn address_shape(text: &str) -> Res<()> {
     let ok = text.len() == 42
         && text.starts_with("0x")
         && text
@@ -449,7 +449,7 @@ fn address_shape(text: &str) -> Res<()> {
     }
 }
 
-fn word_shape(text: &str, prefixed: bool) -> Res<()> {
+pub(crate) fn word_shape(text: &str, prefixed: bool) -> Res<()> {
     let digits = if prefixed {
         text.strip_prefix("0x").ok_or("missing 0x")?
     } else {
