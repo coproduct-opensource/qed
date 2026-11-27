@@ -960,49 +960,50 @@ pub fn read(rpc: &mut Rpc, chain: &Chain, prev: Option<&Index>) -> Res<(Index, V
 
 /// The model's events for an index, with a tick at `now`.
 pub fn model_events(index: &Index, now: u64) -> Vec<ModelEvent> {
-    let mut out: Vec<ModelEvent> = index
-        .events
-        .iter()
-        .map(|l| match &l.event {
-            Event::Posted {
-                id,
-                poster,
-                statement_sha256,
-                policy_hash,
-                fund_by,
-                buyer_key_binding,
-                ..
-            } => ModelEvent::Posted(ModelPost {
-                id: word(id),
-                key_binding: word(buyer_key_binding),
-                policy: word(policy_hash),
-                statement: word(statement_sha256),
-                fund_by: *fund_by,
-                poster: poster.clone(),
-                block: l.block,
-            }),
-            Event::Withdrawn { id } => ModelEvent::Withdrawn(word(id)),
-            Event::Funded {
-                digest,
-                amount,
-                payee_key,
-                terms,
-                ..
-            } => ModelEvent::Funded {
-                digest: word(digest),
-                // Undecodable terms join nothing.
-                context: terms.as_ref().map_or([0; 32], |t| word(&t.context)),
-                policy: terms.as_ref().map_or([0; 32], |t| word(&t.policy_hash)),
-                payee: word(payee_key),
-                amount: amount.parse().unwrap_or(0),
-            },
-            Event::Settled { digest, .. } => ModelEvent::Settled(word(digest)),
-            Event::Refunded { digest, .. } => ModelEvent::Refunded(word(digest)),
-            Event::Claimed { payee_key, .. } => ModelEvent::Claimed(word(payee_key)),
-        })
-        .collect();
+    let mut out: Vec<ModelEvent> = index.events.iter().map(model_event).collect();
     out.push(ModelEvent::Tick(now));
     out
+}
+
+/// One logged event as the model's.
+pub fn model_event(l: &Logged) -> ModelEvent {
+    match &l.event {
+        Event::Posted {
+            id,
+            poster,
+            statement_sha256,
+            policy_hash,
+            fund_by,
+            buyer_key_binding,
+            ..
+        } => ModelEvent::Posted(ModelPost {
+            id: word(id),
+            key_binding: word(buyer_key_binding),
+            policy: word(policy_hash),
+            statement: word(statement_sha256),
+            fund_by: *fund_by,
+            poster: poster.clone(),
+            block: l.block,
+        }),
+        Event::Withdrawn { id } => ModelEvent::Withdrawn(word(id)),
+        Event::Funded {
+            digest,
+            amount,
+            payee_key,
+            terms,
+            ..
+        } => ModelEvent::Funded {
+            digest: word(digest),
+            // Undecodable terms join nothing.
+            context: terms.as_ref().map_or([0; 32], |t| word(&t.context)),
+            policy: terms.as_ref().map_or([0; 32], |t| word(&t.policy_hash)),
+            payee: word(payee_key),
+            amount: amount.parse().unwrap_or(0),
+        },
+        Event::Settled { digest, .. } => ModelEvent::Settled(word(digest)),
+        Event::Refunded { digest, .. } => ModelEvent::Refunded(word(digest)),
+        Event::Claimed { payee_key, .. } => ModelEvent::Claimed(word(payee_key)),
+    }
 }
 
 // ---- Publication ----------------------------------------------------------
@@ -1162,6 +1163,8 @@ pub fn shown_posters(index: &Index) -> BTreeSet<String> {
         .collect()
 }
 
+#[path = "market/promotion.rs"]
+pub mod promotion;
 #[path = "market/view.rs"]
 pub mod view;
 
