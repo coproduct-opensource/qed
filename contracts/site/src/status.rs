@@ -1357,6 +1357,10 @@ pub fn allowed_addresses(input: &Input) -> BTreeSet<String> {
             if let Some(ladder) = &st.ladder_buyer {
                 add(ladder);
             }
+            // The promotion's matching buyer, which /market names as the payer.
+            if let Some(p) = &m.promotion {
+                add(&p.matching_buyer);
+            }
         }
     }
     out

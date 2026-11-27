@@ -370,3 +370,130 @@ fn a_pass_renders_the_market_beside_the_status_page() {
     .unwrap();
     assert!(failed.market.unwrap().0.contains("Reread failed at "));
 }
+
+// ---- The bootstrap promotion (proofs/commerce/Promotion.lean) ----------------
+
+const MATCHER: &str = "0x3a7c4e5d6f708192a3b4c5d6e7f8091a2b3c4d5e";
+/// The bounty statement's first settlement: 1 USDC, block 57144774, on a post
+/// by one of the authors' unpublished wallets (elided), buyer and seller elided.
+const FIRST_SETTLEMENT: &str = "0xa2f139e12b7aaee29d7c800754b4f4db2007e69b112274d26c417e3d701f07a6";
+const FIRST_SETTLED_POST: &str =
+    "0x2a1acff4651608392403967165ac8a709d9b4d17e196fda9ef5285a4ed79b4c9";
+
+fn terms(listed: &[&str], start_block: u64) -> market::promotion::PromotionInput {
+    market::promotion::PromotionInput {
+        start_block,
+        pool: 100_000_000,
+        per_poster: 40_000_000,
+        fraction_bps: 5000,
+        per_statement: 20_000_000,
+        listed: listed.iter().map(|s| (*s).to_owned()).collect(),
+        matching_buyer: MATCHER.into(),
+    }
+}
+
+/// On Base: the bounty statement's first settlement was the authors' own
+/// 1 USDC trade, before the outside seller's four. Listed from before it,
+/// that trade would earn the match (half of 1 USDC) and the outside
+/// seller nothing: the case the reviewed list exists for. Not listed (its
+/// proof is public), or listed only from after it: nothing.
+#[test]
+fn on_base_only_the_first_settlement_of_a_listed_statement_is_matched() {
+    let index = fixture();
+    let g = market::promotion::decide(&index, &terms(&[STATEMENT], 57_000_000));
+    assert_eq!(g.len(), 1, "{g:?}");
+    assert_eq!(market::hx(&g[0].post), FIRST_SETTLED_POST);
+    assert_eq!(market::hx(&g[0].digest), FIRST_SETTLEMENT);
+    assert_eq!((g[0].price, g[0].amount), (1_000_000, 500_000));
+    assert_eq!(g[0].poster, "elided");
+    assert!(
+        !g.iter()
+            .any(|m| OUTSIDE.contains(&market::hx(&m.digest).as_str())),
+        "the outside seller's settlements came after: not first"
+    );
+    assert!(market::promotion::decide(&index, &terms(&[STATEMENT], 57_144_775)).is_empty());
+    assert!(market::promotion::decide(&index, &terms(&[], 57_000_000)).is_empty());
+    assert!(market::promotion::decide(&index, &terms(&[STATEMENT], R1_START)).is_empty());
+}
+
+fn with_promotion(publish: bool) -> nucleus_site::Input {
+    let mut i = input();
+    let m = i.mainnet.as_mut().unwrap();
+    m.promotion = Some(terms(&[STATEMENT], 57_000_000));
+    m.status.as_mut().unwrap().publish_wallets = publish;
+    i.check().unwrap();
+    i
+}
+
+#[test]
+fn the_market_page_shows_the_match_and_names_the_matching_buyer_only_when_published() {
+    use nucleus_site::{market, status};
+    let known = market::view::Known::default();
+    let s: serde_json::Value =
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    let i = with_promotion(true);
+    let names = status::default_names(&i);
+    let (md, html, json) =
+        status::render_market(&i, &s, status::Source::Build, SITE, &names, &known)
+            .unwrap()
+            .unwrap();
+    assert!(md.contains("claimed, matched +0.5 USDC"), "{md}");
+    assert!(md.contains("## Bootstrap matching"));
+    assert!(md.contains("earns that settlement's seller a match: 50 % of the post's price"));
+    assert!(md.contains("Matched so far: 0.5 USDC for 1 statement; 99.5 USDC of the pool left."));
+    assert!(md.contains(MATCHER) && html.contains(MATCHER));
+    let data: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(data["promotion"]["matchingBuyer"], MATCHER);
+    assert_eq!(data["promotion"]["matches"].as_array().unwrap().len(), 1);
+    let matched: Vec<&serde_json::Value> = data["posts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|p| !p["matched"].is_null())
+        .collect();
+    assert_eq!(matched.len(), 1);
+    assert_eq!(matched[0]["id"], FIRST_SETTLED_POST);
+    assert_eq!(matched[0]["matched"]["order"], FIRST_SETTLEMENT);
+    // The authors' list holds the matching buyer too: published, it renders.
+    let with_list = market::Names {
+        published: names.published.clone(),
+        authors: Some([MATCHER.to_owned()].into()),
+    };
+    assert!(
+        status::render_market(&i, &s, status::Source::Build, SITE, &with_list, &known)
+            .unwrap()
+            .is_some()
+    );
+    // Not published: the page says the match and not the address.
+    let quiet = with_promotion(false);
+    let public = status::public(&s, &status::default_names(&quiet));
+    let d = market::view::page_from(&quiet, Some(&public), status::Source::Build, &known).unwrap();
+    let md = nucleus_site::doc::markdown(&d, Some(SITE));
+    assert!(md.contains("matched +0.5 USDC"));
+    assert!(md.contains("its address is not listed here"));
+    assert!(!md.contains(MATCHER));
+    let index: market::Index = serde_json::from_value(public["market"].clone()).unwrap();
+    assert!(market::view::data(&quiet, &index, 0)["promotion"]["matchingBuyer"].is_null());
+}
+
+/// No promotion in the input: no section, no matched posts.
+#[test]
+fn without_a_promotion_the_page_says_nothing_of_one() {
+    use nucleus_site::{market, status};
+    let i = input();
+    let s: serde_json::Value =
+        serde_json::from_str(include_str!("../input/status.snapshot.json")).unwrap();
+    let (md, _, json) = status::render_market(
+        &i,
+        &s,
+        status::Source::Build,
+        SITE,
+        &status::default_names(&i),
+        &market::view::Known::default(),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(!md.contains("matching") && !md.contains("matched"));
+    let data: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert!(data["promotion"].is_null());
+}

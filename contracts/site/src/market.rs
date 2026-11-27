@@ -1093,6 +1093,9 @@ pub fn names(input: &crate::Input, dir: &std::path::Path) -> Res<Names> {
         if let Some(l) = &st.ladder_buyer {
             published.push(l.to_ascii_lowercase());
         }
+        if let Some(p) = input.mainnet.as_ref().and_then(|m| m.promotion.as_ref()) {
+            published.push(p.matching_buyer.to_ascii_lowercase());
+        }
     }
     Ok(Names {
         published,
