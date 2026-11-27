@@ -174,3 +174,10 @@ is it in the address guard's allow-list and the published names. Without
 - **Time-based start or end.** The start is a block, and there is no end
   block. The month ends when the input's promotion is removed. A removal
   drops the shown matches from the page, owed or not.
+
+## Decisions, 2026-11-27
+
+- **Per-poster cap: 40 USDC,** two full 20 USDC matches per poster.
+- **The matching buyer is a new, dedicated wallet,** published like the bounty and ladder
+  buyers, so the matching pool's budget is separate from any poster's. It is made when the
+  payment step is built; until then the promotion stays absent from the input.
