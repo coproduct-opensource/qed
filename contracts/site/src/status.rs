@@ -1630,6 +1630,11 @@ pub fn render_market(
         .authors
         .iter()
         .flatten()
+        // The published wallets are on the authors' list too (the release
+        // audit's list holds all of the authors' wallets); naming them is
+        // the point of publishing them. Measured 2026-11-26: the first host
+        // pass refused on exactly the bounty buyer and the ladder buyer.
+        .filter(|a| !names.published.iter().any(|p| p.eq_ignore_ascii_case(a)))
         .filter(|a| addresses(&text).contains(a.trim_start_matches("0x")))
         .collect();
     if !foreign.is_empty() || !authors.is_empty() {

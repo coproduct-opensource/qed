@@ -293,6 +293,17 @@ fn the_market_page_names_outside_posters_and_refuses_an_authors_wallet() {
     };
     let refused = status::render_market(&i, &s, status::Source::Build, SITE, &authors, &known);
     assert!(refused.is_err());
+    // The host's real list (2026-11-26): every author wallet, the published
+    // ones included. Those the page names by design; it still renders.
+    let with_published = market::Names {
+        published: names.published.clone(),
+        authors: Some(names.published.iter().cloned().collect()),
+    };
+    assert!(
+        status::render_market(&i, &s, status::Source::Build, SITE, &with_published, &known)
+            .unwrap()
+            .is_some()
+    );
     // check-live: the poster market.json shows is admitted; a planted one
     // is not.
     let built = status::render_market(&i, &s, status::Source::Build, SITE, &names, &known)
