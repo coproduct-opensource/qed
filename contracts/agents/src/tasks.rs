@@ -1,10 +1,10 @@
-//! A buyer posting one task from a task file, journaled, and waiting at its
-//! desk until the task ends; and the two commands that finish a task the
-//! process could not.
+//! A buyer posting one task per task file, each journaled, and waiting at
+//! one desk until every task ends; and the two commands that finish a task
+//! the process could not.
 //!
-//!   nucleus-buyer post-tasks    DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
-//!   nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
-//!   nucleus-buyer task-refund   DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
+//!   nucleus-buyer post-tasks    DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...
+//!   nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...
+//!   nucleus-buyer task-refund   DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...
 //!
 //! A task file says what `post` fixes in the binary: which statement, which
 //! declaration is the claim, which axioms the checker may admit, how large a
@@ -41,17 +41,28 @@
 //!   (`Stop::Wallet`) and `LADDER_GAS` at twice today's price in ether
 //!   (`Stop::Gas`; `intent_only_when_covered`).
 //!
-//! One task per process and per journal: the journal holds one open task,
-//! and a restart attributes every deposit from this buyer to it (rule 8), so
-//! two ladder posts from one wallet at once are refused at the second's
-//! first deposit. Before 2026-11-16 the command took several task files and
-//! kept nothing on disk until a settlement.
-use crate::bounty::{self, Limits, Stop, Terms, live_with};
+//! One task per journal, several journals per desk (since 2026-11-27,
+//! `ladder.rs`; proofs/commerce/LadderMulti.lean): each `OUT_DIR TASK.json`
+//! pair is a row with its own `OUT_DIR/journal.jsonl`, and every row is
+//! served by one process on the buyer's one node. Offers are routed to a
+//! row by task ID; a row posts only when the wallet covers its cap on top of
+//! what the other rows could still be funded for; a restart checks the
+//! deposits against the union of the rows' journals. With one pair the
+//! command is the one-row desk it was from 2026-11-16, and a journal it
+//! wrote resumes unchanged. From 2026-11-16 to 2026-11-27 it took one task
+//! file: two ladder posts from one wallet meant two processes claiming one
+//! node, of which a seller reached only the last to connect, and each
+//! refused to restart over the other's deposit (rule 8 on one journal).
+//! Before 2026-11-16 the command took several task files and kept nothing
+//! on disk until a settlement.
+use crate::bounty::{self, Limits, Shared, Stop, Terms};
+use crate::ladder;
 use crate::prelude::*;
 use crate::relay::{MAXIMUM_GAS_PER_CALL, relayed_artifact_bytes};
 use crate::statement::{PERMITTED_AXIOMS, Row};
 use crate::world::*;
 use nucleus_proof_commerce::Hash;
+use std::{path::PathBuf, sync::Arc};
 
 /// Gas the buyer's own transactions for one task can take, from measured
 /// receipts, each with `Chain::send`'s 10 % over its estimate: `post` 58,893
@@ -241,48 +252,148 @@ impl Spec {
     }
 }
 
-/// The journal, the live market and the task, for one task file.
-fn ladder(
-    deployment: &str,
-    board_address: &str,
-    keyfile: &str,
-    bind: &str,
-    out: &str,
-    file: &str,
-) -> Res<(Spec, bounty::Live, bounty::Shared)> {
-    let spec = Spec::read(file)?;
-    let world = World::read(deployment)?;
-    if !spec.fits(&world.deployment.rules) {
-        return Err(format!(
-            "{file}: the delivery window is longer than this vault's maximum term, so no seller could fund the order"
-        )
-        .into());
-    }
-    fs::create_dir_all(out)?;
-    let out = Path::new(out);
-    let terms = Terms {
+/// One row of a desk: its task, its journal and its market.
+struct DeskRow {
+    spec: Spec,
+    journal: Shared,
+    market: bounty::Live,
+}
+
+/// Whether a row's journal may be created, or must already exist (the other
+/// rows `task-withdraw` and `task-refund` read for rule 8 only).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Journals {
+    Create,
+    OthersExist,
+}
+
+/// The terms a post commits to, from its task file.
+fn terms_of(spec: &Spec) -> Terms {
+    Terms {
         claim: spec.policy.claim.clone(),
         permitted_axioms: spec.policy.permitted_axioms.clone(),
         maximum_artifact_bytes: spec.policy.maximum_artifact_bytes,
         program: spec.program,
         funding_window: spec.funding_window,
         delivery_window: spec.delivery_window,
-    };
-    let (market, journal) = live_with(
-        deployment,
-        board_address,
-        keyfile,
-        Ok(spec.statement.clone()),
-        terms,
-        &out.join("journal.jsonl"),
-        bind,
-        Some(out.join(&spec.name)),
-    )?;
-    Ok((spec, market, journal))
+    }
+}
+
+/// The task files of `OUT_DIR TASK.json` pairs, refused unless each row and
+/// each `OUT_DIR` is named once (a row with two journals could be posted
+/// twice; two rows in one journal would refuse each other's intent).
+fn read_rows(deployment: &str, pairs: &[String]) -> Res<Vec<(Spec, PathBuf)>> {
+    let world = World::read(deployment)?;
+    let mut rows: Vec<(Spec, PathBuf)> = vec![];
+    for pair in pairs.chunks(2) {
+        let [out, file] = pair else {
+            return Err("task files come in OUT_DIR TASK.json pairs".into());
+        };
+        let spec = Spec::read(file)?;
+        if !spec.fits(&world.deployment.rules) {
+            return Err(format!(
+                "{file}: the delivery window is longer than this vault's maximum term, so no seller could fund the order"
+            )
+            .into());
+        }
+        let out = PathBuf::from(out);
+        if named_twice(&rows, &spec, &out) {
+            return Err(format!(
+                "{file}: its row or OUT_DIR {} is named twice; each row has one journal",
+                out.display()
+            )
+            .into());
+        }
+        rows.push((spec, out));
+    }
+    Ok(rows)
+}
+
+/// Whether `spec` or `out` is already a row of `rows`: the same name, the
+/// same ladder row, or the same `OUT_DIR` (the model's `ids.Nodup`).
+fn named_twice(rows: &[(Spec, PathBuf)], spec: &Spec, out: &Path) -> bool {
+    rows.iter().any(|(other, dir)| {
+        other.name == spec.name || (other.row.is_some() && other.row == spec.row) || dir == out
+    })
+}
+
+/// One desk for task files given as `OUT_DIR TASK.json` pairs: one hub (one
+/// node, one listener), and per row `OUT_DIR/journal.jsonl`, its status
+/// file and its market. With one pair this is the desk `post-tasks` ran
+/// before rows could share one.
+fn desk(
+    deployment: &str,
+    board_address: &str,
+    keyfile: &str,
+    bind: &str,
+    pairs: &[String],
+    journals: Journals,
+) -> Res<Vec<DeskRow>> {
+    let rows = read_rows(deployment, pairs)?;
+    let mut hub = bounty::Hub::open(deployment, board_address, keyfile, bind)?;
+    let mut opened = vec![];
+    for (index, (spec, out)) in rows.iter().enumerate() {
+        let path = out.join("journal.jsonl");
+        if index > 0 && journals == Journals::OthersExist && !path.exists() {
+            return Err(format!(
+                "{}: no journal; the other rows' journals are read, never started",
+                path.display()
+            )
+            .into());
+        }
+        fs::create_dir_all(out)?;
+        opened.push((hub.journal(&path)?, path, spec.name.clone()));
+    }
+    let shared: Vec<Shared> = opened.iter().map(|(journal, ..)| journal.clone()).collect();
+    hub.listen(&shared, &opened[0].1)?;
+    let hub = Arc::new(hub);
+    rows.into_iter()
+        .zip(opened)
+        .map(|((spec, out), (journal, path, name))| {
+            let market = hub.clone().row(
+                Ok(spec.statement.clone()),
+                terms_of(&spec),
+                journal.clone(),
+                &path,
+                Some(out.join(name)),
+            )?;
+            Ok(DeskRow {
+                spec,
+                journal,
+                market,
+            })
+        })
+        .collect()
 }
 
 fn usage(command: &str) -> String {
-    format!("usage: nucleus-buyer {command} DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json")
+    format!(
+        "usage: nucleus-buyer {command} DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]..."
+    )
+}
+
+/// The arguments before the pairs, and the pairs.
+fn split(command: &str, args: &[String]) -> Res<([String; 4], Vec<String>)> {
+    match args {
+        [deployment, board, keyfile, bind, pairs @ ..]
+            if !pairs.is_empty() && pairs.len() % 2 == 0 =>
+        {
+            Ok((
+                [
+                    deployment.clone(),
+                    board.clone(),
+                    keyfile.clone(),
+                    bind.clone(),
+                ],
+                pairs.to_vec(),
+            ))
+        }
+        _ => Err(format!(
+            "{} (one OUT_DIR TASK.json pair per row; each row's journal is OUT_DIR/journal.jsonl)",
+            usage(command)
+        )
+        .into()),
+    }
 }
 
 /// The one-shot limits for a task: at most one post, one settlement, the
@@ -298,87 +409,136 @@ pub fn limits(spec: &Spec) -> Limits {
     }
 }
 
-/// `post-tasks`: post the task once (or resume it from the journal) and
-/// follow it to its end. Exit 0 only for a settlement whose artifact the
-/// Lean checker accepted; any other end is the typed `Stop`.
+fn ledger_of(journal: &Shared) -> Res<bounty::Ledger> {
+    Ok(journal
+        .lock()
+        .map_err(|_| "journal poisoned")?
+        .ledger()
+        .clone())
+}
+
+/// `post-tasks`: post each row's task once (or resume it from its journal)
+/// and follow it to its end, all rows on one desk. Exit 0 only when every
+/// row ended in a settlement whose artifact the Lean checker accepted; any
+/// other end is each row's typed `Stop` or error.
 pub fn post_tasks(args: &[String]) -> Res<()> {
-    let [deployment, board_address, keyfile, bind, out, file] = args else {
-        return Err(format!(
-            "{} (one task file: one journal, OUT_DIR/journal.jsonl)",
-            usage("post-tasks")
-        )
-        .into());
-    };
-    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
+    let ([deployment, board_address, keyfile, bind], pairs) = split("post-tasks", args)?;
+    let mut rows = desk(
+        &deployment,
+        &board_address,
+        &keyfile,
+        &bind,
+        &pairs,
+        Journals::Create,
+    )?;
     // The relayer's reach, on the post's face: a seller whose artifact is
     // larger settles with its own ether (relay.rs, MAXIMUM_GAS_PER_CALL).
     let reach = relayed_artifact_bytes(MAXIMUM_GAS_PER_CALL);
-    println!(
-        "post-tasks: {}: artifacts up to {} bytes; the relayer's {} gas cap settles up to {reach} bytes{}",
-        spec.name,
-        spec.policy.maximum_artifact_bytes,
-        MAXIMUM_GAS_PER_CALL,
-        if spec.policy.maximum_artifact_bytes as usize > reach {
-            "; a seller with a larger artifact pays its own settle"
-        } else {
-            ""
+    for row in &rows {
+        println!(
+            "post-tasks: {}: artifacts up to {} bytes; the relayer's {} gas cap settles up to {reach} bytes{}",
+            row.spec.name,
+            row.spec.policy.maximum_artifact_bytes,
+            MAXIMUM_GAS_PER_CALL,
+            if row.spec.policy.maximum_artifact_bytes as usize > reach {
+                "; a seller with a larger artifact pays its own settle"
+            } else {
+                ""
+            }
+        );
+    }
+    let ended: Vec<ladder::Ended> = if let [row] = rows.as_mut_slice() {
+        // One row: the one-row desk, as before rows could share one.
+        vec![Ok(bounty::run(
+            limits(&row.spec),
+            &row.journal,
+            &mut row.market,
+        )?)]
+    } else {
+        let mut desk: Vec<ladder::Row> = rows
+            .iter_mut()
+            .map(|row| ladder::Row {
+                name: row.spec.name.clone(),
+                limits: limits(&row.spec),
+                journal: row.journal.clone(),
+                market: &mut row.market,
+            })
+            .collect();
+        ladder::run(&mut desk, &mut |seconds| {
+            std::thread::sleep(std::time::Duration::from_secs(seconds));
+            Ok(())
+        })?
+    };
+    let mut unsettled = vec![];
+    for (row, end) in rows.iter().zip(&ended) {
+        let ledger = ledger_of(&row.journal)?;
+        let stop = match end {
+            Ok(stop) => stop.to_string(),
+            Err(error) => format!("failed: {error}"),
+        };
+        println!(
+            "post-tasks: {}: stopped: {stop}; posted {}, settled {}, refunded {}, spent {}",
+            row.spec.name, ledger.posted, ledger.settled, ledger.refunded, ledger.spent
+        );
+        if end != &Ok(Stop::TaskLimit) {
+            unsettled.push(format!("{}: {stop}", row.spec.name));
         }
-    );
-    let stop = bounty::run(limits(&spec), &journal, &mut market)?;
-    let ledger = journal
-        .lock()
-        .map_err(|_| "journal poisoned")?
-        .ledger()
-        .clone();
-    println!(
-        "post-tasks: {}: stopped: {stop}; posted {}, settled {}, refunded {}, spent {}",
-        spec.name, ledger.posted, ledger.settled, ledger.refunded, ledger.spent
-    );
-    match stop {
-        Stop::TaskLimit => Ok(()),
-        other => Err(Box::new(other)),
+    }
+    match (ended.as_slice(), unsettled.is_empty()) {
+        (_, true) => Ok(()),
+        // One row: its typed `Stop`, as before.
+        ([Ok(stop)], false) => Err(Box::new(stop.clone())),
+        _ => Err(unsettled.join("; ").into()),
     }
 }
 
-/// `task-withdraw`: withdraw the journal's post if nobody was signed for it
-/// (resolving an intent first, as a restart does), and end the journal. The
-/// `post-tasks` process for it must not be running.
+/// `task-withdraw`: withdraw the first row's post if nobody was signed for
+/// it (resolving an intent first, as a restart does), and end its journal.
+/// Further pairs are the desk's other rows, whose journals are read so that
+/// their deposits are explained (rule 8), and never written. The desk must
+/// not be running.
 pub fn task_withdraw(args: &[String]) -> Res<()> {
-    let [deployment, board_address, keyfile, bind, out, file] = args else {
-        return Err(usage("task-withdraw").into());
-    };
-    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
-    bounty::close(&journal, &mut market)?;
-    let ledger = journal
-        .lock()
-        .map_err(|_| "journal poisoned")?
-        .ledger()
-        .clone();
+    let ([deployment, board_address, keyfile, bind], pairs) = split("task-withdraw", args)?;
+    let mut rows = desk(
+        &deployment,
+        &board_address,
+        &keyfile,
+        &bind,
+        &pairs,
+        Journals::OthersExist,
+    )?;
+    let others: Vec<Shared> = rows[1..].iter().map(|row| row.journal.clone()).collect();
+    let row = &mut rows[0];
+    bounty::close_beside(&row.journal, &others, &mut row.market)?;
+    let ledger = ledger_of(&row.journal)?;
     println!(
         "task-withdraw: {}: nothing open; posted {}, settled {}",
-        spec.name, ledger.posted, ledger.settled
+        row.spec.name, ledger.posted, ledger.settled
     );
     Ok(())
 }
 
-/// `task-refund`: end the journal's signed order now: refund and claim a
+/// `task-refund`: end the first row's signed order now: refund and claim a
 /// funded order past its delivery deadline, or journal its settlement or
-/// lapse. Refuses (`bounty::Unfinished`) when nothing is due yet. The
-/// `post-tasks` process for it must not be running.
+/// lapse. Refuses (`bounty::Unfinished`) when nothing is due yet. Further
+/// pairs are read as for `task-withdraw`. The desk must not be running.
 pub fn task_refund(args: &[String]) -> Res<()> {
-    let [deployment, board_address, keyfile, bind, out, file] = args else {
-        return Err(usage("task-refund").into());
-    };
-    let (spec, mut market, journal) = ladder(deployment, board_address, keyfile, bind, out, file)?;
-    bounty::finish(&journal, &mut market)?;
-    let ledger = journal
-        .lock()
-        .map_err(|_| "journal poisoned")?
-        .ledger()
-        .clone();
+    let ([deployment, board_address, keyfile, bind], pairs) = split("task-refund", args)?;
+    let mut rows = desk(
+        &deployment,
+        &board_address,
+        &keyfile,
+        &bind,
+        &pairs,
+        Journals::OthersExist,
+    )?;
+    let others: Vec<Shared> = rows[1..].iter().map(|row| row.journal.clone()).collect();
+    let row = &mut rows[0];
+    bounty::finish_beside(&row.journal, &others, &mut row.market)?;
+    let ledger = ledger_of(&row.journal)?;
     println!(
         "task-refund: {}: the order ended; refunded {}, settled {}, spent {}",
-        spec.name, ledger.refunded, ledger.settled, ledger.spent
+        row.spec.name, ledger.refunded, ledger.settled, ledger.spent
     );
     Ok(())
 }
@@ -531,6 +691,43 @@ mod tests {
         );
         // A task file with no row is not a ladder task, as before.
         assert_eq!(Spec::parse(&file(), statement()).unwrap().row, None);
+    }
+
+    #[test]
+    fn task_files_come_in_pairs_one_row_each() {
+        let args = |n: usize| -> Vec<String> { (0..n).map(|i| format!("a{i}")).collect() };
+        // One pair is the one-row command as before; more pairs are rows.
+        for n in [6, 8, 10] {
+            let (fixed, pairs) = split("post-tasks", &args(n)).unwrap();
+            assert_eq!((fixed.len(), pairs.len()), (4, n - 4));
+        }
+        for n in [4, 5, 7] {
+            let error = split("post-tasks", &args(n)).unwrap_err().to_string();
+            assert!(error.contains("OUT_DIR TASK.json pair per row"), "{error}");
+        }
+        // Each row once: by name, by ladder row, and by OUT_DIR.
+        let row = |name: &str, ladder: Option<&str>| {
+            let mut value = file();
+            value["name"] = json!(name);
+            if let Some(ladder) = ladder {
+                value["row"] = json!(ladder);
+                value["claim"] = json!(format!("Statements.{ladder}.claim"));
+            }
+            Spec::parse(&value, statement()).unwrap()
+        };
+        let rows = vec![
+            (row("S0001", Some("S0001")), PathBuf::from("s0001/out")),
+            (row("S0007", Some("S0007")), PathBuf::from("s0007/out")),
+        ];
+        let s0006 = row("S0006", Some("S0006"));
+        assert!(!named_twice(&rows, &s0006, Path::new("s0006/out")));
+        assert!(named_twice(&rows, &s0006, Path::new("s0001/out")));
+        assert!(named_twice(&rows, &row("S0001", None), Path::new("x")));
+        assert!(named_twice(
+            &rows,
+            &row("other", Some("S0007")),
+            Path::new("x")
+        ));
     }
 
     #[test]

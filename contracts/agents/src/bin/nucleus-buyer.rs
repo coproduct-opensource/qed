@@ -2,12 +2,15 @@
 //!   asks one seller directly (`buyer.rs`).
 //! `nucleus-buyer post DEPLOYMENT BOARD KEYFILE STATEMENT PROGRAM_HEX MAXIMUM_PRICE BIND OUT_DIR`
 //!   posts a task on the board and waits at its desk (`post.rs`).
-//! `nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
-//!   posts one task, journaled in OUT_DIR, and follows it to its end (`tasks.rs`).
-//! `nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
-//!   withdraws that journal's post if nobody was signed for it.
-//! `nucleus-buyer task-refund DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json`
-//!   refunds and claims back that journal's funded order past its delivery deadline.
+//! `nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...`
+//!   posts each row's task once, journaled in its OUT_DIR, and follows every row
+//!   to its end on one desk and one node (`tasks.rs`, `ladder.rs`).
+//! `nucleus-buyer task-withdraw DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...`
+//!   withdraws the first row's post if nobody was signed for it; the other
+//!   rows' journals are read for rule 8.
+//! `nucleus-buyer task-refund DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json [OUT_DIR TASK.json]...`
+//!   refunds and claims back the first row's funded order past its delivery
+//!   deadline; the other rows' journals are read for rule 8.
 //! `nucleus-buyer statement REPO COMMIT PACKAGE ROW LEAN4EXPORT WORK_DIR OUT_DIR [LAKE]`
 //!   generates and screens a ladder statement from a commit (`statement.rs`).
 //! `nucleus-buyer deliveries-fetch NODE_ID OUT [BINDING]`
