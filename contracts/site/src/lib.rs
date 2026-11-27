@@ -158,6 +158,10 @@ pub struct Mainnet {
     /// What the status page reads from the chain. Absent: no status page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<StatusInput>,
+    /// The bootstrap matching promotion (proofs/commerce/Promotion.lean).
+    /// Absent: no promotion, and the pages say nothing of one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub promotion: Option<market::promotion::PromotionInput>,
 }
 
 /// The wallets and limits the status page's queries name.
@@ -521,6 +525,9 @@ impl Input {
         }
         if self.vault.fee_bps == 0 || self.vault.fee_bps > self.vault.maximum_fee_bps {
             return Err("fee outside its cap".into());
+        }
+        if let Some(p) = self.mainnet.as_ref().and_then(|m| m.promotion.as_ref()) {
+            p.check()?;
         }
         Ok(())
     }
