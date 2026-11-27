@@ -562,6 +562,15 @@ board, signs for the first offer that passes its review, and afterwards reads
 the artifact from the settlement transaction and checks it with the Lean
 checker itself. `contracts/agents/tasks/` has example task files.
 
+`nucleus-buyer post-tasks DEPLOYMENT BOARD KEYFILE BIND OUT_DIR TASK.json
+[OUT_DIR TASK.json]...` posts one single-winner task per pair, at most once
+each, and serves them all from one process on the buyer's one iroh node.
+Each row has its own journal at `OUT_DIR/journal.jsonl`, and a restart
+resumes every row from it. Offers are routed to a row by task ID. A row posts
+only when the wallet covers its cap on top of what the other rows could still
+be funded for. Model: `proofs/commerce/LadderMulti.lean`; why one process:
+`docs/rfcs/qed-ladder-multi-row-desk-2026-11-27.md`.
+
 ## Checking the published programs
 
 An order names its proof program by image ID, and the ID is computed from the
