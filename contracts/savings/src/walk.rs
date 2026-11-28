@@ -255,3 +255,29 @@ pub fn attribute_all<P: PartialEq + Clone>(settled: &[Settled<P>]) -> Vec<(Hash,
 
 #[cfg(test)]
 mod tests;
+
+/// An acceptance policy from its `input/policies.json` entry (the site's
+/// layout), kept only when it hashes to `hash`, the policy hash an order
+/// commits to; with the entry's statement file name.
+pub fn policy_from_json(hash: &str, p: &serde_json::Value) -> Option<(Policy, String)> {
+    let sha = p["statementSha256"].as_str()?.trim_start_matches("0x");
+    let mut statement_sha256 = [0u8; 32];
+    for (i, b) in statement_sha256.iter_mut().enumerate() {
+        *b = u8::from_str_radix(sha.get(i * 2..i * 2 + 2)?, 16).ok()?;
+    }
+    let policy = Policy {
+        statement_sha256,
+        claim: p["claim"].as_str()?.to_owned(),
+        permitted_axioms: p["permittedAxioms"]
+            .as_array()?
+            .iter()
+            .filter_map(|a| a.as_str().map(str::to_owned))
+            .collect(),
+        maximum_artifact_bytes: u32::try_from(p["maximumArtifactBytes"].as_u64()?).ok()?,
+    };
+    let computed: String = policy.hash().iter().map(|b| format!("{b:02x}")).collect();
+    if computed != hash.trim_start_matches("0x").to_ascii_lowercase() {
+        return None;
+    }
+    Some((policy, p["statementFile"].as_str()?.to_owned()))
+}

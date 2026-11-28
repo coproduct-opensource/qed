@@ -315,3 +315,21 @@ fn the_v024_journals_replay_unchanged() {
     assert_eq!(all(&opens, NOW, Phase::Empty), 70_000_000);
     assert!(covered(40_000_000, 70_000_000, WALLET));
 }
+
+/// A referred signature is journaled with its referral first, in its own
+/// row; an unreferred one writes no referral line. Driven red by skipping
+/// the referral line: the ledger held no referral.
+#[test]
+fn a_referred_signature_journals_its_referral_before_the_signature() {
+    let s1 = task(1, 25_000_000, NOW + 600);
+    let s7 = task(7, 30_000_000, NOW + 600);
+    let (j1, j7) = (posted("ref-s0001", &s1), posted("ref-s0007", &s7));
+    let mut referred = signed(&s1, 101);
+    referred.referral = Some(([0xf0; 20], [0x11; 32]));
+    record_signature(&[j1.clone(), j7.clone()], &referred).unwrap();
+    let l1 = ledger(&j1);
+    assert_eq!(l1.referrals, vec![([101; 32], [0xf0; 20], [0x11; 32])]);
+    assert!(matches!(l1.open, Some(Open::Signed(..))));
+    record_signature(&[j1, j7.clone()], &signed(&s7, 107)).unwrap();
+    assert!(ledger(&j7).referrals.is_empty());
+}

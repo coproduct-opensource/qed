@@ -226,26 +226,8 @@ pub struct Library<'a> {
 
 impl Library<'_> {
     fn policy(&self, hash: &str) -> Option<(nucleus_proof_acceptance::Policy, &[u8])> {
-        let p = self.policies.get(hash)?;
-        let policy = nucleus_proof_acceptance::Policy {
-            statement_sha256: word(&format!(
-                "0x{}",
-                p["statementSha256"].as_str()?.trim_start_matches("0x")
-            )),
-            claim: p["claim"].as_str()?.to_owned(),
-            permitted_axioms: p["permittedAxioms"]
-                .as_array()?
-                .iter()
-                .filter_map(|a| a.as_str().map(str::to_owned))
-                .collect(),
-            maximum_artifact_bytes: u32::try_from(p["maximumArtifactBytes"].as_u64()?).ok()?,
-        };
-        // A policy counts only when it hashes to the order's policy hash.
-        if super::hx(&policy.hash()) != hash.to_ascii_lowercase() {
-            return None;
-        }
-        let file = p["statementFile"].as_str()?;
-        let (_, bytes) = self.statements.iter().find(|(f, _)| f == file)?;
+        let (policy, file) = qed_savings::walk::policy_from_json(hash, self.policies.get(hash)?)?;
+        let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
         Some((policy, bytes))
     }
 }

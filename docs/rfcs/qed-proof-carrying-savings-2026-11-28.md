@@ -193,10 +193,17 @@ input cannot add a referral the order did not bind.
 
 ## Not yet
 
-- **Wiring the payout.** The executor is not yet called from the desk's loop
-  after a settlement joins a row. There is no live `Wallet` over the chain,
-  and the signed order's referral is not yet journaled. `Signed.referral`
-  holds it in memory only.
+- **Payout gas through the relayer.** I assumed the buyer funds through the
+  relayer, so payouts could go the same way. It does not: the seller relays
+  `fund`, and the buyer never sends it. The relayer admits a
+  `transferWithAuthorization` only from a seller that an allow-listed vault
+  paid, and only within what the vaults paid it (rules T-1 to T-9, bounded
+  by claims under T-6). A buyer-signed payout fails T-6. Relaying payouts
+  needs a new relayer rule. That rule would admit a transfer whose nonce is
+  a payout nonce, bounded by a split it recomputes from the chain. It is a
+  change to a production service's effects, so it is the owner's call. Until
+  then the desk pays with the buyer's own gas: the bounty buyer already
+  posts and withdraws with it.
 - **Authors on `/market`.** The page does not walk artifacts, so author
   shares read 0 there and their 20 % reads as the buyer's. A desk that pays
   authors will disagree with the page until it does.
@@ -241,3 +248,30 @@ Measured on the Base fixture (`a_tampered_published_attribution_is_flagged`):
   reused nothing of its own, and it is not its own author.
 - **What this means:** a first-carrier rule credits whoever settles a public
   proof first. Here that was the authors' 1 USDC trade.
+
+## The payout, wired
+
+- **Referral in the journal.** The desk journals a signed order's referral
+  as a `referred` line, just before its `signed` line, in the row's own
+  journal. Journals written before this change have no such line and replay
+  as before. The live S0001 and S0007 journals (`out`, `out-fmt2s`) replay
+  unchanged; this repository does not hold them, so the test reads them
+  from `QED_JOURNALS`.
+- **Payment before `settled`.** When a checked settlement joins its row, the
+  loop calls `Market::savings` before it journals `settled`. The call gets
+  the post's cap and the journaled referral. It publishes the attribution
+  and pays each share.
+  - A share it pays, or finds already paid on the token, is journaled
+    `paid`.
+  - A share the wallet does not cover on top of the other rows'
+    commitments is journaled `owed`. Every later step tries the owed shares
+    first.
+  - A crash anywhere pays nothing twice. The token holds each nonce
+    (`Payout.paid_once`), and a `paid` line carries the share's nonce,
+    checked when the line is read.
+- **Authors.** The desk reads every `Settled` of its vault from
+  `NUCLEUS_SAVINGS_FROM`. It takes artifacts from `settle` calldata and
+  statements from `NUCLEUS_SAVINGS_LIBRARY`, a directory in the site's input
+  layout. Without the library, no author is paid. The desk reads one vault
+  and the site reads every indexed vault, so where those differ the site
+  shows a mismatch.

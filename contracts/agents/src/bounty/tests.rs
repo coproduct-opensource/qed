@@ -130,7 +130,13 @@ struct Fake {
     /// test ends a bounty nobody answers (R-4: unanswered windows no longer
     /// stop it).
     broke_after: Option<u32>,
+    /// Each `savings` call: the order, its cap and its referral.
+    savings: Vec<Seen>,
+    /// Shares `pay_owed` was asked to pay, each call.
+    owed_asked: Vec<usize>,
 }
+/// One `savings` call as the fake saw it.
+type Seen = (Hash, u64, Option<(Address, Hash)>);
 const STATEMENT_GONE: &str = "the statement file /var/lib/qed-buyer/statement.v2 cannot be read: No such file or directory (os error 2)";
 impl Fake {
     fn new(world: &Chain, journal: &Shared) -> Self {
@@ -146,6 +152,8 @@ impl Fake {
             probe: None,
             reports: vec![],
             broke_after: None,
+            savings: vec![],
+            owed_asked: vec![],
         }
     }
     fn degraded(&self) -> usize {
@@ -219,6 +227,38 @@ impl Fake {
 }
 
 impl Market for Fake {
+    fn savings(
+        &mut self,
+        order: &OrderRef,
+        cap: u64,
+        referral: Option<(Address, Hash)>,
+    ) -> Res<Vec<Entry>> {
+        self.savings.push((order.digest, cap, referral));
+        let split = qed_savings::split(
+            &qed_savings::Rule::MODEL,
+            u128::from(cap),
+            u128::from(order.amount),
+            referral.is_some(),
+            0,
+        );
+        // The wallet covers nothing yet: every share is owed.
+        Ok(
+            crate::payout::shares(order.digest, referral.map(|r| r.0), &[], &split)
+                .into_iter()
+                .map(|share| Entry::Owed { share })
+                .collect(),
+        )
+    }
+    fn pay_owed(&mut self, owed: &[crate::payout::Share]) -> Res<Vec<Entry>> {
+        self.owed_asked.push(owed.len());
+        Ok(owed
+            .iter()
+            .map(|s| Entry::Paid {
+                share: s.clone(),
+                transaction: Some("0xpaid".into()),
+            })
+            .collect())
+    }
     fn now(&mut self) -> Res<u64> {
         Ok(self.world.borrow().clock)
     }
@@ -1794,5 +1834,137 @@ fn the_v024_journals_and_a_new_row_run_as_one_desk() {
         let now = fs::read_to_string(path).unwrap();
         assert!(now.starts_with(text));
         assert_eq!(now.matches("\"intent\"").count(), 1, "{now}");
+    }
+}
+
+// ---- Savings: the referral line, the payout hook (Payout.lean) ---------------
+
+/// A referred order settled under its cap: the referral is journaled before
+/// the signature, the hook sees the post's cap and the referral, its shares
+/// are journaled owed before `Settled`, and the next step pays them. The
+/// journal replays to the same ledger. Driven red by not calling the hook:
+/// no owed line was journaled.
+#[test]
+fn a_referred_settlement_journals_its_referral_and_pays_its_shares() {
+    let (path, world) = (scratch(), chain(1_000));
+    let journal = open(&path);
+    let mut fake = Fake::new(&world, &journal);
+    let referrer = [0xf0; 20];
+    let mut traded = false;
+    fake.script = Some(Box::new(move |fake: &mut Fake| {
+        let Some(task) = fake.open_task() else { return };
+        if traded || !fake.desks.contains(&task.id) {
+            return;
+        }
+        traded = true;
+        let mut digest = task.id;
+        digest[0] ^= 0xff;
+        fake.journal
+            .lock()
+            .unwrap()
+            .record(Entry::Referred {
+                task: task.id,
+                digest,
+                referrer,
+                nonce: [0x11; 32],
+            })
+            .unwrap();
+        fake.trade(60);
+    }));
+    let limits = Limits { tasks: 1, ..LIMITS };
+    run(limits, &journal, &mut fake).unwrap();
+    assert_eq!(fake.savings.len(), 1);
+    let (_, cap, referral) = fake.savings[0];
+    assert_eq!((cap, referral), (100, Some((referrer, [0x11; 32]))));
+    let text = fs::read_to_string(&path).unwrap();
+    let events: Vec<String> = text
+        .lines()
+        .map(|l| {
+            serde_json::from_str::<Value>(l).unwrap()["event"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let at = |e: &str| events.iter().position(|x| x == e).unwrap();
+    assert!(at("referred") < at("signed"));
+    assert!(at("owed") < at("settled"), "{events:?}");
+    assert!(at("paid") > at("settled"));
+    // 40 saved: 12 to the referrer (30 %); no authors without a library.
+    let ledger = journal.lock().unwrap().ledger().clone();
+    assert!(ledger.owed.is_empty());
+    assert_eq!(fake.owed_asked.first(), Some(&1));
+    let paid: Value = text
+        .lines()
+        .map(|l| serde_json::from_str::<Value>(l).unwrap())
+        .find(|v| v["event"] == "paid")
+        .unwrap();
+    assert_eq!(paid["amount"], "12");
+    assert_eq!(replay(&text).unwrap(), ledger);
+}
+
+/// The new lines: a referral only for the posted task, a share line whose
+/// nonce is not its share's is not read, and each survives its JSON.
+#[test]
+fn savings_lines_are_moves_of_the_diagram_and_read_back() {
+    let share = crate::payout::Share {
+        order: [6; 32],
+        role: crate::payout::Role::Referrer,
+        party: [0xf0; 20],
+        amount: 12,
+    };
+    for entry in [
+        Entry::Referred {
+            task: [1; 32],
+            digest: [6; 32],
+            referrer: [0xf0; 20],
+            nonce: [0x11; 32],
+        },
+        Entry::Owed {
+            share: share.clone(),
+        },
+        Entry::Paid {
+            share: share.clone(),
+            transaction: Some("0x01".into()),
+        },
+        Entry::Paid {
+            share: share.clone(),
+            transaction: None,
+        },
+    ] {
+        assert_eq!(Entry::from_json(&entry.to_json()).unwrap(), entry);
+    }
+    let mut forged = Entry::Owed {
+        share: share.clone(),
+    }
+    .to_json();
+    forged["amount"] = json!("13");
+    assert!(Entry::from_json(&forged).is_err());
+    // A referral with no post open is not a move.
+    let (path, _) = (scratch(), chain(1_000));
+    let journal = open(&path);
+    let refused = journal.lock().unwrap().record(Entry::Referred {
+        task: [1; 32],
+        digest: [6; 32],
+        referrer: [0xf0; 20],
+        nonce: [0x11; 32],
+    });
+    assert!(refused.is_err());
+}
+
+/// Journals written before this change resume: every file named in
+/// `QED_JOURNALS` (colon-separated; the live S0001 and S0007 rows' journals
+/// are not in this public repository) replays without error. Ignored when
+/// the variable is unset.
+#[test]
+fn journals_from_before_savings_still_replay() {
+    let Ok(paths) = std::env::var("QED_JOURNALS") else {
+        return;
+    };
+    for p in paths.split(':').filter(|p| !p.is_empty()) {
+        let text = fs::read_to_string(p).unwrap();
+        let ledger = replay(&text).unwrap_or_else(|e| panic!("{p}: {e}"));
+        assert!(ledger.referrals.is_empty() && ledger.owed.is_empty());
+        println!("{p}: {} lines replay", text.lines().count());
     }
 }

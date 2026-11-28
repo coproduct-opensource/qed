@@ -12,12 +12,13 @@ description = "Proof-carrying savings: the split of what a settlement saved its 
 # The attribution walk over settled artifacts: the acceptance core, the
 # checker's walk and the library exclusion set. The desk and the site both
 # use it, so they compute attribution with the same code.
-walk = ["dep:nucleus-proof-acceptance", "dep:nanoda_lib", "dep:sha2"]
+walk = ["dep:nucleus-proof-acceptance", "dep:nanoda_lib", "dep:sha2", "dep:serde_json"]
 
 [dependencies]
 nucleus-proof-acceptance = { path = "../proof-acceptance/core", optional = true }
 nanoda_lib = { path = "../proof-acceptance/vendor/nanoda_lib", optional = true }
 sha2 = { version = "0.10.9", default-features = false, optional = true }
+serde_json = { version = "1", optional = true }
 
 [[bin]]
 name = "qed-library-keys"

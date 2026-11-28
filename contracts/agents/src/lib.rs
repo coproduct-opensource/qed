@@ -12,6 +12,7 @@
 //! `message.rs`. Adapters: `iroh_net.rs` (default) and `http.rs`.
 pub mod a2a;
 pub mod a2a_iroh;
+pub mod attribution;
 pub mod blobs;
 pub mod board;
 pub mod bounty;

@@ -193,6 +193,27 @@ pub enum Entry {
     Stopped {
         reason: String,
     },
+    /// Written by the desk just before `Signed` when the order's salt binds
+    /// a referrer: the referrer and the nonce that open it
+    /// (docs/rfcs/qed-proof-carrying-savings-2026-11-28.md). Journals written
+    /// before referrals have no such line and replay as before.
+    Referred {
+        task: Hash,
+        digest: Hash,
+        referrer: Address,
+        nonce: Hash,
+    },
+    /// A share of a settled order's saving, sent or found already paid on
+    /// the token (`payout::Paid`). The token's used nonce is what makes it
+    /// once; this line is the record.
+    Paid {
+        share: crate::payout::Share,
+        transaction: Option<String>,
+    },
+    /// A share the wallet could not yet cover; tried again on later steps.
+    Owed {
+        share: crate::payout::Share,
+    },
 }
 
 /// The task this journal has open, if any.
@@ -266,6 +287,10 @@ pub struct Ledger {
     pub signed: Vec<Hash>,
     /// The height up to which the vault's deposits were compared with `signed`.
     pub checkpoint: u64,
+    /// Order digest → the referrer and nonce journaled for it.
+    pub referrals: Vec<(Hash, Address, Hash)>,
+    /// Shares owed and not yet journaled paid, in the order they were owed.
+    pub owed: Vec<crate::payout::Share>,
     lines: usize,
 }
 
@@ -282,6 +307,8 @@ impl Ledger {
             open: None,
             signed: vec![],
             checkpoint,
+            referrals: vec![],
+            owed: vec![],
             lines: 1,
         }
     }
@@ -291,6 +318,29 @@ impl Ledger {
         let next = match (entry, open) {
             (Entry::Opened(_), _) => return Err("a journal is opened once, on its first line"),
             (Entry::Stopped { .. }, open) => open,
+            (
+                Entry::Referred {
+                    task,
+                    digest,
+                    referrer,
+                    nonce,
+                },
+                Some(Open::Posted(posted)),
+            ) if *task == posted.id => {
+                self.referrals.push((*digest, *referrer, *nonce));
+                Some(Open::Posted(posted))
+            }
+            (Entry::Referred { .. }, _) => return Err("a referral for a task that is not posted"),
+            (Entry::Owed { share }, open) => {
+                if !self.owed.contains(share) {
+                    self.owed.push(share.clone());
+                }
+                open
+            }
+            (Entry::Paid { share, .. }, open) => {
+                self.owed.retain(|s| s != share);
+                open
+            }
             (Entry::Intent(task), None) => Some(Open::Intent(task.clone())),
             (Entry::Intent(_), Some(_)) => return Err("a task is posted while another is open"),
             (Entry::Posted { task, .. }, Some(Open::Intent(intent))) if *task == intent.id => {
@@ -379,6 +429,41 @@ fn address_in(value: &Value) -> Result<Address, String> {
         .try_into()
         .map_err(|_| "20 bytes expected".to_owned())
 }
+fn address_of_json(value: &Value) -> Result<Address, String> {
+    unhex(value.as_str().ok_or("address expected")?)
+        .map_err(|e| e.to_string())?
+        .try_into()
+        .map_err(|_| "20 bytes expected".to_owned())
+}
+fn share_json(s: &crate::payout::Share) -> Value {
+    json!({
+        "order": hex(&s.order),
+        "role": match s.role { crate::payout::Role::Referrer => "referrer", crate::payout::Role::Author => "author" },
+        "party": hex(&s.party),
+        "amount": s.amount.to_string(),
+        "nonce": hex(&crate::payout::nonce(s)),
+    })
+}
+fn share_of(v: &Value) -> Result<crate::payout::Share, String> {
+    let share = crate::payout::Share {
+        order: hash_of(&v["order"])?,
+        role: match v["role"].as_str() {
+            Some("referrer") => crate::payout::Role::Referrer,
+            Some("author") => crate::payout::Role::Author,
+            _ => return Err("role expected".into()),
+        },
+        party: address_of_json(&v["party"])?,
+        amount: v["amount"]
+            .as_str()
+            .and_then(|a| a.parse().ok())
+            .ok_or("amount expected")?,
+    };
+    // The nonce is the share's; a line whose nonce is another's is not read.
+    if hash_of(&v["nonce"])? != crate::payout::nonce(&share) {
+        return Err("the nonce is not this share's".into());
+    }
+    Ok(share)
+}
 fn number(value: &Value) -> Result<u64, String> {
     value.as_u64().ok_or_else(|| "number expected".to_owned())
 }
@@ -444,6 +529,26 @@ impl Entry {
                 line
             }
             Self::Abandoned { task } => json!({"event": "abandoned", "task": hex(task)}),
+            Self::Referred {
+                task,
+                digest,
+                referrer,
+                nonce,
+            } => json!({
+                "event": "referred", "task": hex(task), "digest": hex(digest),
+                "referrer": hex(referrer), "nonce": hex(nonce),
+            }),
+            Self::Paid { share, transaction } => {
+                let mut line = share_json(share);
+                line["event"] = json!("paid");
+                line["transaction"] = json!(transaction);
+                line
+            }
+            Self::Owed { share } => {
+                let mut line = share_json(share);
+                line["event"] = json!("owed");
+                line
+            }
             Self::Stopped { reason } => json!({"event": "stopped", "reason": reason}),
         }
     }
@@ -508,6 +613,19 @@ impl Entry {
             },
             "stopped" => Self::Stopped {
                 reason: text(&v["reason"])?,
+            },
+            "referred" => Self::Referred {
+                task: hash_of(&v["task"])?,
+                digest: hash_of(&v["digest"])?,
+                referrer: address_of_json(&v["referrer"])?,
+                nonce: hash_of(&v["nonce"])?,
+            },
+            "paid" => Self::Paid {
+                share: share_of(v)?,
+                transaction: v["transaction"].as_str().map(str::to_owned),
+            },
+            "owed" => Self::Owed {
+                share: share_of(v)?,
             },
             other => return Err(format!("unknown event {other:?}")),
         })
@@ -649,6 +767,25 @@ pub trait Market {
     fn report(&mut self, health: &Health);
     /// Close the desk for the task. False if it had already been signed for.
     fn close_desk(&mut self, task: Hash) -> Res<bool>;
+    /// After a checked settlement of `order` on a post priced `cap`, with
+    /// the referral its journal holds: publish who authored the reused
+    /// lemmas and pay the shares of the saving (`payout::pay`,
+    /// proofs/commerce/Payout.lean). Returns the `Paid` and `Owed` lines to
+    /// journal. A market that pays nothing returns none.
+    fn savings(
+        &mut self,
+        _order: &OrderRef,
+        _cap: u64,
+        _referral: Option<(Address, Hash)>,
+    ) -> Res<Vec<Entry>> {
+        Ok(vec![])
+    }
+    /// What the other rows could still be funded for; payouts leave it.
+    fn reserve(&mut self, _reserved: u64) {}
+    /// Pay shares still owed (`Owed` lines). Returns the lines to journal.
+    fn pay_owed(&mut self, _owed: &[crate::payout::Share]) -> Res<Vec<Entry>> {
+        Ok(vec![])
+    }
     /// Withdraw the post on the board if it is not withdrawn. Returns the
     /// transaction, or a note that it already was.
     fn withdraw(&mut self, task: Hash) -> Res<String>;
@@ -852,6 +989,14 @@ pub(crate) fn step(
         )
     };
     let record = |entry: Entry| -> Res<()> { locked(journal)?.record(entry) };
+    market.reserve(reserved);
+    // Shares a settlement left owed are tried first, every step.
+    let owed = locked(journal)?.ledger().owed.clone();
+    if !owed.is_empty() {
+        for line in market.pay_owed(&owed)? {
+            record(line)?;
+        }
+    }
     match open {
         None => {
             // R-4 (2026-11-14): only settled orders are tasks. Settlement is
@@ -987,6 +1132,28 @@ fn follow(journal: &Shared, market: &mut dyn Market, order: &OrderRef) -> Res<Fo
         Phase::Settled => {
             let verdict = market.check_settled(order)?;
             let block = market.block()?;
+            if verdict.is_ok() {
+                // Paid before `Settled` is journaled: a crash between the
+                // two pays nothing twice (the token holds each nonce), and
+                // a crash before either retries the payouts.
+                let (cap, referral) = {
+                    let journal = locked(journal)?;
+                    let ledger = journal.ledger();
+                    let cap = match &ledger.open {
+                        Some(Open::Signed(task, _)) => task.price,
+                        _ => order.amount,
+                    };
+                    let referral = ledger
+                        .referrals
+                        .iter()
+                        .find(|(d, ..)| *d == order.digest)
+                        .map(|(_, r, n)| (*r, *n));
+                    (cap, referral)
+                };
+                for line in market.savings(order, cap, referral)? {
+                    record(line)?;
+                }
+            }
             record(Entry::Settled {
                 digest: order.digest,
                 paid: order.amount,
@@ -1211,6 +1378,72 @@ pub(crate) struct Live {
     last_error: Option<(u64, String)>,
     /// Tasks prepared and not yet posted.
     prepared: Vec<(Hash, Task)>,
+    /// What the other rows could still be funded for, as the last step
+    /// was told (`Market::reserve`): payouts never dig into it.
+    reserved: u64,
+}
+
+impl Live {
+    /// Pay `shares` one at a time with the buyer's wallet and its own gas,
+    /// and say how each ended as a journal line. An RPC failure leaves the
+    /// share owed.
+    fn pay_shares(&mut self, shares: &[crate::payout::Share]) -> Res<Vec<Entry>> {
+        let world = &self.hub.world;
+        let domain = crate::relay::transfer::domain_separator(
+            &world.domain.name,
+            &world.domain.version,
+            world.chain.id,
+            world.token,
+        );
+        let mut wallet = crate::payout::ChainWallet {
+            chain: &world.chain,
+            token: world.token,
+            key: &self.hub.keys.wallet,
+            committed: u128::from(self.reserved),
+        };
+        let now = wall_clock()?;
+        let mut lines = Vec::new();
+        for share in shares {
+            let line = match crate::payout::pay(
+                std::slice::from_ref(share),
+                &mut wallet,
+                &self.hub.keys.wallet,
+                &domain,
+                now,
+                3_600,
+            ) {
+                Ok(out) => match out.into_iter().next().map(|(_, p)| p) {
+                    Some(crate::payout::Paid::Sent(tx)) => {
+                        println!(
+                            "bounty: paid {} to {} for order {} in tx {tx}",
+                            share.amount,
+                            hex(&share.party),
+                            hex(&share.order)
+                        );
+                        Entry::Paid {
+                            share: share.clone(),
+                            transaction: Some(tx),
+                        }
+                    }
+                    Some(crate::payout::Paid::AlreadyPaid) => Entry::Paid {
+                        share: share.clone(),
+                        transaction: None,
+                    },
+                    Some(crate::payout::Paid::Waiting) | None => Entry::Owed {
+                        share: share.clone(),
+                    },
+                },
+                Err(error) => {
+                    println!("bounty: degraded: a share stays owed: {error}");
+                    Entry::Owed {
+                        share: share.clone(),
+                    }
+                }
+            };
+            lines.push(line);
+        }
+        Ok(lines)
+    }
 }
 
 /// How long after a post's funding deadline delivery may still take.
@@ -1274,6 +1507,68 @@ fn write_atomically(path: &Path, value: &Value) -> Res<()> {
 }
 
 impl Market for Live {
+    fn reserve(&mut self, reserved: u64) {
+        self.reserved = reserved;
+    }
+    fn savings(
+        &mut self,
+        order: &OrderRef,
+        cap: u64,
+        referral: Option<(Address, Hash)>,
+    ) -> Res<Vec<Entry>> {
+        // Attribution, when the desk is given a library and reads every
+        // settlement of its vault; otherwise no author is paid.
+        let attributed = match crate::attribution::Library::from_environment()? {
+            None => None,
+            Some(library) => {
+                let from = std::env::var(crate::attribution::FROM_VARIABLE)
+                    .ok()
+                    .and_then(|t| t.trim().parse().ok())
+                    .unwrap_or(0);
+                let settled = crate::attribution::read_settlements(
+                    &self.hub.world.chain,
+                    self.hub.world.deployment.vault,
+                    from,
+                )?;
+                crate::attribution::attribute(&settled, &library, &order.digest)
+            }
+        };
+        let authors = attributed
+            .as_ref()
+            .map(|a| a.authors.clone())
+            .unwrap_or_default();
+        if let Some(a) = &attributed {
+            self.desk()?.publish_attribution(&a.published);
+        }
+        let split = qed_savings::split(
+            &qed_savings::Rule::MODEL,
+            u128::from(cap),
+            u128::from(order.amount),
+            referral.is_some(),
+            authors.len() as u128,
+        );
+        let shares =
+            crate::payout::shares(order.digest, referral.map(|(r, _)| r), &authors, &split);
+        if shares.is_empty() {
+            return Ok(vec![]);
+        }
+        println!(
+            "bounty: order {} saved {} under its cap; {} shares to pay",
+            hex(&order.digest),
+            cap.saturating_sub(order.amount),
+            shares.len()
+        );
+        self.pay_shares(&shares)
+    }
+    fn pay_owed(&mut self, owed: &[crate::payout::Share]) -> Res<Vec<Entry>> {
+        let lines = self.pay_shares(owed)?;
+        // Only lines that change something: a share still owed is already
+        // journaled owed.
+        Ok(lines
+            .into_iter()
+            .filter(|l| matches!(l, Entry::Paid { .. }))
+            .collect())
+    }
     fn now(&mut self) -> Res<u64> {
         wall_clock()
     }
@@ -1995,6 +2290,7 @@ impl Hub {
             status: journal_path.with_extension("status.json"),
             last_error: None,
             prepared: vec![],
+            reserved: 0,
         })
     }
 }

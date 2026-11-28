@@ -92,9 +92,22 @@ pub fn record_signature(journals: &[Shared], signed: &Signed) -> Result<(), Stri
     }
     let row = route(&opens, signed.id)
         .ok_or_else(|| format!("no row of this desk holds task {}", hex(&signed.id)))?;
-    journals[row]
+    let mut journal = journals[row]
         .lock()
-        .map_err(|_| "journal poisoned".to_owned())?
+        .map_err(|_| "journal poisoned".to_owned())?;
+    // The referral first: a signature without its referral line would pay
+    // the referrer's share to the buyer.
+    if let Some((referrer, nonce)) = signed.referral {
+        journal
+            .record(bounty::Entry::Referred {
+                task: signed.id,
+                digest: signed.digest,
+                referrer,
+                nonce,
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    journal
         .record(bounty::Entry::Signed {
             task: signed.id,
             order: OrderRef {

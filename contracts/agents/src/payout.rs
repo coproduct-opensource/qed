@@ -14,7 +14,7 @@
 //! market index and the settled artifact) recomputes it and can ask the
 //! token whether it was paid: a missing payout reads as owed.
 use crate::prelude::*;
-use crate::relay::transfer::{Authorization, Signed};
+use crate::relay::transfer::{Authorization, Signed, authorizationStateCall};
 use nucleus_proof_commerce::Hash;
 use qed_savings::Split;
 
@@ -141,6 +141,51 @@ pub fn pay(
         out.push((share.clone(), Paid::Sent(tx)));
     }
     Ok(out)
+}
+
+/// The buyer's wallet on chain: its token balance, the token's
+/// `authorizationState`, and a transfer sent by the buyer with its own gas.
+pub struct ChainWallet<'a> {
+    pub chain: &'a crate::chain::Chain,
+    pub token: Address,
+    pub key: &'a SigningKey,
+    /// What open rows could still be funded for, from the ladder.
+    pub committed: u128,
+}
+impl Wallet for ChainWallet<'_> {
+    fn balance(&mut self) -> Res<u128> {
+        let owner = address_of(self.key);
+        let out = self.chain.call(
+            owner,
+            self.token,
+            &crate::balanceOfCall {
+                account: A::from(owner),
+            }
+            .abi_encode(),
+        )?;
+        u128::try_from(U256::from_be_slice(&out)).map_err(|_| "balance above u128".into())
+    }
+    fn committed(&mut self) -> Res<u128> {
+        Ok(self.committed)
+    }
+    fn used(&mut self, nonce: &Hash) -> Res<bool> {
+        let out = self.chain.call(
+            [0; 20],
+            self.token,
+            &authorizationStateCall {
+                authorizer: A::from(address_of(self.key)),
+                nonce: (*nonce).into(),
+            }
+            .abi_encode(),
+        )?;
+        Ok(out.iter().any(|b| *b != 0))
+    }
+    fn send(&mut self, transfer: &Signed) -> Res<String> {
+        let receipt = self
+            .chain
+            .send(self.key, Some(self.token), 0, &transfer.calldata())?;
+        Ok(receipt.transaction)
+    }
 }
 
 #[cfg(test)]
