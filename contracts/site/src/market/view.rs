@@ -152,6 +152,7 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
         .as_ref()
         .map(|p| promotion::decide(index, p))
         .unwrap_or_default();
+    let saved = super::savings::decide(index, &m.referrals);
     let starts = round_starts(index, m);
     // Per order: where it was funded, settled, refunded and claimed.
     let mut orders: BTreeMap<String, Value> = BTreeMap::new();
@@ -258,6 +259,9 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
                     .cloned()
                     .unwrap_or_else(|| json!({"digest": d}));
                 v["phase"] = json!(o.phase.name());
+                if let Some(r) = saved.iter().find(|r| r.digest == o.digest) {
+                    v["saving"] = saving_data(r);
+                }
                 v
             })
             .collect();
@@ -304,6 +308,9 @@ pub fn data(input: &Input, index: &Index, taken_at: u64) -> Value {
         "joinRule": "an order joins a post iff its context is keccak256(keccak256(\"NucleusContextV1\") || post id || buyerKeyBinding) and its policyHash is the post's",
         "rounds": rounds,
         "promotion": promotion_data(m, &matches),
+        "savings": {"model": "proofs/commerce/Savings.lean",
+                    "rule": "saving = maximumAmount - amount; 30 % to the referrer the order's salt binds, 20 % divided among the authors of reused lemmas, the rest to the buyer",
+                    "authors": "not computed on this page: settlements carry no walked artifact here, so author shares read 0 and their 20 % as the buyer's"},
         "posts": posts,
     })
 }
@@ -359,6 +366,23 @@ fn state_cell(m: &Mainnet, post: &Value) -> Line {
     }
     if let Some(a) = post["matched"]["amount"].as_str() {
         line.push(t(format!(", matched +{}", usdc(m, a.parse().unwrap_or(0)))));
+    }
+    for o in post["orders"].as_array().into_iter().flatten() {
+        let s = &o["saving"];
+        let saved: u128 = s["saving"]
+            .as_str()
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0);
+        if saved > 0 {
+            line.push(t(format!(", saved {}", usdc(m, saved))));
+            if s["referrer"].is_string() {
+                let share: u128 = s["split"]["referrer"]
+                    .as_str()
+                    .and_then(|x| x.parse().ok())
+                    .unwrap_or(0);
+                line.push(t(format!(" ({} of it to the referrer)", usdc(m, share))));
+            }
+        }
     }
     line
 }
@@ -720,4 +744,18 @@ pub fn check_served(
         &extra,
     ));
     out
+}
+
+/// One settled order's saving and its split, as `market.json` carries it.
+fn saving_data(r: &super::savings::Record) -> Value {
+    let cap = r.cap;
+    json!({
+        "cap": cap.to_string(), "amount": r.amount.to_string(),
+        "saving": cap.saturating_sub(r.amount).to_string(),
+        "referrer": r.referrer,
+        "split": {"referrer": r.split.referrer.to_string(),
+                  "perAuthor": r.split.per_author.to_string(),
+                  "authors": r.split.authors,
+                  "buyer": r.split.buyer.to_string()},
+    })
 }

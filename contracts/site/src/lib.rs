@@ -162,6 +162,11 @@ pub struct Mainnet {
     /// Absent: no promotion, and the pages say nothing of one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub promotion: Option<market::promotion::PromotionInput>,
+    /// Referrals the buyer's desk checked (`{order, referrer, nonce}`), each
+    /// counted only if it opens its order's salt
+    /// (proofs/commerce/Savings.lean). Absent: none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub referrals: Vec<market::savings::ReferralInput>,
 }
 
 /// The wallets and limits the status page's queries name.

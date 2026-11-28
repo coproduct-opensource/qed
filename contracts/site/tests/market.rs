@@ -497,3 +497,83 @@ fn without_a_promotion_the_page_says_nothing_of_one() {
     let data: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert!(data["promotion"].is_null());
 }
+
+// ---- Proof-carrying savings (proofs/commerce/Savings.lean) ---------------------
+
+/// Every settlement on Base so far paid its post's cap: no saving, a zero
+/// split for each settled order.
+#[test]
+fn on_base_no_settlement_saved_its_buyer_anything() {
+    let index = fixture();
+    let records = market::savings::decide(&index, &[]);
+    assert!(!records.is_empty());
+    for r in &records {
+        assert!(r.amount >= r.cap, "{r:?}");
+        assert_eq!(r.split, Default::default());
+        assert_eq!(r.referrer, None);
+    }
+}
+
+/// The first outside settlement, as if its post had a 40 USDC cap and its
+/// salt bound a referrer: 15 USDC saved, 4.5 to the referrer, 10.5 to the
+/// buyer (no authors on this page). The same referral with a wrong nonce,
+/// or for another order, binds nothing. Driven red by matching on the
+/// order alone, without the salt: the wrong nonce counted.
+#[test]
+fn a_referral_counts_only_when_it_opens_the_orders_salt() {
+    let mut index = fixture();
+    let order = OUTSIDE[0];
+    let (referrer, nonce) = ([0x5e_u8; 20], [0x11_u8; 32]);
+    let salt = market::hx(&market::savings::referral_salt(&referrer, &nonce));
+    for l in &mut index.events {
+        if let Event::Funded {
+            digest,
+            terms: Some(t),
+            ..
+        } = &mut l.event
+            && digest.as_str() == order
+        {
+            t.salt = salt.clone();
+        }
+    }
+    let records = market::savings::decide(&index, &[]);
+    let r = records
+        .iter()
+        .find(|r| market::hx(&r.digest) == order)
+        .unwrap();
+    let post_id = market::hx(&r.post);
+    for l in &mut index.events {
+        if let Event::Posted {
+            id, maximum_amount, ..
+        } = &mut l.event
+            && *id == post_id
+        {
+            *maximum_amount = "40000000".into();
+        }
+    }
+    let referral = |order: &str, nonce: [u8; 32]| market::savings::ReferralInput {
+        order: order.into(),
+        referrer: market::hx(&referrer),
+        nonce: market::hx(&nonce),
+    };
+    let find = |records: Vec<market::savings::Record>| {
+        records
+            .into_iter()
+            .find(|r| market::hx(&r.digest) == order)
+            .unwrap()
+    };
+    let r = find(market::savings::decide(&index, &[referral(order, nonce)]));
+    assert_eq!((r.cap, r.amount), (40_000_000, 25_000_000));
+    assert_eq!(r.referrer.as_deref(), Some(market::hx(&referrer).as_str()));
+    assert_eq!((r.split.referrer, r.split.buyer), (4_500_000, 10_500_000));
+    let wrong = find(market::savings::decide(
+        &index,
+        &[referral(order, [0x12; 32])],
+    ));
+    assert_eq!((wrong.referrer, wrong.split.referrer), (None, 0));
+    let elsewhere = find(market::savings::decide(
+        &index,
+        &[referral(OUTSIDE[1], nonce)],
+    ));
+    assert_eq!(elsewhere.referrer, None);
+}

@@ -10,7 +10,7 @@
 //! artifact's declarations (less the seller), and the split. The settled
 //! artifact's declarations then enter the index under the seller, unless
 //! an earlier settlement carried them first.
-use super::{Market, ModelEvent, Phase, Word};
+use super::{Index, Market, ModelEvent, Phase, Word, word};
 use qed_savings::{Rule, Split, authors_of, split};
 
 /// One market event with its block and what the split reads from it: a
@@ -140,6 +140,64 @@ impl State {
         self.market.apply(&x.event);
         self.records.extend(new);
     }
+}
+
+/// A referral the site input names for an order: the opening of its salt.
+/// It counts only when `keccak256("NucleusReferralV1" ‖ referrer ‖ nonce)`
+/// equals the salt of the order as decoded from its `fund`, `settle` or
+/// `refund` call, so the input can add no referral the order did not bind.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReferralInput {
+    pub order: String,
+    pub referrer: String,
+    pub nonce: String,
+}
+
+/// `vault_wire::referral_salt`, recomputed here.
+pub fn referral_salt(referrer: &[u8], nonce: &[u8]) -> Word {
+    let mut bytes = b"NucleusReferralV1".to_vec();
+    bytes.extend_from_slice(referrer);
+    bytes.extend_from_slice(nonce);
+    alloy_primitives::keccak256(&bytes).0
+}
+
+/// The referrer an input referral opens for a funded order, if it does.
+fn opened(l: &super::Logged, referrals: &[ReferralInput]) -> Option<String> {
+    let super::Event::Funded { digest, terms, .. } = &l.event else {
+        return None;
+    };
+    let salt = word(&terms.as_ref()?.salt);
+    referrals.iter().find_map(|r| {
+        let referrer = super::unhex(&r.referrer).ok().filter(|b| b.len() == 20)?;
+        let nonce = super::unhex(&r.nonce).ok().filter(|b| b.len() == 32)?;
+        (r.order.eq_ignore_ascii_case(digest) && referral_salt(&referrer, &nonce) == salt)
+            .then(|| super::hx(&referrer))
+    })
+}
+
+/// The index's events as entries: a post's price, and a funded order's
+/// referrer when an input referral opens its salt. Settlements carry no
+/// declarations here: this page does not walk artifacts, so its author
+/// shares are 0 and their 20 % reads as the buyer's.
+pub fn entries(index: &Index, referrals: &[ReferralInput]) -> Vec<Entry> {
+    index
+        .events
+        .iter()
+        .map(|l| Entry {
+            price: match &l.event {
+                super::Event::Posted { maximum_amount, .. } => maximum_amount.parse().unwrap_or(0),
+                _ => 0,
+            },
+            referral: opened(l, referrals),
+            ..Entry::of(l.block, super::model_event(l))
+        })
+        .collect()
+}
+
+/// The records the index admits.
+pub fn decide(index: &Index, referrals: &[ReferralInput]) -> Vec<Record> {
+    run(&Rule::MODEL, &entries(index, referrals)).records
 }
 
 /// `Savings.run` from the empty market.
