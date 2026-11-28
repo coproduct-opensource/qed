@@ -217,6 +217,15 @@ pub trait BuyerLink {
     fn review(&self, _id: &Hash, _header: String) -> Res<Reply> {
         Err("this link cannot ask for a review".into())
     }
+    /// Ask for the answer to an offer a desk holds in its window: 202 while
+    /// the window is open, then the signature or the refusal.
+    fn fetch(&self, _id: &Hash, _ticket: &str) -> Res<Reply> {
+        Err("this link cannot fetch a held offer".into())
+    }
+    /// Wait before asking again.
+    fn wait(&self, seconds: u64) {
+        std::thread::sleep(std::time::Duration::from_secs(seconds));
+    }
 }
 
 /// The buyer's node over iroh, at the node ID and address hint a post gives.
@@ -310,6 +319,16 @@ impl BuyerLink for IrohBuyer<'_> {
             vec![],
         )
     }
+    fn fetch(&self, id: &Hash, ticket: &str) -> Res<Reply> {
+        ask(
+            &self.transport,
+            self.keys,
+            "GET",
+            &board::held_path(id, ticket),
+            BTreeMap::new(),
+            vec![],
+        )
+    }
 }
 
 /// Answer one posted task: fetch, prove, check, offer, and take the buyer's
@@ -323,9 +342,15 @@ pub fn answer(
     clock: fn() -> u64,
 ) -> Result<Accepted, Skip> {
     let (quoted, header) = prepare(terms, prover, posted, buyer, clock)?;
-    let reply = buyer
+    let mut reply = buyer
         .offer(&posted.id, header)
         .map_err(|error| Skip::Unreachable(error.to_string()))?;
+    // A desk collecting offers in a window holds this one and answers at
+    // the close (proofs/commerce/Window.lean). A desk that signs for the
+    // first offer answers 200 at once, as before.
+    if reply.status == 202 {
+        reply = held(posted, buyer, &reply, clock)?;
+    }
     if reply.status != 200 {
         return Err(Skip::Refused(
             reply.status,
@@ -340,6 +365,50 @@ pub fn answer(
     quoted
         .accept(funding)
         .map_err(|_| Skip::BadPayment("the authorization is for another order".into()))
+}
+
+/// Ask for a held offer's answer until the window closes, or until the
+/// post's funding deadline passes.
+fn held(
+    posted: &PostedTask,
+    buyer: &dyn BuyerLink,
+    first: &Reply,
+    clock: fn() -> u64,
+) -> Result<Reply, Skip> {
+    let bad = |why: &str| Skip::BadPayment(format!("the buyer's 202: {why}"));
+    let body: Value = serde_json::from_slice(&first.body).map_err(|_| bad("not JSON"))?;
+    let ticket = body["ticket"]
+        .as_str()
+        .ok_or_else(|| bad("no ticket"))?
+        .to_owned();
+    let mut closes_at = body["closesAt"]
+        .as_u64()
+        .ok_or_else(|| bad("no closesAt"))?;
+    if closes_at > posted.task.fund_by {
+        return Err(bad("closesAt is after the post's funding deadline"));
+    }
+    loop {
+        let now = clock();
+        if now > posted.task.fund_by {
+            return Err(Skip::Deadline);
+        }
+        if now < closes_at {
+            buyer.wait((closes_at - now).min(5));
+        }
+        let reply = buyer
+            .fetch(&posted.id, &ticket)
+            .map_err(|error| Skip::Unreachable(error.to_string()))?;
+        if reply.status != 202 {
+            return Ok(reply);
+        }
+        buyer.wait(1);
+        if let Some(t) = serde_json::from_slice::<Value>(&reply.body)
+            .ok()
+            .and_then(|v| v["closesAt"].as_u64())
+        {
+            closes_at = t.min(posted.task.fund_by);
+        }
+    }
 }
 
 /// What a review-only run established: this seller holds an artifact the

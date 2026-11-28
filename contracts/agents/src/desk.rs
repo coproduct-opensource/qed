@@ -16,7 +16,14 @@
 //!   makes one, for that post's ID.
 //! - **A post is signed for once.** `Posted::sign` takes the post by value;
 //!   the desk replaces the state before signing, so a second offer finds no
-//!   open post. First offer that passes review wins (owner decision 6).
+//!   open post.
+//! - **Which offer wins.** Without a window, the first that passes review
+//!   (owner decision 6). With `collect_offers(W)` (`NUCLEUS_OFFER_WINDOW`),
+//!   offers are held for `W` seconds after the first, or until the funding
+//!   deadline if sooner; at the close each is reviewed again and the least
+//!   amount is signed for, the earliest of equals, and the others refused
+//!   as outbid (proofs/commerce/Window.lean; decision 6 superseded,
+//!   docs/rfcs/qed-proof-carrying-savings-2026-11-28.md).
 //!
 //! What the desk does not decide: whether the seller funds, proves or
 //! settles (the chain shows that), and whether the delivered artifact is
@@ -29,6 +36,8 @@
 //!
 //!   GET  /task/<id>           -> 200 {"policy": ...}
 //!   POST /task/<id>/offer     PAYMENT-REQUIRED -> 200 PAYMENT-SIGNATURE | refusal
+//!                             (in a window: 202 {"ticket", "closesAt"} | refusal)
+//!   GET  /task/<id>/offer/<ticket>  -> 202 while open | 200 PAYMENT-SIGNATURE | refusal
 //!
 //!   GET  /deliveries          -> 200 the signed summary of delivery attempts
 //!
@@ -70,6 +79,9 @@ pub enum Refused {
     /// The offer passed review and its signature could not be recorded
     /// first, so none was released; the post is closed.
     NotRecorded,
+    /// The offer was held in the window and another was signed for at the
+    /// close: a lower amount, or an equal one that arrived first.
+    Outbid,
 }
 impl std::fmt::Display for Refused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -81,6 +93,10 @@ impl std::fmt::Display for Refused {
             Self::NotRecorded => write!(
                 f,
                 "this task is no longer open: the authorization could not be recorded, so none was signed"
+            ),
+            Self::Outbid => write!(
+                f,
+                "another offer was signed for at the window's close: a lower amount, or an equal one that arrived first"
             ),
         }
     }
@@ -94,6 +110,7 @@ impl Refused {
             Self::NotOpen => Reason::NotOpen,
             Self::LateFunding => Reason::Deadline,
             Self::NotRecorded => Reason::NotRecorded,
+            Self::Outbid => Reason::Outbid,
             Self::Offer(error) => match error {
                 OfferError::Wire(_) | OfferError::NoSingleOffer => Reason::Malformed,
                 OfferError::Vault(_) => Reason::Inadmissible,
@@ -108,7 +125,7 @@ impl Refused {
     fn status(&self) -> u16 {
         match self {
             Self::Unknown => 404,
-            Self::NotOpen | Self::NotRecorded => 409,
+            Self::NotOpen | Self::NotRecorded | Self::Outbid => 409,
             Self::Offer(_) | Self::LateFunding => 422,
         }
     }
@@ -306,6 +323,84 @@ pub struct Desk {
     bases: Vec<(Hash, vault::Entry)>,
     /// Told of every delivery attempt; serves `GET /deliveries`.
     recorder: Option<Box<dyn Recorder>>,
+    /// `W`, in seconds, when offers are collected in a window
+    /// (`collect_offers`); `None`: the first offer that passes review is
+    /// signed for at once.
+    window: Option<u64>,
+    /// Each post's open window, by task ID.
+    windows: HashMap<String, Window>,
+    /// What each held offer got at its window's close, by task ID and
+    /// ticket, with the key of the seller that made it.
+    answers: HashMap<(String, Hash), (Hash, Answered)>,
+}
+
+/// One offer held in a window (`Window.Offer`).
+#[derive(Debug)]
+struct Held {
+    /// The offered order's digest: the seller fetches its answer by it.
+    ticket: Hash,
+    amount: Hash,
+    header: String,
+    seller_key: Hash,
+    named_seller: Option<Address>,
+}
+
+/// How a held offer ended at the close.
+#[derive(Clone, Debug)]
+enum Answered {
+    Signed(String),
+    Refused(u16, String),
+}
+
+/// A post's open offer window (`Window.St`), from its first offer that
+/// passed review. Held offers are in arrival order. A window is removed at
+/// its close; what each held offer got is kept in `Desk::answers`.
+#[derive(Debug)]
+struct Window {
+    first: u64,
+    held: Vec<Held>,
+}
+
+/// `Window.closeAt`: `W` after the first offer, or the post's funding
+/// deadline if that is sooner.
+pub fn close_at(first: u64, window: u64, fund_by: u64) -> u64 {
+    first.saturating_add(window).min(fund_by)
+}
+
+/// `Window.pick`: the index of the least amount, the earliest of equals.
+/// Amounts are big-endian words of equal length, so byte order is numeric
+/// order.
+pub fn pick(amounts: &[Hash]) -> Option<usize> {
+    let mut best: Option<usize> = None;
+    for (i, a) in amounts.iter().enumerate() {
+        match best {
+            Some(b) if amounts.get(b).is_some_and(|x| x <= a) => {}
+            _ => best = Some(i),
+        }
+    }
+    best
+}
+
+/// What a seller's offer got from a desk collecting offers in a window.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Ticket {
+    pub ticket: Hash,
+    pub closes_at: u64,
+}
+
+/// The environment variable a buyer's desk reads for `W`, in seconds.
+/// Unset: the first offer that passes review is signed for at once.
+pub const WINDOW_VARIABLE: &str = "NUCLEUS_OFFER_WINDOW";
+
+/// What `NUCLEUS_OFFER_WINDOW` says: a whole number of seconds, or unset.
+pub fn window_from_environment() -> Res<Option<u64>> {
+    match std::env::var(WINDOW_VARIABLE) {
+        Ok(text) => Ok(Some(text.trim().parse().map_err(|_| {
+            format!("{WINDOW_VARIABLE}: a whole number of seconds expected, not {text:?}")
+        })?)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
 /// What a desk calls before releasing a signature: somewhere durable to
@@ -332,7 +427,27 @@ impl Desk {
             on_sign: None,
             bases: Vec::new(),
             recorder: None,
+            window: None,
+            windows: HashMap::new(),
+            answers: HashMap::new(),
         }
+    }
+    /// Collect offers for `seconds` after a post's first offer that passes
+    /// review (or until its funding deadline, if sooner), then sign for the
+    /// least (proofs/commerce/Window.lean). An offer is answered
+    /// `202 {"ticket", "closesAt"}`, and the seller fetches the outcome at
+    /// `GET /task/<id>/offer/<ticket>`.
+    pub fn collect_offers(&mut self, seconds: u64) {
+        self.window = Some(seconds);
+    }
+    /// Read the clock with `clock` (tests).
+    pub fn set_clock(&mut self, clock: fn() -> u64) {
+        self.clock = clock;
+    }
+    /// Close every window that is due at the desk's clock.
+    pub fn tick(&mut self) {
+        let now = (self.clock)();
+        self.close_due(now);
     }
     /// Report every delivery attempt to `recorder` before it is answered,
     /// and serve its signed summary at `GET /deliveries`.
@@ -406,10 +521,10 @@ impl Desk {
     /// A seller's offer for a task: review it, and sign for the first that
     /// passes. Returns the `PAYMENT-SIGNATURE` value.
     pub fn offer(&mut self, id: &str, header: &str, now: u64) -> Result<String, Refused> {
-        let Some(state) = self.tasks.get_mut(id) else {
+        let Some(state) = self.tasks.get(id) else {
             return Err(Refused::Unknown);
         };
-        let State::Posted(posted) = &*state else {
+        let State::Posted(posted) = state else {
             return Err(Refused::NotOpen);
         };
         let offered = posted.review(
@@ -420,6 +535,18 @@ impl Desk {
             now,
             &self.bases,
         )?;
+        self.release(id, offered)
+    }
+
+    /// Sign for a reviewed offer and record it before returning the
+    /// `PAYMENT-SIGNATURE` value.
+    fn release(&mut self, id: &str, offered: Offered) -> Result<String, Refused> {
+        let Some(state) = self.tasks.get_mut(id) else {
+            return Err(Refused::Unknown);
+        };
+        if !matches!(state, State::Posted(_)) {
+            return Err(Refused::NotOpen);
+        }
         // The post leaves the table before it is signed for, so nothing can
         // sign for it twice.
         let State::Posted(posted) = std::mem::replace(state, State::Withdrawn) else {
@@ -444,6 +571,191 @@ impl Desk {
                 *state = State::Posted(posted);
                 Err(Refused::NotOpen)
             }
+        }
+    }
+
+    /// A seller's offer for a task, on a desk collecting offers: review it
+    /// and hold it in the post's window (`Window.admit`). Nothing is signed
+    /// here. The same order offered twice keeps its first arrival.
+    pub fn hold(
+        &mut self,
+        id: &str,
+        header: &str,
+        now: u64,
+        seller_key: Hash,
+    ) -> Result<Ticket, Refused> {
+        let w = self.window.ok_or(Refused::NotOpen)?;
+        self.close_due(now);
+        let Some(state) = self.tasks.get(id) else {
+            return Err(Refused::Unknown);
+        };
+        let State::Posted(posted) = state else {
+            return Err(Refused::NotOpen);
+        };
+        let fund_by = posted.task.fund_by;
+        if now >= fund_by {
+            return Err(Refused::NotOpen);
+        }
+        let offered = posted.review(
+            &self.deployment,
+            &self.domain,
+            address_of(&self.wallet),
+            header,
+            now,
+            &self.bases,
+        )?;
+        let ticket = vault::digest(&self.deployment, offered.order());
+        let amount = offered.order().amount;
+        let win = self.windows.entry(id.to_owned()).or_insert_with(|| Window {
+            first: now,
+            held: Vec::new(),
+        });
+        if !win.held.iter().any(|h| h.ticket == ticket) {
+            win.held.push(Held {
+                ticket,
+                amount,
+                header: header.to_owned(),
+                seller_key,
+                named_seller: named_seller(header),
+            });
+        }
+        Ok(Ticket {
+            ticket,
+            closes_at: close_at(win.first, w, fund_by),
+        })
+    }
+
+    /// Close every window that is due at `now` (`Window.close`).
+    pub fn close_due(&mut self, now: u64) {
+        let Some(w) = self.window else {
+            return;
+        };
+        let due: Vec<String> = self
+            .windows
+            .iter()
+            .filter(|(id, win)| match self.tasks.get(*id) {
+                Some(State::Posted(posted)) => now >= close_at(win.first, w, posted.task.fund_by),
+                // Withdrawn or otherwise no longer open: nothing to sign.
+                _ => true,
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in due {
+            self.close(&id, now);
+        }
+    }
+
+    /// One window's close: every held offer is reviewed again at `now`; of
+    /// those that pass, the least amount (the earliest of equals) is signed
+    /// for, and the others are refused. When none passes, nothing is signed
+    /// and the post stays open: the next offer opens a new window.
+    fn close(&mut self, id: &str, now: u64) {
+        let Some(win) = self.windows.remove(id) else {
+            return;
+        };
+        let mut passing: Vec<(Held, Offered)> = Vec::new();
+        let mut answers: Vec<(Held, Result<String, Refused>)> = Vec::new();
+        for h in win.held {
+            let review = match self.tasks.get(id) {
+                Some(State::Posted(posted)) => posted.review(
+                    &self.deployment,
+                    &self.domain,
+                    address_of(&self.wallet),
+                    &h.header,
+                    now,
+                    &self.bases,
+                ),
+                Some(_) => Err(Refused::NotOpen),
+                None => Err(Refused::Unknown),
+            };
+            match review {
+                Ok(offered) => passing.push((h, offered)),
+                Err(refused) => answers.push((h, Err(refused))),
+            }
+        }
+        let amounts: Vec<Hash> = passing.iter().map(|(h, _)| h.amount).collect();
+        let winner = pick(&amounts);
+        for (i, (h, offered)) in passing.into_iter().enumerate() {
+            if Some(i) == winner {
+                let result = self.release(id, offered);
+                if result.is_ok() {
+                    println!(
+                        "buyer: window for task {id} closed at {now}; signed for order {}, the least of {} offers that passed review again",
+                        hex(&h.ticket),
+                        amounts.len()
+                    );
+                }
+                answers.push((h, result));
+            } else {
+                answers.push((h, Err(Refused::Outbid)));
+            }
+        }
+        if winner.is_none() {
+            println!(
+                "buyer: window for task {id} closed at {now}; no held offer passes review again, so nothing was signed"
+            );
+        }
+        for (h, result) in answers {
+            self.answer(id, h, result, now);
+        }
+    }
+
+    /// Keep a held offer's answer for its seller, and record the attempt.
+    fn answer(&mut self, id: &str, h: Held, result: Result<String, Refused>, now: u64) {
+        let (outcome, answered) = match result {
+            Ok(payment) => (Answer::Accepted, Answered::Signed(payment)),
+            Err(refused) => (
+                Answer::Refused(refused.reason()),
+                Answered::Refused(refused.status(), refused.to_string()),
+            ),
+        };
+        self.note(Seen {
+            at: now,
+            route: Route::Offer,
+            task: task_of(id),
+            outcome,
+            seller_key: Some(h.seller_key),
+            named_seller: h.named_seller,
+        });
+        self.answers
+            .insert((id.to_owned(), h.ticket), (h.seller_key, answered));
+    }
+
+    /// The answer to a held offer, for the seller that made it: `200` with
+    /// the signature, the refusal, or `202` while the window is open. Any
+    /// other seller is told there is no such offer.
+    pub fn fetch(&mut self, id: &str, ticket: &str, seller_key: Hash, now: u64) -> Reply {
+        self.close_due(now);
+        let unknown = || Reply::text(404, "no such offer");
+        let Some(ticket) = task_of(ticket) else {
+            return unknown();
+        };
+        if let Some((key, answered)) = self.answers.get(&(id.to_owned(), ticket)) {
+            if *key != seller_key {
+                return unknown();
+            }
+            return match answered {
+                Answered::Signed(payment) => {
+                    Reply::new(200).with(SIGNATURE_HEADER, payment.clone())
+                }
+                Answered::Refused(status, why) => Reply::text(*status, why),
+            };
+        }
+        let (Some(win), Some(w), Some(State::Posted(posted))) =
+            (self.windows.get(id), self.window, self.tasks.get(id))
+        else {
+            return unknown();
+        };
+        match win.held.iter().find(|h| h.ticket == ticket) {
+            Some(h) if h.seller_key == seller_key => Reply::text(
+                202,
+                &json!({
+                    "ticket": hex(&ticket),
+                    "closesAt": close_at(win.first, w, posted.task.fund_by),
+                })
+                .to_string(),
+            ),
+            _ => unknown(),
         }
     }
 
@@ -504,6 +816,12 @@ impl Desk {
             }
         };
         let Some((route, id)) = attempt.clone() else {
+            // The answer to an offer held in a window.
+            if let ("GET", Some((id, ticket))) =
+                (request.method.as_str(), rest.split_once("/offer/"))
+            {
+                return Ok(self.fetch(id, ticket, seller, now));
+            }
             // Not an attempt: the policy of a posted task.
             return match (request.method.as_str(), self.tasks.get(rest)) {
                 ("GET", Some(State::Posted(posted))) => Ok(Reply::text(
@@ -536,6 +854,31 @@ impl Desk {
                     &json!({"review": "passes", "order": hex(&digest)}).to_string(),
                 )
             }),
+            // In a window the offer is held and answered at the close, where
+            // its attempt is recorded with how it ended.
+            Route::Offer if self.window.is_some() => {
+                return match self.hold(&id, &header, now, seller) {
+                    Ok(ticket) => {
+                        println!(
+                            "buyer: holding an offer for task {id} from the key {} until {}: order {}",
+                            hex(&seller),
+                            ticket.closes_at,
+                            hex(&ticket.ticket)
+                        );
+                        Ok(Reply::text(
+                            202,
+                            &json!({"ticket": hex(&ticket.ticket), "closesAt": ticket.closes_at})
+                                .to_string(),
+                        ))
+                    }
+                    Err(refused) => {
+                        if let Some(s) = seen(Answer::Refused(refused.reason()), Some(seller)) {
+                            self.note(s);
+                        }
+                        Err((refused.status(), refused.to_string()))
+                    }
+                };
+            }
             Route::Offer => self.offer(&id, &header, now).map(|payment| {
                 println!(
                     "buyer: signed for task {id}; offer came from the key {} at node {}",

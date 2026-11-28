@@ -94,10 +94,16 @@ pub enum Reason {
     /// The offer passed review, and the signature could not be written to
     /// the buyer's journal first, so none was released.
     NotRecorded,
+    /// The offer was held in the offer window, and a lower offer (or an
+    /// equal one that arrived first) was signed for at the close.
+    Outbid,
+    /// The offer named a referrer whose preimage does not hash to the
+    /// order's `salt`.
+    BadReferral,
 }
 
 impl Reason {
-    pub const ALL: [Reason; 11] = [
+    pub const ALL: [Reason; 13] = [
         Self::Unauthenticated,
         Self::UnknownTask,
         Self::NotOpen,
@@ -109,6 +115,8 @@ impl Reason {
         Self::UnsupportedBase,
         Self::Inadmissible,
         Self::NotRecorded,
+        Self::Outbid,
+        Self::BadReferral,
     ];
     /// A short phrase for a page.
     pub fn describe(self) -> &'static str {
@@ -124,6 +132,8 @@ impl Reason {
             Self::UnsupportedBase => "base library not accepted",
             Self::Inadmissible => "order the vault would refuse",
             Self::NotRecorded => "could not be recorded, so not signed",
+            Self::Outbid => "a lower offer won the window",
+            Self::BadReferral => "referral does not match the order's salt",
         }
     }
 }

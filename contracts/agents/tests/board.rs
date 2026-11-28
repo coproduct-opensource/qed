@@ -1514,3 +1514,140 @@ fn the_record_keeps_no_seller_address_and_the_desk_serves_its_signed_summary() {
         assert!(!on_disk.contains(&address[2..]));
     }
 }
+
+// ---- The offer window (proofs/commerce/Window.lean) ----------------------------
+
+fn header_of(order: &vault::Order) -> String {
+    vault_wire::required_header(
+        serde_json::json!({"url": "test"}),
+        vault_wire::requirements(&deployment(), &domain(), order, 60),
+    )
+    .unwrap()
+}
+fn fetch(buyer: &Buyer, seller: &Seller, ticket: &str) -> Reply {
+    ask(
+        &buyer.dial(&seller.keys),
+        &seller.keys,
+        "GET",
+        &board::held_path(&buyer.posted.id, ticket),
+        BTreeMap::new(),
+        vec![],
+    )
+    .unwrap()
+}
+fn ticket_of(reply: &Reply) -> (String, u64) {
+    assert_eq!(reply.status, 202, "{}", text(reply));
+    let body: serde_json::Value = serde_json::from_slice(&reply.body).unwrap();
+    (
+        body["ticket"].as_str().unwrap().to_owned(),
+        body["closesAt"].as_u64().unwrap(),
+    )
+}
+
+/// Two sellers offer in one window; the lower is signed for at the close
+/// and the other is refused as outbid. Before the close nothing is signed.
+/// Driven red by signing the first held offer (`pick` returning 0): the
+/// first seller got the signature.
+#[test]
+fn a_window_signs_for_the_lowest_offer_at_its_close() {
+    let buyer = Buyer::new();
+    buyer.desk.lock().unwrap().collect_offers(3);
+    let dear = Seller::new();
+    let cheap = Seller::with_artifact(&format!("{FIXTURES}/suffix.ndjson"));
+    let cheap = Seller {
+        keys: keys("cheaper seller"),
+        ..cheap
+    };
+    let dear_order = dear.order(&buyer, |_| {});
+    let cheap_order = cheap.order(&buyer, |o| {
+        o.amount[24..].copy_from_slice(&(PRICE - 50_000).to_be_bytes())
+    });
+    let (dear_ticket, closes_at) = ticket_of(&dear.offer(&buyer, &dear_order));
+    let (cheap_ticket, closes_again) = ticket_of(&cheap.offer(&buyer, &cheap_order));
+    assert_eq!(closes_at, closes_again, "one window per post");
+    assert!(closes_at <= buyer.posted.task.fund_by);
+    // Open: each seller is told to wait; nothing is signed.
+    assert_eq!(fetch(&buyer, &dear, &dear_ticket).status, 202);
+    assert!(
+        buyer
+            .desk
+            .lock()
+            .unwrap()
+            .signed(&buyer.posted.id)
+            .is_none()
+    );
+    assert!(buyer.open());
+    // A seller cannot read another's ticket.
+    assert_eq!(fetch(&buyer, &dear, &cheap_ticket).status, 404);
+    while now() < closes_at {
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    let won = fetch(&buyer, &cheap, &cheap_ticket);
+    assert_eq!(won.status, 200, "{}", text(&won));
+    let funding = vault_wire::admit_header(
+        &deployment(),
+        &domain(),
+        won.header(SIGNATURE_HEADER).unwrap(),
+        60,
+        now(),
+    )
+    .unwrap();
+    assert_eq!(funding.order(), &cheap_order);
+    let lost = fetch(&buyer, &dear, &dear_ticket);
+    assert_eq!(lost.status, 409, "{}", text(&lost));
+    assert!(text(&lost).contains("lower amount"), "{}", text(&lost));
+    assert!(lost.header(SIGNATURE_HEADER).is_none());
+    let signed = buyer.desk.lock().unwrap().signed(&buyer.posted.id).unwrap();
+    assert_eq!(signed.order, cheap_order);
+    // The post is spent: a later offer is refused.
+    let late = dear.offer(&buyer, &dear.order(&buyer, |o| o.salt = [8; 32]));
+    assert_eq!(late.status, 409, "{}", text(&late));
+}
+
+/// A seller answering a post as `nucleus-seller watch` does takes a 202,
+/// waits for the close and receives the signature.
+#[test]
+fn a_seller_waits_for_the_window_and_is_signed_for() {
+    let buyer = Buyer::new();
+    buyer.desk.lock().unwrap().collect_offers(1);
+    let seller = Seller::new();
+    let accepted = seller.answer(&buyer).expect("signed at the close");
+    let signed = buyer.desk.lock().unwrap().signed(&buyer.posted.id).unwrap();
+    assert_eq!(signed.digest, accepted.funding.digest());
+}
+
+/// At the close each held offer is reviewed again: an order that would
+/// leave under a minute to relay `fund` is passed over for a dearer one
+/// that still passes (`Window.stale_skipped`). Ties go to the earlier.
+/// Driven red by signing without the second review (the stale order won)
+/// and by letting the later of equal amounts win.
+#[test]
+fn a_window_reviews_again_at_the_close_and_breaks_ties_by_arrival() {
+    let buyer = Buyer::new();
+    let mut desk = buyer.desk.lock().unwrap();
+    desk.collect_offers(30);
+    let seller = Seller::new();
+    let id = nucleus_commerce_agents::chain::hex(&buyer.posted.id);
+    let t = now();
+    let order = |amount: u64, fund_in: u64, salt: u8| {
+        let mut o = seller.order(&buyer, |_| {});
+        o.amount[24..].copy_from_slice(&amount.to_be_bytes());
+        o.fund_by = t + fund_in;
+        o.salt = [salt; 32];
+        o
+    };
+    let stale = order(PRICE - 9, 100, 1);
+    let first = order(PRICE, 900, 2);
+    let second = order(PRICE, 900, 3);
+    let key = [1; 32];
+    for o in [&stale, &first, &second] {
+        desk.hold(&id, &header_of(o), t, key).unwrap();
+    }
+    // At t + 29 the window is not due.
+    desk.close_due(t + 29);
+    assert!(desk.signed(&buyer.posted.id).is_none());
+    // At t + 45 the stale order has 55 s left to fund: under a minute.
+    desk.close_due(t + 45);
+    let signed = desk.signed(&buyer.posted.id).expect("signed at the close");
+    assert_eq!(signed.order, first);
+}

@@ -175,6 +175,9 @@ pub fn post(args: &[String]) -> Res<()> {
         keys.wallet.clone(),
     );
     desk.accept_bases(world.bases.clone());
+    if let Some(seconds) = crate::desk::window_from_environment()? {
+        desk.collect_offers(seconds);
+    }
     let id = nucleus_board_reference::id(world.chain.id, board.address, keys.address(), &task);
     desk.open(Posted::new(id, task.clone(), policy.clone())?);
     let desk = Arc::new(Mutex::new(desk));
@@ -197,7 +200,9 @@ pub fn post(args: &[String]) -> Res<()> {
 
     // Wait: first for a signature, then for the chain.
     let look = |desk: &Mutex<Desk>| -> Res<Option<Signed>> {
-        Ok(desk.lock().map_err(|_| "desk poisoned")?.signed(&id))
+        let mut desk = desk.lock().map_err(|_| "desk poisoned")?;
+        desk.tick();
+        Ok(desk.signed(&id))
     };
     let signed = loop {
         if let Some(signed) = look(&desk)? {

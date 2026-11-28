@@ -1356,7 +1356,10 @@ impl Market for Live {
         Ok(poster.get(12..32) == Some(&self.hub.keys.address()[..]))
     }
     fn desk_open(&mut self, task: Hash) -> Res<bool> {
-        Ok(self.desk()?.open_for_offers(&task))
+        let mut desk = self.desk()?;
+        // A window that is due closes here as well as on a seller's request.
+        desk.tick();
+        Ok(desk.open_for_offers(&task))
     }
     fn close_desk(&mut self, task: Hash) -> Res<bool> {
         Ok(self.desk()?.withdraw(&task))
@@ -1864,6 +1867,12 @@ impl Hub {
             keys.wallet.clone(),
         );
         desk.accept_bases(world.bases.clone());
+        if let Some(seconds) = crate::desk::window_from_environment()? {
+            println!(
+                "bounty: offers are collected for {seconds} s after the first, and the least is signed for"
+            );
+            desk.collect_offers(seconds);
+        }
         Ok(Self {
             world,
             board,

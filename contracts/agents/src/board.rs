@@ -136,6 +136,11 @@ pub fn path(id: &Hash) -> String {
 pub fn offer_path(id: &Hash) -> String {
     format!("{}/offer", path(id))
 }
+/// Where a seller fetches the answer to an offer the buyer holds in its
+/// offer window: `ticket` is the offered order's digest.
+pub fn held_path(id: &Hash, ticket: &str) -> String {
+    format!("{}/offer/{ticket}", path(id))
+}
 /// Where a seller asks what an offer would get, without the buyer signing.
 pub fn review_path(id: &Hash) -> String {
     format!("{}/review", path(id))

@@ -55,8 +55,10 @@ Do not put funds you care about through this code.
    runs its own prover, and checks the result with the Lean checker
    (`nanoda`, vendored here). It makes no offer unless the checker accepts.
 3. The seller offers an order (an x402 v2 payment-required object). The buyer
-   signs one token authorization for the first offer that passes its review.
-   The buyer sends no transaction.
+   signs one token authorization: by default for the first offer that passes
+   its review; with an offer window (`NUCLEUS_OFFER_WINDOW` seconds), for
+   the least offer held when the window closes. The buyer sends no
+   transaction.
 4. The seller relays `fund`, which moves the buyer's deposit into the vault.
 5. The seller runs the proof program on the statement and its proof, and
    relays `settle` with a 260-byte seal. The vault asks the verifier contract;
@@ -558,7 +560,9 @@ configuration, and `contracts/agents/src/relay.rs` lists its rules.
 ## Run a buyer
 
 `nucleus-buyer post` serves a statement over iroh, posts the task on the
-board, signs for the first offer that passes its review, and afterwards reads
+board, signs for the first offer that passes its review (or, with
+`NUCLEUS_OFFER_WINDOW=W`, holds offers for W seconds and signs for the least;
+`proofs/commerce/Window.lean`), and afterwards reads
 the artifact from the settlement transaction and checks it with the Lean
 checker itself. `contracts/agents/tasks/` has example task files.
 
