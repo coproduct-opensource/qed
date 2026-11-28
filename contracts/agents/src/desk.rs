@@ -82,6 +82,9 @@ pub enum Refused {
     /// The offer was held in the window and another was signed for at the
     /// close: a lower amount, or an equal one that arrived first.
     Outbid,
+    /// The offer's referral is malformed or does not open its order's salt
+    /// (`referral::split`, `referral::opens`).
+    BadReferral,
 }
 impl std::fmt::Display for Refused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -98,6 +101,7 @@ impl std::fmt::Display for Refused {
                 f,
                 "another offer was signed for at the window's close: a lower amount, or an equal one that arrived first"
             ),
+            Self::BadReferral => write!(f, "the offer's referral does not open its order's salt"),
         }
     }
 }
@@ -111,6 +115,7 @@ impl Refused {
             Self::LateFunding => Reason::Deadline,
             Self::NotRecorded => Reason::NotRecorded,
             Self::Outbid => Reason::Outbid,
+            Self::BadReferral => Reason::BadReferral,
             Self::Offer(error) => match error {
                 OfferError::Wire(_) | OfferError::NoSingleOffer => Reason::Malformed,
                 OfferError::Vault(_) => Reason::Inadmissible,
@@ -119,7 +124,6 @@ impl Refused {
                 OfferError::OverBudget => Reason::OverLimit,
                 OfferError::Deadline => Reason::Deadline,
                 OfferError::UnsupportedBase => Reason::UnsupportedBase,
-                OfferError::BadReferral => Reason::BadReferral,
             },
         }
     }
@@ -127,7 +131,7 @@ impl Refused {
         match self {
             Self::Unknown => 404,
             Self::NotOpen | Self::NotRecorded | Self::Outbid => 409,
-            Self::Offer(_) | Self::LateFunding => 422,
+            Self::Offer(_) | Self::LateFunding | Self::BadReferral => 422,
         }
     }
 }
@@ -231,14 +235,23 @@ impl Posted {
             deliver_no_later_than: self.task.deliver_by,
             bases: bases.to_vec(),
         };
-        let reviewed = vault_wire::review_offer(deployment, domain, header, &intent, now)
+        // The referral is taken out first, so the vault's review and the
+        // payment are those of the plain requirements; then it must open
+        // the reviewed order's salt.
+        let (header, referral) =
+            crate::referral::split(header).map_err(|_| Refused::BadReferral)?;
+        let reviewed = vault_wire::review_offer(deployment, domain, &header, &intent, now)
             .map_err(Refused::Offer)?;
+        if let Some(r) = &referral {
+            crate::referral::opens(r, reviewed.order()).map_err(|_| Refused::BadReferral)?;
+        }
         if reviewed.order().fund_by > self.task.fund_by {
             return Err(Refused::LateFunding);
         }
         Ok(Offered {
             id: self.id,
             reviewed,
+            referral,
         })
     }
     /// Sign the token authorization for a reviewed offer. Consumes the post.
@@ -253,7 +266,7 @@ impl Posted {
             return Err(Box::new(self));
         }
         let order = offered.reviewed.order().clone();
-        let referral = offered.reviewed.referral();
+        let referral = offered.referral;
         let signature = crate::sign(wallet, offered.reviewed.signing_digest());
         match vault_wire::signature_header(deployment, offered.reviewed, &signature) {
             Ok(payment) => Ok(Signed {
@@ -275,6 +288,7 @@ impl Posted {
 pub struct Offered {
     id: Hash,
     reviewed: ReviewedOffer,
+    referral: Option<(Address, Hash)>,
 }
 impl Offered {
     pub fn order(&self) -> &vault::Order {
@@ -293,7 +307,7 @@ pub struct Signed {
     pub payment: String,
     pub policy: Policy,
     /// The referrer the order's salt commits to and the nonce that opens
-    /// it, checked at review (`vault_wire::referral_salt`); `None`:
+    /// it, checked at review (`referral::referral_salt`); `None`:
     /// unreferred.
     pub referral: Option<(Address, Hash)>,
 }

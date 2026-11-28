@@ -1666,9 +1666,11 @@ fn a_referral_is_bound_into_the_salt_and_a_forged_one_is_refused() {
     // A forged referral: it names a referrer the salt does not commit to.
     let forger = Seller::new();
     let order = forger.order(&buyer, |_| {});
-    let mut accepted = vault_wire::requirements(&deployment(), &domain(), &order, 60);
-    accepted.extra.referral = Some(vault_wire::referral_of(&order, &referrer));
-    let header = vault_wire::required_header(serde_json::json!({"url": "test"}), accepted).unwrap();
+    let header = nucleus_commerce_agents::referral::with_referral(
+        &header_of(&order),
+        nucleus_commerce_agents::referral::referral_of(&order, &referrer),
+    )
+    .unwrap();
     let forged = ask(
         &buyer.dial(&forger.keys),
         &forger.keys,
@@ -1690,7 +1692,10 @@ fn a_referral_is_bound_into_the_salt_and_a_forged_one_is_refused() {
     let order = accepted.funding.order();
     assert_eq!(
         order.salt,
-        vault_wire::referral_salt(&referrer, &vault_wire::referral_nonce(order))
+        nucleus_commerce_agents::referral::referral_salt(
+            &referrer,
+            &nucleus_commerce_agents::referral::referral_nonce(order)
+        )
     );
     let signed = buyer.desk.lock().unwrap().signed(&buyer.posted.id).unwrap();
     assert_eq!(signed.referral.map(|(r, _)| r), Some(referrer));

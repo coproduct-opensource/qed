@@ -137,3 +137,59 @@ fn a_public_declaration_is_credited_to_no_one() {
     );
     assert_eq!(late[1].1, Attributed::Authors(vec![[0xa1; 20]]));
 }
+
+const ON_BASE: &[u8] =
+    include_bytes!("../../../proof-acceptance/core/tests/fixtures/base/task-on-base.ndjson");
+const ARTIFACT_ON_BASE: &[u8] =
+    include_bytes!("../../../proof-acceptance/core/tests/fixtures/base/suffix-on-base.ndjson");
+
+fn walked(statement: &'static [u8], artifact: &'static [u8]) -> (usize, Vec<export::Used>) {
+    let proof = accept(&policy(statement), statement, artifact)
+        .unwrap()
+        .proof;
+    deep(move || {
+        let mut x = export::Export::default();
+        x.read(statement).unwrap();
+        let count = x.declarations();
+        x.read(artifact).unwrap();
+        (
+            count,
+            export::used_constants(&x, &proof, &mut |b| sha256(b)).unwrap(),
+        )
+    })
+    .unwrap()
+}
+
+/// The walk on real exports (moved here from the acceptance core, whose
+/// sources the proof guests build): the proof reaches its helper and the
+/// helper `Nat.add_succ`; no kernel-reserved name is reached; the same
+/// terms in another export (over a checked base, or in export v2) have the
+/// same digests. Driven red by not following the constants a value names
+/// (the helper was missing).
+#[test]
+fn the_walk_reaches_the_helper_and_digests_do_not_depend_on_the_export() {
+    let (count, used) = walked(STATEMENT, ARTIFACT);
+    let seller: Vec<&str> = used
+        .iter()
+        .filter(|u| u.position >= count)
+        .map(|u| u.name.as_str())
+        .collect();
+    assert_eq!(
+        seller,
+        ["rfl", "Nat.add_succ", "Nucleus.helper", "Nucleus.proof"]
+    );
+    assert!(used.iter().any(|u| u.name == "Nucleus.Claim"));
+    assert!(
+        used.iter()
+            .all(|u| !nanoda_lib::acceptance::is_kernel_reserved(&u.name))
+    );
+    let digests = |(count, used): (usize, Vec<export::Used>)| -> Vec<_> {
+        used.into_iter()
+            .filter(|u| u.position >= count)
+            .map(|u| (u.name, u.ty, u.value))
+            .collect()
+    };
+    let plain = digests(walked(STATEMENT, ARTIFACT));
+    assert_eq!(digests(walked(ON_BASE, ARTIFACT_ON_BASE)), plain);
+    assert_eq!(digests(walked(BOUNTY, BOUNTY_ARTIFACT)), plain);
+}

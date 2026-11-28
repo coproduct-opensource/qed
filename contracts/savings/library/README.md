@@ -20,7 +20,12 @@ qed-library-keys init.ndjson lean-4.30.0-init.exclude \
 | `init.ndjson` | 339,987,086 bytes, SHA-256 `75b2cb000d698aac2946ea76d3401d5939c9274ebd7849d1b46f25ee2fcd28d9`, 9.9 s, exporter stderr empty |
 | keys | 57,425; a second run wrote the same bytes |
 | set SHA-256 | `ef997b9fa3c0b7fc42478f8f151162b84a5b3849b06c2a4ab393c99aa56897dd` |
-| `qed-library-keys` | 3.2 s, 1.41 GB peak resident |
+| `qed-library-keys` | 3.2 s, 1.41 GB peak resident (the checker's parser); 7.1 s, 1.38 GB (the `walk::export` reader, 2026-11-28), the same bytes |
+
+The keys are made by `walk::export`, the reader the walk uses, which shares no
+code with the proof guests; it was first made with the vendored checker's
+parser, and the reader reproduces it byte for byte. The axioms on the command
+line are no longer read.
 
 The export is not committed (340 MB); the command above remakes it. The
 axioms are the ones `Init` declares; the parse refuses an export that

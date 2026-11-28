@@ -144,35 +144,3 @@ its file) would keep the base image; it did not.* The literals the name
 cache looks up moved within the guest's read-only data
 (`strings` of the two ELFs), so the image differs anyway
 (`docs/rfcs/proof-acceptance-reserved-names-2026-11-19.md`, Programs).
-
-## Savings attribution walk (2026-11-28)
-
-`docs/rfcs/qed-proof-carrying-savings-2026-11-28.md`.
-
-13. `src/acceptance.rs` (end of the file): `used_constants`, `Used` and
-    `Walked`. One parse with marks and no kernel check, then a walk from a
-    named declaration through the type and value of every constant reached,
-    leaving out and not walking through `is_kernel_reserved` names, and a
-    Merkle digest of each reached declaration's type and value under a
-    caller-given hash (binder names and styles left out; constants by dotted
-    name). For attributing reuse in artifacts that were already accepted;
-    it decides nothing about acceptance.
-
-No kernel check changes; nothing existing is edited, only appended. *Not
-verified: whether the base guest's image ID moves.* The guest does not call
-the new function, and item 12 showed an image can move without a check
-changing; the `verify-programs` workflow rebuilds the guests and compares
-image IDs, and is the check that settles it. `cargo clippy -p nanoda_lib
---lib` reports no finding in `src/acceptance.rs`.
-
-Measured on the fixtures (`contracts/proof-acceptance/core/tests/used_constants.rs`):
-the Nucleus artifact's seller side is four declarations, `rfl`,
-`Nat.add_succ`, `Nucleus.helper` and `Nucleus.proof`: the artifact
-re-exports two Lean library declarations its statement did not carry. The
-285-byte v2 artifact settled for the bounty gives the same four, with the
-same digests as the NDJSON fixture.
-
-14. `src/acceptance.rs` (end of the file): `declaration_digests`, every
-    declaration of an export with the digests of item 13, for building the
-    library exclusion set (`contracts/savings/library/README.md`). Parse
-    only; no kernel check. Appended; the same image-ID caveat as item 13.

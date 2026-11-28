@@ -3,8 +3,8 @@
 2026-11-28. Models `proofs/commerce/Savings.lean`, `Window.lean` and
 `Payout.lean`. Code: `contracts/savings` (the split), `contracts/agents`
 (`desk.rs`, `watch.rs`, `seller.rs`, `savings.rs`, `payout.rs`),
-`crates/nucleus-proof-commerce/src/vault/wire.rs` (the referral),
-`contracts/proof-acceptance/vendor/nanoda_lib/src/acceptance.rs` (the walk),
+`contracts/agents/src/referral.rs` (the referral),
+`contracts/savings/src/walk/export.rs` (the walk),
 `contracts/site/src/market/savings.rs` (`/market`).
 
 ## What it is
@@ -100,7 +100,8 @@ digest covers the salt, so the referrer is fixed at funding and cannot be
 added or changed later (`Savings.referral_bound_before_funding`). No new
 vault is needed.
 
-A referral is stripped before the requirements comparison. So the payment
+The desk takes the referral out of the header before the vault's review
+(`referral::split`) and opens the salt with it after. So the payment
 echoes the plain requirements, which a seller recomputes from its order. An
 unreferred header is byte for byte what it was before. A desk built before
 this change refuses an offer that carries `extra.referral`, because `Extra`
@@ -111,10 +112,33 @@ saving its own lower price made. It never collects more than the buyer saved
 (`seller_revenue_monotone`: everything the split pays to anyone but the
 buyer falls as the price rises).
 
+## The proof guests are untouched (2026-11-28)
+
+*I assumed an appended, never-called function in the vendored checker
+could not move a guest's image ID.* I was wrong. `verify-programs` on PR 26
+built the order program as `6971a1f6…` against the published `bfe27f64…`
+(`IMAGE_ID_ORDER_FMT2S`, which the deployed vault and every live post name),
+and the base program as `ecd77d4b…` against the recorded `382c2175…`. VENDOR
+item 12 had already recorded an image moving without any check changing.
+
+So nothing the guests build was changed:
+
+- The walk and the digests are a separate export reader in `qed-savings`
+  (`src/walk/export.rs`). It reads NDJSON and v2 itself and uses only
+  `nanoda_lib`'s unchanged public `is_kernel_reserved`.
+- The referral moved from `nucleus-proof-commerce`'s `vault/wire.rs` to the
+  desk (`contracts/agents/src/referral.rs`).
+- `git diff origin/main -- contracts/proof-acceptance crates Cargo.toml
+  Cargo.lock` is empty.
+
+The reader was checked against the checker's tables it replaced. Keyed by
+the new reader, the whole `lean4export Init` export gives the committed
+exclusion set byte for byte: 57,425 keys, SHA-256 `ef997b9f…`.
+
 ## Who authored a reused lemma
 
 A settled artifact is walked from its proof through the type and value of
-every constant reached (`used_constants`, VENDOR.md item 13).
+every constant reached (`walk::export::used_constants`).
 Kernel-reserved names are left out. Each seller-side declaration is keyed
 by its name and by Merkle digests of its type and value. The digests do not
 depend on the export's back-references: the bounty's v2 artifact and the
@@ -213,8 +237,6 @@ input cannot add a referral the order did not bind.
 - **Authors on `/market`.** The page does not walk artifacts, so author
   shares read 0 there and their 20 % reads as the buyer's. A desk that pays
   authors will disagree with the page until it does.
-- **The base guest's image ID** after the nanoda addition has not been
-  rebuilt here. The `verify-programs` workflow is the check.
 - **Live checks.** Neither the improvement bounty on S0001 nor a referred
   lower offer on a live row has run.
 - **The v2 vault**, which splits at settlement, is not built.

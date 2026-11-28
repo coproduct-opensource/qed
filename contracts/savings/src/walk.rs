@@ -5,7 +5,7 @@
 //! attribution is recomputed with what produced it.
 //!
 //! A settled artifact is accepted, then walked from its proof through every
-//! constant reached (`nanoda_lib::acceptance::used_constants`). Each seller
+//! constant reached (`walk::export::used_constants`). Each seller
 //! side declaration is keyed by its name and the digests of its type and
 //! value. The index maps a key to the payee of the first settlement whose
 //! artifact carried it; the authors of a settlement are the payees the
@@ -19,6 +19,8 @@
 //!   use. Without it the first seller to re-export `rfl` or `Nat.add_succ`
 //!   would be credited with them;
 //! - every key that appeared on the statement side of a statement read.
+pub mod export;
+
 use crate::{Rule, authors_of, extend};
 use nucleus_proof_acceptance::{Policy, accept};
 use sha2::{Digest, Sha256};
@@ -119,28 +121,23 @@ pub fn declarations(
     let proof = accept(policy, statement, artifact)
         .map_err(|refusal| format!("the artifact is not accepted: {refusal:?}"))?
         .proof;
-    let axioms = policy.permitted_axioms.clone();
     let (statement, artifact) = (statement.to_vec(), artifact.to_vec());
-    let walked = deep(move || {
-        nanoda_lib::acceptance::used_constants(
-            &[&statement, &artifact],
-            &axioms,
-            &[statement.len()],
-            &proof,
-            &mut |bytes| sha256(bytes),
-        )
+    let (count, used) = deep(move || -> Result<(usize, Vec<export::Used>), String> {
+        let mut x = export::Export::default();
+        x.read(&statement)?;
+        let count = x.declarations();
+        x.read(&artifact)?;
+        Ok((
+            count,
+            export::used_constants(&x, &proof, &mut |bytes| sha256(bytes))?,
+        ))
     })??;
-    let count = walked
-        .counts
-        .first()
-        .copied()
-        .ok_or("no count for the mark")?;
     let mut out = Declarations {
         statement: vec![],
         seller: vec![],
         names: vec![],
     };
-    for used in &walked.used {
+    for used in &used {
         let k = key(&used.name, &used.ty, &used.value);
         if used.position < count {
             out.statement.push(k);
@@ -154,11 +151,11 @@ pub fn declarations(
 
 /// Every declaration of a whole export, keyed, sorted and distinct: the
 /// library exclusion set's bytes, built by `qed-library-keys`.
-pub fn library_keys(export: Vec<u8>, permitted_axioms: Vec<String>) -> Result<Vec<Key>, String> {
-    let used = deep(move || {
-        nanoda_lib::acceptance::declaration_digests(&[&export], &permitted_axioms, &mut |b| {
-            sha256(b)
-        })
+pub fn library_keys(bytes: Vec<u8>, _permitted_axioms: Vec<String>) -> Result<Vec<Key>, String> {
+    let used = deep(move || -> Result<Vec<export::Used>, String> {
+        let mut x = export::Export::default();
+        x.read(&bytes)?;
+        export::all_declarations(&x, &mut |b| sha256(b))
     })??;
     let mut keys: Vec<Key> = used.iter().map(|u| key(&u.name, &u.ty, &u.value)).collect();
     keys.sort_unstable();

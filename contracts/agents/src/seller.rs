@@ -58,19 +58,22 @@ pub struct Terms {
     /// A checked base this seller builds on, if it has one.
     pub base: Option<BaseOffer>,
     /// A referrer this seller binds into every order's salt
-    /// (`vault_wire::refer`): it is owed 30 % of the buyer's saving when the
+    /// (`referral::refer`): it is owed 30 % of the buyer's saving when the
     /// order settles (proofs/commerce/Savings.lean). `None`: unreferred.
     pub referrer: Option<Address>,
 }
 impl Terms {
-    /// The x402 requirements for one of this seller's orders, with its
-    /// referral when it names a referrer.
-    pub fn requirements(&self, order: &vault::Order) -> vault_wire::Requirements {
-        let mut offer = vault_wire::requirements(&self.deployment, &self.domain, order, 60);
-        offer.extra.referral = self
-            .referrer
-            .map(|referrer| vault_wire::referral_of(order, &referrer));
-        offer
+    /// The `PAYMENT-REQUIRED` header for one of this seller's orders, with
+    /// its referral when it names a referrer (`referral::with_referral`).
+    pub fn header(&self, order: &vault::Order, resource: Value) -> Res<String> {
+        let offer = vault_wire::requirements(&self.deployment, &self.domain, order, 60);
+        let header = vault_wire::required_header(resource, offer).map_err(|e| format!("{e:?}"))?;
+        match self.referrer {
+            None => Ok(header),
+            Some(r) => {
+                crate::referral::with_referral(&header, crate::referral::referral_of(order, &r))
+            }
+        }
     }
     /// This seller's order for a request, as of `now`. `limits`, when given,
     /// are the latest funding and delivery deadlines the buyer said it would
@@ -102,7 +105,7 @@ impl Terms {
             context: received.context(),
         };
         if let Some(referrer) = &self.referrer {
-            vault_wire::refer(&mut order, referrer);
+            crate::referral::refer(&mut order, referrer);
         }
         Ok(order)
     }
@@ -593,9 +596,10 @@ impl Seller {
             View::Proving => Reply::new(202).with("Nucleus-Job", "quoting".into()),
             View::Declined(why) => return refuse(422, why),
             View::Quoted { order, uri } => {
-                let offer = self.terms.requirements(&order);
-                let header = vault_wire::required_header(json!({"url": uri}), offer)
-                    .or_else(|e| refuse(500, format!("{e:?}")))?;
+                let header = self
+                    .terms
+                    .header(&order, json!({"url": uri}))
+                    .or_else(|e| refuse(500, e.to_string()))?;
                 Reply::text(402, "{}").with(REQUIRED_HEADER, header)
             }
             View::Working(step) => Reply::new(202).with(

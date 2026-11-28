@@ -32,6 +32,7 @@ pub mod ops;
 pub mod payout;
 pub mod post;
 pub mod probe;
+pub mod referral;
 pub mod relay;
 pub mod safe;
 pub mod seller;

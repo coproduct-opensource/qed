@@ -154,7 +154,7 @@ pub struct ReferralInput {
     pub nonce: String,
 }
 
-/// `vault_wire::referral_salt`, recomputed here.
+/// `referral::referral_salt` of the desk (`contracts/agents`), recomputed here.
 pub fn referral_salt(referrer: &[u8], nonce: &[u8]) -> Word {
     let mut bytes = b"NucleusReferralV1".to_vec();
     bytes.extend_from_slice(referrer);
