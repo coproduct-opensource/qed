@@ -275,12 +275,17 @@ Measured on the Base fixture (`a_tampered_published_attribution_is_flagged`):
   - A crash anywhere pays nothing twice. The token holds each nonce
     (`Payout.paid_once`), and a `paid` line carries the share's nonce,
     checked when the line is read.
-- **Authors.** The desk reads every `Settled` of its vault from
-  `NUCLEUS_SAVINGS_FROM`. It takes artifacts from `settle` calldata and
-  statements from `NUCLEUS_SAVINGS_LIBRARY`, a directory in the site's input
-  layout. Without the library, no author is paid. The desk reads one vault
-  and the site reads every indexed vault, so where those differ the site
-  shows a mismatch.
+- **Authors.** The desk reads every `Settled` of the vaults in
+  `NUCLEUS_SAVINGS_VAULTS` (`ADDRESS:FORM:FROM_BLOCK`, second or third form),
+  merged in chain order. It takes artifacts and orders from `settle`
+  calldata, and statements and published proofs from
+  `NUCLEUS_SAVINGS_LIBRARY`, a directory in the site's input layout. Without
+  both, no author is paid. `install-ladder` sets the library only when the
+  scope equals the site's market vaults (owner decision 2026-11-28;
+  `LadderDesk.savings_scope` in nucleus). On the Base fixture the desk, reading
+  as it reads the chain, gives the site's numbers: 2 unknown and 9 crediting
+  `0xee71…`, or 2 and 9 crediting no one with the bounty artifact published
+  (`the_desk_and_the_site_agree_on_the_base_fixture`).
 
 ## No credit for public or self (owner decision 2026-11-28)
 

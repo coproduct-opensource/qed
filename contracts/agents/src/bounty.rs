@@ -1534,15 +1534,17 @@ impl Market for Live {
         let attributed = match crate::attribution::Library::from_environment()? {
             None => None,
             Some(library) => {
-                let from = std::env::var(crate::attribution::FROM_VARIABLE)
-                    .ok()
-                    .and_then(|t| t.trim().parse().ok())
-                    .unwrap_or(0);
-                let settled = crate::attribution::read_settlements(
-                    &self.hub.world.chain,
-                    self.hub.world.deployment.vault,
-                    from,
-                )?;
+                // Every indexed vault, as the site reads them; without the scope
+                // no author is attributed.
+                let scope = match std::env::var(crate::attribution::VAULTS_VARIABLE) {
+                    Ok(text) => crate::attribution::parse_scope(&text)?,
+                    Err(_) => vec![],
+                };
+                let settled = if scope.is_empty() {
+                    vec![]
+                } else {
+                    crate::attribution::read_scope(&self.hub.world.chain, &scope)?
+                };
                 crate::attribution::attribute(&settled, &library, &order.digest)
             }
         };

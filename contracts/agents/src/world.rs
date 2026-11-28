@@ -116,17 +116,31 @@ pub(crate) fn artifact_in(form: vault::Form, calldata: &[u8]) -> Option<Vec<u8>>
 /// What `settled_order_in` reads: buyer, seller, asset, policy hash, artifact.
 pub(crate) type SettledOrder = (Address, Address, Address, [u8; 32], Vec<u8>);
 
-/// The buyer, seller, asset and policy hash of the order a direct third-form
+/// The buyer, seller, asset and policy hash of the order a direct
 /// `settle` call settles, and its artifact.
-pub(crate) fn settled_order_in(calldata: &[u8]) -> Option<SettledOrder> {
-    let call = third::settleCall::abi_decode(calldata).ok()?;
-    Some((
-        call.o.buyer.into_array(),
-        call.o.seller.into_array(),
-        call.o.asset.into_array(),
-        call.o.policyHash.0,
-        call.artifact.to_vec(),
-    ))
+pub(crate) fn settled_order_in(form: vault::Form, calldata: &[u8]) -> Option<SettledOrder> {
+    match form {
+        vault::Form::Third => {
+            let call = third::settleCall::abi_decode(calldata).ok()?;
+            Some((
+                call.o.buyer.into_array(),
+                call.o.seller.into_array(),
+                call.o.asset.into_array(),
+                call.o.policyHash.0,
+                call.artifact.to_vec(),
+            ))
+        }
+        vault::Form::Second => {
+            let call = settleCall::abi_decode(calldata).ok()?;
+            Some((
+                call.o.buyer.into_array(),
+                call.o.seller.into_array(),
+                call.o.asset.into_array(),
+                call.o.policyHash.0,
+                call.artifact.to_vec(),
+            ))
+        }
+    }
 }
 /// Topic of the `Settled` event a vault of this form emits.
 pub(crate) fn settled_topic(form: vault::Form) -> [u8; 32] {
