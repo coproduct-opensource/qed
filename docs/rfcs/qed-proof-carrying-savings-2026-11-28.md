@@ -137,7 +137,7 @@ them would then pay that seller part of the authors' 20 %.
 
 The fix, owner decision 2026-11-28: an exclusion set. `lean4export Init`
 with Lean 4.30.0 and the exporter statements use, hashed into 57,425 keys,
-is committed as `contracts/savings/library/lean-4.30.0-init.keys` (method,
+is committed as `contracts/savings/library/lean-4.30.0-init.exclude` (method,
 export SHA-256 and timings in `library/README.md`). No declaration in it
 earns a share (`Savings.excluded_never_earns`, mutant S12). On the bounty's
 settled artifact the set leaves out `rfl` and `Nat.add_succ`, and only

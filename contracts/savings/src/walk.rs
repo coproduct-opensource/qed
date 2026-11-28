@@ -32,7 +32,7 @@ pub type Key = Hash;
 /// The library exclusion set: sorted 32-byte keys of every declaration in
 /// `lean4export Init` with Lean 4.30.0 and lean4export 3.1.0
 /// (`library/README.md` has the export's SHA-256 and the command).
-const LIBRARY: &[u8] = include_bytes!("../library/lean-4.30.0-init.keys");
+const LIBRARY: &[u8] = include_bytes!("../library/lean-4.30.0-init.exclude");
 
 /// Whether `key` is a declaration of the pinned Lean library.
 pub fn is_library(key: &Key) -> bool {

@@ -1,6 +1,6 @@
 # The library exclusion set
 
-`lean-4.30.0-init.keys`: 57,425 keys, 32 bytes each, sorted. Each is
+`lean-4.30.0-init.exclude`: 57,425 keys, 32 bytes each, sorted. Each is
 `qed_savings::walk::key` (SHA-256 of a tag, the dotted name and the Merkle
 digests of type and value) of one declaration of the Lean 4.30.0 library.
 No declaration in it earns an author's share (`Savings.excluded_never_earns`).
@@ -11,7 +11,7 @@ source `a3e35a5`, built with Lean 4.30.0 commit
 
 ```text
 lake env .lake/build/bin/lean4export Init > init.ndjson
-qed-library-keys init.ndjson lean-4.30.0-init.keys \
+qed-library-keys init.ndjson lean-4.30.0-init.exclude \
   propext Quot.sound Classical.choice Lean.trustCompiler Lean.ofReduceNat Lean.ofReduceBool sorryAx
 ```
 
