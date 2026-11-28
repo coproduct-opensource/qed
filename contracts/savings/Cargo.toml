@@ -1,0 +1,11 @@
+[package]
+name = "qed-savings"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Proof-carrying savings: the split of what a settlement saved its buyer among the referrer, the authors of reused lemmas and the buyer. A mirror of proofs/commerce/Savings.lean. Read by the site and the buyer's desk."
+
+[workspace]
+
+[dependencies]

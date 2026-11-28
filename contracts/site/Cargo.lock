@@ -728,6 +728,7 @@ dependencies = [
  "pulldown-cmark",
  "qed-analytics",
  "qed-deliveries",
+ "qed-savings",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -903,6 +904,10 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
 ]
+
+[[package]]
+name = "qed-savings"
+version = "0.1.0"
 
 [[package]]
 name = "quote"

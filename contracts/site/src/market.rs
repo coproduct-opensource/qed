@@ -1168,6 +1168,8 @@ pub fn shown_posters(index: &Index) -> BTreeSet<String> {
 
 #[path = "market/promotion.rs"]
 pub mod promotion;
+#[path = "market/savings.rs"]
+pub mod savings;
 #[path = "market/view.rs"]
 pub mod view;
 

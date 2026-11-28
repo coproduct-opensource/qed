@@ -32,3 +32,6 @@ qed-deliveries = { path = "../deliveries" }
 # The visit collector's allow-list of page labels: a page sends a beacon
 # with its label only if the collector counts it (one list, theirs).
 qed-analytics = { path = "../analytics" }
+# The split of a settlement's saving (proofs/commerce/Savings.lean), shared
+# with the buyer's desk that pays it.
+qed-savings = { path = "../savings" }
