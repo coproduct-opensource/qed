@@ -31,12 +31,20 @@ fn policy_for(statement: &[u8]) -> Policy {
 /// Accept, then walk from the accepted proof, on a deep stack as the
 /// acceptance host does.
 fn walk(statement: &'static [u8], artifact: &'static [u8]) -> (String, Walked) {
-    let proof = accept(&policy_for(statement), statement, artifact).unwrap().proof;
+    let proof = accept(&policy_for(statement), statement, artifact)
+        .unwrap()
+        .proof;
     let root = proof.clone();
     let walked = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
         .spawn(move || {
-            used_constants(&[statement, artifact], &[], &[statement.len()], &root, &mut sha256)
+            used_constants(
+                &[statement, artifact],
+                &[],
+                &[statement.len()],
+                &root,
+                &mut sha256,
+            )
         })
         .unwrap()
         .join()
@@ -73,7 +81,10 @@ fn the_walk_reaches_the_helper_through_the_proof_and_leaves_out_reserved_names()
     let names: Vec<&str> = w.used.iter().map(|u| u.name.as_str()).collect();
     assert!(names.contains(&"Nucleus.Claim"), "{names:?}");
     assert!(names.contains(&"Nat.add_succ"), "{names:?}");
-    assert!(w.used.iter().all(|u| !is_kernel_reserved(&u.name)), "{names:?}");
+    assert!(
+        w.used.iter().all(|u| !is_kernel_reserved(&u.name)),
+        "{names:?}"
+    );
     assert!(!names.contains(&"Nat"));
     // Theorems and definitions have values; the rest do not.
     let helper = w.used.iter().find(|u| u.name == "Nucleus.helper").unwrap();
@@ -87,7 +98,13 @@ fn the_same_term_in_another_export_has_the_same_digests() {
     let (_, plain) = walk(STATEMENT, ARTIFACT);
     let (_, based) = walk(ON_BASE, ARTIFACT_ON_BASE);
     assert_ne!(STATEMENT, ON_BASE);
-    let helper = |w: &Walked| w.used.iter().find(|u| u.name == "Nucleus.helper").cloned().unwrap();
+    let helper = |w: &Walked| {
+        w.used
+            .iter()
+            .find(|u| u.name == "Nucleus.helper")
+            .cloned()
+            .unwrap()
+    };
     let (a, b) = (helper(&plain), helper(&based));
     assert_eq!((a.ty, a.value), (b.ty, b.value));
 }
@@ -107,7 +124,11 @@ fn the_settled_bounty_artifact_carries_the_same_four_declarations() {
     // The same terms as the NDJSON fixture's, by digest.
     let (_, plain) = walk(STATEMENT, ARTIFACT);
     let digests = |w: &Walked| -> Vec<_> {
-        w.used.iter().filter(|u| u.position >= w.counts[0]).map(|u| (u.ty, u.value)).collect()
+        w.used
+            .iter()
+            .filter(|u| u.position >= w.counts[0])
+            .map(|u| (u.ty, u.value))
+            .collect()
     };
     assert_eq!(digests(&w), digests(&plain));
 }
