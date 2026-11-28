@@ -65,6 +65,9 @@ nucleus-jsonl = { path = "../../crates/nucleus-jsonl" }
 # The record of delivery attempts and its signed summary, shared with the
 # site and the watcher (docs/rfcs/qed-deliveries-2026-11-14.md).
 qed-deliveries = { path = "../deliveries" }
+# The split of a settlement's saving and the attribution rule
+# (proofs/commerce/Savings.lean), shared with the site.
+qed-savings = { path = "../savings" }
 # The circuit-data fetcher (qed-groth16-data): xz and tar in Rust, no C.
 lzma-rs = "=0.3.0"
 tar = { version = "=0.4.46", default-features = false }
