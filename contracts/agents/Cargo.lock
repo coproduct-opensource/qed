@@ -3806,6 +3806,11 @@ dependencies = [
 [[package]]
 name = "qed-savings"
 version = "0.1.0"
+dependencies = [
+ "nanoda_lib",
+ "nucleus-proof-acceptance",
+ "sha2 0.10.9",
+]
 
 [[package]]
 name = "quick-xml"

@@ -4,8 +4,22 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "Proof-carrying savings: the split of what a settlement saved its buyer among the referrer, the authors of reused lemmas and the buyer. A mirror of proofs/commerce/Savings.lean. Read by the site and the buyer's desk."
+description = "Proof-carrying savings: the split of what a settlement saved its buyer among the referrer, the authors of reused lemmas and the buyer, and (feature walk) who those authors are. A mirror of proofs/commerce/Savings.lean. Read by the site and the buyer's desk."
 
 [workspace]
 
+[features]
+# The attribution walk over settled artifacts: the acceptance core, the
+# checker's walk and the library exclusion set. The desk and the site both
+# use it, so they compute attribution with the same code.
+walk = ["dep:nucleus-proof-acceptance", "dep:nanoda_lib", "dep:sha2"]
+
 [dependencies]
+nucleus-proof-acceptance = { path = "../proof-acceptance/core", optional = true }
+nanoda_lib = { path = "../proof-acceptance/vendor/nanoda_lib", optional = true }
+sha2 = { version = "0.10.9", default-features = false, optional = true }
+
+[[bin]]
+name = "qed-library-keys"
+path = "src/bin/qed-library-keys.rs"
+required-features = ["walk"]

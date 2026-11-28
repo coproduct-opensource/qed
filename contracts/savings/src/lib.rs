@@ -24,6 +24,9 @@
     clippy::indexing_slicing
 )]
 
+#[cfg(feature = "walk")]
+pub mod walk;
+
 /// The referrer's share of the saving, in basis points.
 pub const REFERRER_BPS: u128 = 3000;
 /// The authors' share of the saving, together, in basis points.

@@ -528,3 +528,33 @@ impl<'p> Digests<'_, 'p, '_> {
         Ok(d)
     }
 }
+
+/// Nucleus addition (VENDOR.md, item 14). Parse the concatenation of
+/// `segments` once, with no kernel check, and give every declaration with
+/// the digests `used_constants` gives it, in export order, kernel-reserved
+/// names included. For building the exclusion set of a library export:
+/// the same digests, so the same keys.
+pub fn declaration_digests(
+    segments: &[&[u8]],
+    permitted_axioms: &[String],
+    hash: &mut dyn FnMut(&[u8]) -> [u8; 32],
+) -> Result<Vec<Used>, String> {
+    let (file, skipped, _) =
+        crate::parser::parse_export_segments_marked(segments, config(permitted_axioms)?, &[])
+            .map_err(|e| e.to_string())?;
+    if !skipped.is_empty() {
+        return Err(format!("unpermitted axioms were skipped: {skipped:?}"));
+    }
+    let mut digests = Digests { file: &file, hash, exprs: Default::default(), names: Default::default(), levels: Default::default() };
+    let mut out = Vec::with_capacity(file.declars.len());
+    for (position, declar) in file.declars.values().enumerate() {
+        let value = match declar {
+            Declar::Theorem { val, .. } | Declar::Definition { val, .. } | Declar::Opaque { val, .. } => Some(*val),
+            _ => None,
+        };
+        let ty = digests.expr(declar.info().ty)?;
+        let value = value.map(|v| digests.expr(v)).transpose()?;
+        out.push(Used { position, name: name_string(&file, declar.info().name), ty, value });
+    }
+    Ok(out)
+}

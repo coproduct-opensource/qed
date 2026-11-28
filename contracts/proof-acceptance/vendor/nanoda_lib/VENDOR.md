@@ -171,3 +171,8 @@ the Nucleus artifact's seller side is four declarations, `rfl`,
 re-exports two Lean library declarations its statement did not carry. The
 285-byte v2 artifact settled for the bounty gives the same four, with the
 same digests as the NDJSON fixture.
+
+14. `src/acceptance.rs` (end of the file): `declaration_digests`, every
+    declaration of an export with the digests of item 13, for building the
+    library exclusion set (`contracts/savings/library/README.md`). Parse
+    only; no kernel check. Appended; the same image-ID caveat as item 13.

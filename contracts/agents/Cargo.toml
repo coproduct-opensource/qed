@@ -67,7 +67,7 @@ nucleus-jsonl = { path = "../../crates/nucleus-jsonl" }
 qed-deliveries = { path = "../deliveries" }
 # The split of a settlement's saving and the attribution rule
 # (proofs/commerce/Savings.lean), shared with the site.
-qed-savings = { path = "../savings" }
+qed-savings = { path = "../savings", features = ["walk"] }
 # The circuit-data fetcher (qed-groth16-data): xz and tar in Rust, no C.
 lzma-rs = "=0.3.0"
 tar = { version = "=0.4.46", default-features = false }

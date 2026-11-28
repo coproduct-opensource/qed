@@ -49,6 +49,8 @@ structure Rule where
   fromArtifact : Bool := true
   /-- The seller is not its own author (off: it can be). -/
   notSeller : Bool := true
+  /-- A declaration of the excluded library earns nothing (off: it can). -/
+  library : Bool := true
 
 def Rule.model : Rule := {}
 
@@ -203,8 +205,14 @@ structure St where
   /-- Declaration → the payee of the first settlement that carried it. -/
   prov : List (Nat × Nat)
   records : List Record
+  /-- The exclusion set: the keys of the pinned Lean library's
+      declarations (`contracts/savings/library`). -/
+  lib : List Nat := []
 
-def init : St := ⟨empty, [], [], [], []⟩
+def init : St := ⟨empty, [], [], [], [], []⟩
+
+/-- The empty market with exclusion set `lib`. -/
+def initWith (lib : List Nat) : St := { init with lib := lib }
 
 def priceOf (s : St) (id : Nat) : Nat := ((s.prices.find? (·.1 == id)).map (·.2)).getD 0
 
@@ -212,9 +220,11 @@ def refOf (s : St) (d : Nat) : Option Nat := ((s.refs.find? (·.1 == d)).map (·
 
 def lookup (prov : List (Nat × Nat)) (d : Nat) : Option Nat := (prov.find? (·.1 == d)).map (·.2)
 
-/-- The authors of an artifact's declarations, distinct, less the seller. -/
-def authorsOf (r : Rule) (prov : List (Nat × Nat)) (decls : List Nat) (seller : Nat) : List Nat :=
-  ((decls.filterMap (lookup prov)).filter (fun a => !r.notSeller || a != seller)).eraseDups
+/-- The authors of an artifact's declarations outside the exclusion set,
+    distinct, less the seller. -/
+def authorsOf (r : Rule) (lib : List Nat) (prov : List (Nat × Nat)) (decls : List Nat)
+    (seller : Nat) : List Nat :=
+  (((decls.filter (fun d => !r.library || !lib.contains d)).filterMap (lookup prov)).filter (fun a => !r.notSeller || a != seller)).eraseDups
 
 /-- The record a settlement of `d` writes, if any. -/
 def candidate (r : Rule) (ctx : Ctx) (s : St) (x : Entry) (d : Nat) : Option Record :=
@@ -225,7 +235,7 @@ def candidate (r : Rule) (ctx : Ctx) (s : St) (x : Entry) (d : Nat) : Option Rec
     | none => none
     | some p =>
       let ref := if r.boundRef then refOf s d else x.referral
-      let au := if r.fromArtifact then authorsOf r s.prov x.decls o.payee else x.claimed
+      let au := if r.fromArtifact then authorsOf r s.lib s.prov x.decls o.payee else x.claimed
       some ⟨d, p.id, p.statement, p.poster, o.payee, x.block, priceOf s p.id, o.amount, ref, au,
         split r (priceOf s p.id) o.amount ref.isSome au.length⟩
 
@@ -252,6 +262,7 @@ def step (r : Rule) (ctx : Ctx) (s : St) (x : Entry) : St where
   refs := newRefs s x
   prov := newProv s x (newRecord r ctx s x)
   records := s.records ++ (newRecord r ctx s x).toList
+  lib := s.lib
 
 def run (r : Rule) (ctx : Ctx) (s : St) (xs : List Entry) : St :=
   xs.foldl (step r ctx) s
@@ -262,9 +273,9 @@ def run (r : Rule) (ctx : Ctx) (s : St) (xs : List Entry) : St :=
 structure Spec (ctx : Ctx) (s : St) (x : Entry) (d : Nat) (m : Record) : Prop where
   order : ∃ o ∈ s.market.orders, o.digest = d ∧ o.phase = .funded ∧ ∃ p ∈ s.market.posts,
     joins ctx p o = true ∧ m = ⟨d, p.id, p.statement, p.poster, o.payee, x.block, priceOf s p.id,
-      o.amount, refOf s d, authorsOf .model s.prov x.decls o.payee,
+      o.amount, refOf s d, authorsOf .model s.lib s.prov x.decls o.payee,
       split .model (priceOf s p.id) o.amount (refOf s d).isSome
-        (authorsOf .model s.prov x.decls o.payee).length⟩
+        (authorsOf .model s.lib s.prov x.decls o.payee).length⟩
 
 theorem candidate_spec (ctx : Ctx) (s : St) (x : Entry) (d : Nat) (m : Record)
     (h : candidate .model ctx s x d = some m) : Spec ctx s x d m := by
@@ -499,7 +510,7 @@ theorem referral_bound_before_funding (ctx : Ctx) (s : St) (x : Entry) (m : Reco
     of the record's own price, amount, referrer and authors. -/
 theorem authors_from_artifact (ctx : Ctx) (s : St) (x : Entry) (m : Record)
     (h : newRecord .model ctx s x = some m) :
-    m.authors = authorsOf .model s.prov x.decls m.seller ∧ m.seller ∉ m.authors ∧
+    m.authors = authorsOf .model s.lib s.prov x.decls m.seller ∧ m.seller ∉ m.authors ∧
       m.split = split .model m.cap m.amount m.referrer.isSome m.authors.length := by
   obtain ⟨d, _, md, sp⟩ := newRecord_spec ctx s x m h
   obtain ⟨o, _, _, _, p, _, _, rfl⟩ := sp.order
@@ -508,6 +519,22 @@ theorem authors_from_artifact (ctx : Ctx) (s : St) (x : Entry) (m : Record)
   intro hm
   have := (List.mem_filter.mp (List.mem_eraseDups.mp hm)).2
   simp at this
+
+/-- **A declaration in the exclusion set never earns a share**: every
+    author of a record is the first payee of some declaration of the
+    settled artifact that is outside the set. -/
+theorem excluded_never_earns (ctx : Ctx) (s : St) (x : Entry) (m : Record)
+    (h : newRecord .model ctx s x = some m) :
+    ∀ a ∈ m.authors, ∃ d ∈ x.decls, s.lib.contains d = false ∧ lookup s.prov d = some a := by
+  obtain ⟨ha, _, _⟩ := authors_from_artifact ctx s x m h
+  intro a hm
+  rw [ha] at hm
+  simp only [authorsOf, Rule.model, Bool.not_true, Bool.false_or] at hm
+  have h1 := (List.mem_filter.mp (List.mem_eraseDups.mp hm)).1
+  obtain ⟨d, hd, hl⟩ := List.mem_filterMap.mp h1
+  have hd' := List.mem_filter.mp hd
+  exact ⟨d, hd'.1, by simpa using hd'.2, hl⟩
+
 
 theorem run_prefix (r : Rule) (ctx : Ctx) :
     ∀ (ys : List Entry) (s : St), ∃ extra, (run r ctx s ys).records = s.records ++ extra
@@ -632,6 +659,14 @@ def refunded : List Entry :=
 
 theorem refunded_records_nothing : records .model refunded = [] := by decide
 
+/-- Declaration 2 is in the exclusion set (a library lemma author A
+    re-exported first): the S0006 seller reusing it owes A nothing. -/
+def recordsWith (r : Rule) (lib : List Nat) (xs : List Entry) : List Record :=
+  (run r tctx (initWith lib) xs).records
+
+theorem library_earns_nothing :
+    (recordsWith .model [2] both).map (·.authors) = [[], []] := by decide
+
 end Nucleus.ProofCommerce.Savings.Examples
 
 /-! ## Mutants
@@ -710,7 +745,7 @@ def lastWins (xs : List Entry) : List (Nat × Nat) :=
 def readTime (xs : List Entry) : List (List Nat) :=
   ((run .model tctx init xs).records.zip
     (xs.filter (fun x => match x.event with | .settled _ => true | _ => false))).map
-    fun (m, x) => authorsOf .model (lastWins xs) x.decls m.seller
+    fun (m, x) => authorsOf .model [] (lastWins xs) x.decls m.seller
 
 def later : List Entry := both ++ trade 7 0x7 (usdc 10) (usdc 10) authorB none [1, 2] 120
 
@@ -718,6 +753,11 @@ theorem mutant_readTime_breaks_monotone : (readTime later).take 2 ≠ readTime b
 
 theorem model_keeps :
     (records .model later).take 2 = records .model both := by decide
+
+/-- S12, against `excluded_never_earns`: no exclusion; author A is credited
+    with the library declaration 2. -/
+theorem mutant_library_breaks_excluded_never_earns :
+    (recordsWith { library := false } [2] both).map (·.authors) = [[], [authorA]] := by decide
 
 end Nucleus.ProofCommerce.Savings.Mutants
 
@@ -744,4 +784,6 @@ namespace Nucleus.ProofCommerce.Savings
 #guard_msgs in #print axioms authors_from_artifact
 /-- info: 'Nucleus.ProofCommerce.Savings.monotone' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms monotone
+/-- info: 'Nucleus.ProofCommerce.Savings.excluded_never_earns' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms excluded_never_earns
 end Nucleus.ProofCommerce.Savings

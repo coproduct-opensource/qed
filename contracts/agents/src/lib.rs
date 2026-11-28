@@ -33,7 +33,6 @@ pub mod post;
 pub mod probe;
 pub mod relay;
 pub mod safe;
-pub mod savings;
 pub mod seller;
 pub mod statement;
 pub mod support;

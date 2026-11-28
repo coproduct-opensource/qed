@@ -135,13 +135,21 @@ Under a pure first-carrier rule, the first seller to settle such an artifact
 is credited with `rfl` and `Nat.add_succ`. Every later proof that carries
 them would then pay that seller part of the authors' 20 %.
 
-v1 leaves out every key that appeared on the statement side of any statement
-the index has read. A library declaration that no statement carried is
-still credited to its first carrier. The fix is to leave out the
-declarations of the pinned Lean toolchain's own library, from an export of
-it. Until then, the authors' share can name a seller for library code. The
-amount is bounded: at most 20 % of the saving, divided among the authors,
-and the buyer still keeps at least half.
+The fix, owner decision 2026-11-28: an exclusion set. `lean4export Init`
+with Lean 4.30.0 and the exporter statements use, hashed into 57,425 keys,
+is committed as `contracts/savings/library/lean-4.30.0-init.keys` (method,
+export SHA-256 and timings in `library/README.md`). No declaration in it
+earns a share (`Savings.excluded_never_earns`, mutant S12). On the bounty's
+settled artifact the set leaves out `rfl` and `Nat.add_succ`, and only
+`Nucleus.helper` and `Nucleus.proof` remain attributable
+(`contracts/savings/src/walk/tests.rs`). Author shares are paid only while
+the set is present; without it the 20 % stays with the buyer.
+
+Still credited to a first carrier: declarations of `Std` or `Lean`, which
+the set does not cover, and library declarations whose terms differ under
+another toolchain. A change of the statements' Lean version needs a new set.
+Every key that appeared on the statement side of a statement read is also
+left out.
 
 The other v1 limits:
 
