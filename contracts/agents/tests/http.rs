@@ -66,6 +66,7 @@ fn the_http_adapter_quotes_after_the_prover_and_refuses_a_request_without_a_proo
         fund_seconds: 900,
         deliver_seconds: 3 * 3600,
         base: None,
+        referrer: None,
     };
     let prover = Prover {
         command: vec![

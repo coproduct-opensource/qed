@@ -46,6 +46,65 @@ pub struct Extra {
     pub name: String,
     pub version: String,
     pub order: WireOrder,
+    /// A referrer the order's `salt` commits to, with the nonce that opens
+    /// it: `salt = keccak256("NucleusReferralV1" ‖ referrer ‖ nonce)`.
+    /// Absent: unreferred, and the header is byte for byte what it was
+    /// before referrals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub referral: Option<Referral>,
+}
+
+/// The opening of a referral salt, as an offer carries it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Referral {
+    /// The referrer's address, `0x` and 40 hex digits.
+    pub referrer: String,
+    /// `0x` and 64 hex digits.
+    pub nonce: String,
+}
+
+/// The tag a referral salt starts with.
+pub const REFERRAL_TAG: &[u8] = b"NucleusReferralV1";
+
+/// `keccak256("NucleusReferralV1" ‖ referrer ‖ nonce)`: the salt of an
+/// order that names `referrer`. The buyer signs the order's digest, which
+/// includes the salt, so the referrer is fixed when the order is funded
+/// and cannot be added or changed later (`Savings.referral_bound_before_funding`).
+pub fn referral_salt(referrer: &[u8; 20], nonce: &Hash) -> Hash {
+    let mut bytes = Vec::with_capacity(69);
+    bytes.extend_from_slice(REFERRAL_TAG);
+    bytes.extend_from_slice(referrer);
+    bytes.extend_from_slice(nonce);
+    crate::hash(&bytes)
+}
+
+/// A nonce for a referred order, derived from the order's other terms so a
+/// seller need not keep it: the task's context, the seller, the amount and
+/// both deadlines.
+pub fn referral_nonce(order: &Order) -> Hash {
+    let mut bytes = Vec::with_capacity(100);
+    bytes.extend_from_slice(&order.context);
+    bytes.extend_from_slice(&order.seller);
+    bytes.extend_from_slice(&order.amount);
+    bytes.extend_from_slice(&order.fund_by.to_be_bytes());
+    bytes.extend_from_slice(&order.deliver_by.to_be_bytes());
+    crate::hash(&bytes)
+}
+
+/// Bind `referrer` into `order`: set its salt to the referral salt over
+/// `referral_nonce`, and return the `referral` its offer carries.
+pub fn refer(order: &mut Order, referrer: &[u8; 20]) -> Referral {
+    order.salt = referral_salt(referrer, &referral_nonce(order));
+    referral_of(order, referrer)
+}
+
+/// The `referral` an offer of a referred `order` carries.
+pub fn referral_of(order: &Order, referrer: &[u8; 20]) -> Referral {
+    Referral {
+        referrer: hex_of(referrer),
+        nonce: hex_of(&referral_nonce(order)),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,6 +254,7 @@ pub fn requirements(
             name: token.name.clone(),
             version: token.version.clone(),
             order: WireOrder::from_order(order),
+            referral: None,
         },
     }
 }
@@ -252,6 +312,8 @@ pub enum OfferError {
     Deadline,
     #[error("the offered order names a base library the buyer did not list")]
     UnsupportedBase,
+    #[error("the offer's referral does not open the order's salt")]
+    BadReferral,
 }
 
 /// An offer the buyer has checked. The only way to build a payment header.
@@ -261,6 +323,7 @@ pub struct ReviewedOffer {
     accepted: Requirements,
     order: Order,
     signing_digest: Hash,
+    referral: Option<([u8; 20], Hash)>,
 }
 impl ReviewedOffer {
     pub fn order(&self) -> &Order {
@@ -269,6 +332,14 @@ impl ReviewedOffer {
     /// The token-authorization digest the buyer's wallet signs.
     pub fn signing_digest(&self) -> Hash {
         self.signing_digest
+    }
+    /// The referrer the order's salt commits to, checked; `None`: unreferred.
+    pub fn referrer(&self) -> Option<[u8; 20]> {
+        self.referral.map(|(referrer, _)| referrer)
+    }
+    /// The referrer and the nonce that open the order's salt.
+    pub fn referral(&self) -> Option<([u8; 20], Hash)> {
+        self.referral
     }
 }
 
@@ -290,9 +361,13 @@ pub fn review_offer(
         .accepts
         .into_iter()
         .filter(|offer| offer.scheme == SCHEME);
-    let (Some(accepted), None) = (offers.next(), offers.next()) else {
+    let (Some(mut accepted), None) = (offers.next(), offers.next()) else {
         return Err(OfferError::NoSingleOffer);
     };
+    // The referral is checked against the salt below and is not part of
+    // what the buyer's signature answers, so the payment echoes the plain
+    // requirements a seller recomputes from its order.
+    let referral = accepted.extra.referral.take();
     let order = accepted.extra.order.to_order()?;
     if accepted != requirements(deployment, token, &order, accepted.max_timeout_seconds) {
         return Err(Error::RequirementsMismatch.into());
@@ -324,11 +399,23 @@ pub fn review_offer(
     {
         return Err(OfferError::Deadline);
     }
+    let referral = match referral {
+        None => None,
+        Some(Referral { referrer, nonce }) => {
+            let referrer: [u8; 20] = unhex(&referrer).map_err(|_| OfferError::BadReferral)?;
+            let nonce: Hash = unhex(&nonce).map_err(|_| OfferError::BadReferral)?;
+            if referral_salt(&referrer, &nonce) != order.salt {
+                return Err(OfferError::BadReferral);
+            }
+            Some((referrer, nonce))
+        }
+    };
     let signing_digest = super::authorization_digest(deployment, token, &order)?;
     Ok(ReviewedOffer {
         accepted,
         order,
         signing_digest,
+        referral,
     })
 }
 

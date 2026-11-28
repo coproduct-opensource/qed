@@ -211,6 +211,7 @@ impl Seller {
             fund_seconds: 900,
             deliver_seconds: 3 * 3600,
             base: None,
+            referrer: None,
         };
         let prover = Prover {
             command: vec![
@@ -1650,4 +1651,47 @@ fn a_window_reviews_again_at_the_close_and_breaks_ties_by_arrival() {
     desk.close_due(t + 45);
     let signed = desk.signed(&buyer.posted.id).expect("signed at the close");
     assert_eq!(signed.order, first);
+}
+
+// ---- Referrals bound into the order's salt (Savings.lean) ----------------------
+
+/// A seller configured with a referrer binds it into its order's salt; the
+/// desk reads it from the review and keeps it with the signed order.
+/// Driven red by the desk not checking the preimage: the forged referral
+/// below was signed for.
+#[test]
+fn a_referral_is_bound_into_the_salt_and_a_forged_one_is_refused() {
+    let referrer = [0x5e; 20];
+    let buyer = Buyer::new();
+    // A forged referral: it names a referrer the salt does not commit to.
+    let forger = Seller::new();
+    let order = forger.order(&buyer, |_| {});
+    let mut accepted = vault_wire::requirements(&deployment(), &domain(), &order, 60);
+    accepted.extra.referral = Some(vault_wire::referral_of(&order, &referrer));
+    let header = vault_wire::required_header(serde_json::json!({"url": "test"}), accepted).unwrap();
+    let forged = ask(
+        &buyer.dial(&forger.keys),
+        &forger.keys,
+        "POST",
+        &board::offer_path(&buyer.posted.id),
+        [(REQUIRED_HEADER.to_ascii_lowercase(), header)].into(),
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(forged.status, 422, "{}", text(&forged));
+    assert!(text(&forged).contains("referral"), "{}", text(&forged));
+    assert!(buyer.open());
+
+    let mut seller = Seller::new();
+    seller.terms.referrer = Some(referrer);
+    let accepted = seller
+        .answer(&buyer)
+        .expect("a referred offer is signed for");
+    let order = accepted.funding.order();
+    assert_eq!(
+        order.salt,
+        vault_wire::referral_salt(&referrer, &vault_wire::referral_nonce(order))
+    );
+    let signed = buyer.desk.lock().unwrap().signed(&buyer.posted.id).unwrap();
+    assert_eq!(signed.referral.map(|(r, _)| r), Some(referrer));
 }

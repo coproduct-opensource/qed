@@ -79,6 +79,7 @@ fn signed(task: &TaskRef, digest: u8) -> Signed {
         order: order.order,
         digest: order.digest,
         payment: String::new(),
+        referral: None,
         policy: Policy {
             statement_sha256: [0; 32],
             claim: "Statements.S0001.claim".into(),

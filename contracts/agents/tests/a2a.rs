@@ -101,6 +101,7 @@ impl World {
             fund_seconds: 900,
             deliver_seconds: 3 * 3600,
             base: None,
+            referrer: None,
         };
         let prover = Prover {
             command: vec![

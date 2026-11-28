@@ -261,3 +261,85 @@ fn a_base_has_one_wire_form_and_a_based_offer_is_not_reviewed() {
         Some(OfferError::UnsupportedBase)
     );
 }
+
+fn referred(order: &Order, referral: Referral) -> String {
+    let mut accepted = requirements(&deployment(), &token(), order, 60);
+    accepted.extra.referral = Some(referral);
+    required_header(
+        serde_json::json!({"url": "https://seller.example/work"}),
+        accepted,
+    )
+    .unwrap()
+}
+
+/// A referral opens the order's salt: the buyer reads the referrer from the
+/// review, signs as for any order, and the seller admits the payment it
+/// recomputes from its order alone. Driven red by skipping the salt check:
+/// the wrong preimage was reviewed as referred.
+#[test]
+fn a_referral_that_opens_the_salt_is_read_and_one_that_does_not_is_refused() {
+    let referrer = [0x5e; 20];
+    let mut o = order();
+    let referral = refer(&mut o, &referrer);
+    assert_eq!(
+        o.salt,
+        referral_salt(&referrer, &referral_nonce(&o)),
+        "the salt commits to the referrer"
+    );
+    let reviewed = review_offer(
+        &deployment(),
+        &token(),
+        &referred(&o, referral.clone()),
+        &intent(),
+        10,
+    )
+    .unwrap();
+    assert_eq!(reviewed.referrer(), Some(referrer));
+    let signature = sign(&buyer(), reviewed.signing_digest());
+    let payment = signature_header(&deployment(), reviewed, &signature).unwrap();
+    assert_eq!(
+        admit_header(&deployment(), &token(), &payment, 60, 10)
+            .unwrap()
+            .order(),
+        &o
+    );
+
+    // Another referrer, or another nonce, for the same salt.
+    for bad in [
+        Referral {
+            referrer: hex_of(&[0x5f; 20]),
+            ..referral.clone()
+        },
+        Referral {
+            nonce: hex_of(&[1; 32]),
+            ..referral.clone()
+        },
+        Referral {
+            referrer: "0x12".into(),
+            ..referral.clone()
+        },
+    ] {
+        assert_eq!(
+            review_offer(&deployment(), &token(), &referred(&o, bad), &intent(), 10).unwrap_err(),
+            OfferError::BadReferral
+        );
+    }
+    // A referral naming the referrer of an order whose salt is plain.
+    assert_eq!(
+        review_offer(
+            &deployment(),
+            &token(),
+            &referred(&order(), referral),
+            &intent(),
+            10
+        )
+        .unwrap_err(),
+        OfferError::BadReferral
+    );
+    // No referral: unreferred, and the header carries no `referral` key.
+    let plain = review_offer(&deployment(), &token(), &offer(&order()), &intent(), 10).unwrap();
+    assert_eq!(plain.referrer(), None);
+    let engine = base64::engine::general_purpose::STANDARD;
+    let text = String::from_utf8(engine.decode(offer(&order())).unwrap()).unwrap();
+    assert!(!text.contains("referral"), "{text}");
+}

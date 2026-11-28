@@ -119,6 +119,7 @@ impl Refused {
                 OfferError::OverBudget => Reason::OverLimit,
                 OfferError::Deadline => Reason::Deadline,
                 OfferError::UnsupportedBase => Reason::UnsupportedBase,
+                OfferError::BadReferral => Reason::BadReferral,
             },
         }
     }
@@ -249,6 +250,7 @@ impl Posted {
             return Err(Box::new(self));
         }
         let order = offered.reviewed.order().clone();
+        let referral = offered.reviewed.referral();
         let signature = crate::sign(wallet, offered.reviewed.signing_digest());
         match vault_wire::signature_header(deployment, offered.reviewed, &signature) {
             Ok(payment) => Ok(Signed {
@@ -257,6 +259,7 @@ impl Posted {
                 order,
                 payment,
                 policy: self.policy,
+                referral,
             }),
             Err(_) => Err(Box::new(self)),
         }
@@ -286,6 +289,10 @@ pub struct Signed {
     /// The x402 `PAYMENT-SIGNATURE` value given to the seller.
     pub payment: String,
     pub policy: Policy,
+    /// The referrer the order's salt commits to and the nonce that opens
+    /// it, checked at review (`vault_wire::referral_salt`); `None`:
+    /// unreferred.
+    pub referral: Option<(Address, Hash)>,
 }
 
 /// How a signed order ended, as the buyer read it from the chain.

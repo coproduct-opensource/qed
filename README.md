@@ -532,6 +532,19 @@ seller with no ETH can still trade. To use it, add
 `"relayer": "https://relay.qed.coproduct.dev"` to `seller.json`, and
 optionally `"relayerWaitSeconds"` (default 120).
 
+### Referrals
+
+`"referrer": "0x…"` in `seller.json` binds that address into every order's
+`salt`: `salt = keccak256("NucleusReferralV1" ‖ referrer ‖ nonce)`, with the
+opening `{referrer, nonce}` sent in the offer's `extra.referral`. The buyer's
+desk checks the preimage before it signs and refuses a referral that does not
+open the salt (`bad-referral`). Because the buyer signs the order's digest,
+which includes the salt, the referrer cannot be added or changed after
+funding. When the order settles below the post's cap, the referrer is owed
+30 % of the saving (`proofs/commerce/Savings.lean`). A desk built before
+referrals refuses an offer that carries `extra.referral` as malformed;
+unreferred offers are unchanged on the wire.
+
 Measured on Base on 2026-11-13, in the first relayed trade (the authors' own
 buyer, and a new seller wallet that never held ETH): the relayer paid 579,567
 gas, 3,489,138,468,751 wei (0.0000035 ETH) including the L1 data fee, for

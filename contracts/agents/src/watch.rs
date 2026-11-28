@@ -494,7 +494,7 @@ fn prepare(
         Some((task.fund_by, task.deliver_by)),
     )
     .map_err(Skip::Declined)?;
-    let offer = vault_wire::requirements(&terms.deployment, &terms.domain, quoted.order(), 60);
+    let offer = terms.requirements(quoted.order());
     let header = vault_wire::required_header(json!({"url": uri}), offer)
         .map_err(|e| Skip::Declined(Declined::NotAdmissible(format!("{e:?}"))))?;
     Ok((quoted, header))

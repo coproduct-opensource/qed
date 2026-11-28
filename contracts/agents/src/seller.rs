@@ -57,8 +57,21 @@ pub struct Terms {
     pub deliver_seconds: u64,
     /// A checked base this seller builds on, if it has one.
     pub base: Option<BaseOffer>,
+    /// A referrer this seller binds into every order's salt
+    /// (`vault_wire::refer`): it is owed 30 % of the buyer's saving when the
+    /// order settles (proofs/commerce/Savings.lean). `None`: unreferred.
+    pub referrer: Option<Address>,
 }
 impl Terms {
+    /// The x402 requirements for one of this seller's orders, with its
+    /// referral when it names a referrer.
+    pub fn requirements(&self, order: &vault::Order) -> vault_wire::Requirements {
+        let mut offer = vault_wire::requirements(&self.deployment, &self.domain, order, 60);
+        offer.extra.referral = self
+            .referrer
+            .map(|referrer| vault_wire::referral_of(order, &referrer));
+        offer
+    }
     /// This seller's order for a request, as of `now`. `limits`, when given,
     /// are the latest funding and delivery deadlines the buyer said it would
     /// sign for; the order's deadlines are the earlier of those and this
@@ -70,7 +83,7 @@ impl Terms {
         limits: Option<(u64, u64)>,
     ) -> Res<vault::Order> {
         let (fund_cap, deliver_cap) = limits.unwrap_or((u64::MAX, u64::MAX));
-        Ok(vault::Order {
+        let mut order = vault::Order {
             buyer: received.buyer(),
             seller: self.seller,
             asset: self.token,
@@ -87,7 +100,11 @@ impl Terms {
             deliver_by: (now + self.deliver_seconds).min(deliver_cap),
             salt: random32()?,
             context: received.context(),
-        })
+        };
+        if let Some(referrer) = &self.referrer {
+            vault_wire::refer(&mut order, referrer);
+        }
+        Ok(order)
     }
 }
 
@@ -576,12 +593,7 @@ impl Seller {
             View::Proving => Reply::new(202).with("Nucleus-Job", "quoting".into()),
             View::Declined(why) => return refuse(422, why),
             View::Quoted { order, uri } => {
-                let offer = vault_wire::requirements(
-                    &self.terms.deployment,
-                    &self.terms.domain,
-                    &order,
-                    60,
-                );
+                let offer = self.terms.requirements(&order);
                 let header = vault_wire::required_header(json!({"url": uri}), offer)
                     .or_else(|e| refuse(500, format!("{e:?}")))?;
                 Reply::text(402, "{}").with(REQUIRED_HEADER, header)
@@ -696,6 +708,8 @@ pub struct Config {
     pub relayer: Option<String>,
     /// `"relayerWaitSeconds"` (default 120): R-2.
     pub relayer_wait: Duration,
+    /// `"referrer"`: an address bound into every order's salt.
+    pub referrer: Option<Address>,
 }
 impl Config {
     pub fn read(path: &str) -> Res<Self> {
@@ -750,6 +764,9 @@ impl Config {
                 other => other,
             },
             relayer_wait: Duration::from_secs(value["relayerWaitSeconds"].as_u64().unwrap_or(120)),
+            referrer: optional("referrer")
+                .map(|text| crate::world::address_arg(&text))
+                .transpose()?,
             limits: Limits {
                 settle_margin: value["settleMarginSeconds"]
                     .as_u64()
@@ -804,6 +821,7 @@ pub fn parts(config: &Config) -> Res<(Terms, Prover, OnChain, Keys)> {
         fund_seconds: 900,
         deliver_seconds: 3 * 3600,
         base: config.base.clone(),
+        referrer: config.referrer,
     };
     let settler = OnChain {
         chain: world.chain.clone(),
