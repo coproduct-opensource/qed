@@ -14,6 +14,9 @@ struct Fake {
     committed: u128,
     used: HashSet<Hash>,
     sent: Vec<Signed>,
+    /// Ether and one transfer's gas, in wei.
+    ether: u128,
+    fee: u128,
 }
 impl Wallet for Fake {
     fn balance(&mut self) -> Res<u128> {
@@ -25,7 +28,11 @@ impl Wallet for Fake {
     fn used(&mut self, nonce: &Hash) -> Res<bool> {
         Ok(self.used.contains(nonce))
     }
+    fn gas(&mut self) -> Res<(u128, u128)> {
+        Ok((self.ether, self.fee))
+    }
     fn send(&mut self, t: &Signed) -> Res<String> {
+        self.ether -= self.fee;
         // The token's own rules: an unused nonce, a signature by `from`.
         if !self.used.insert(t.authorization.nonce) {
             return Err("FiatTokenV2: authorization is used or canceled".into());
@@ -62,6 +69,8 @@ fn the_s0006_split_is_paid_once_across_a_restart() {
         committed: usdc(40),
         used: HashSet::new(),
         sent: vec![],
+        ether: 1_000,
+        fee: 10,
     };
     let first = pay(&owed, &mut chain, &key(), &DOMAIN, 1_000, 3_600).unwrap();
     assert!(first.iter().all(|(_, p)| matches!(p, Paid::Sent(_))));
@@ -83,6 +92,8 @@ fn a_share_waits_while_the_open_rows_need_the_wallet() {
         committed: usdc(40),
         used: HashSet::new(),
         sent: vec![],
+        ether: 1_000,
+        fee: 10,
     };
     let out = pay(&owed(), &mut chain, &key(), &DOMAIN, 1_000, 3_600).unwrap();
     assert_eq!(out[0].1, Paid::Waiting);
@@ -121,4 +132,23 @@ fn each_share_has_its_own_nonce() {
     assert!(shares([6; 32], Some([0xf0; 20]), &[[0xa1; 20]], &none).is_empty());
     let unreferred = split(&Rule::MODEL, usdc(40), usdc(25), false, 0);
     assert!(shares([6; 32], None, &[], &unreferred).is_empty());
+}
+
+/// `Payout.Examples.no_gas_no_send`: 5 wei of ether for a 10 wei transfer:
+/// nothing is attempted and every share reads `NoGas`. Driven red by
+/// dropping the gas check: the token was sent a transfer and the fake's
+/// ether underflowed.
+#[test]
+fn a_payout_the_wallet_cannot_pay_gas_for_is_not_attempted() {
+    let mut chain = Fake {
+        balance: usdc(50),
+        committed: usdc(40),
+        used: HashSet::new(),
+        sent: vec![],
+        ether: 5,
+        fee: 10,
+    };
+    let out = pay(&owed(), &mut chain, &key(), &DOMAIN, 1_000, 3_600).unwrap();
+    assert!(out.iter().all(|(_, p)| *p == Paid::NoGas));
+    assert!(chain.sent.is_empty());
 }

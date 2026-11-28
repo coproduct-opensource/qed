@@ -17,7 +17,10 @@ set_option warningAsError true
    * its nonce is unused on the token;
    * the wallet covers it on top of everything the desk has committed to
      open rows (`LadderMulti.committed`): paying a share never leaves a
-     row's possible funding uncovered. -/
+     row's possible funding uncovered.
+   * the wallet's ether covers the transfer's gas: the buyer pays its own
+     gas (owner decision, 2026-11-28), and a share it cannot pay gas for is
+     journaled owed and alerted, never attempted. -/
 namespace Nucleus.ProofCommerce.Payout
 
 structure Share where
@@ -40,6 +43,10 @@ structure St where
   used : List (Nat × Nat × Nat × Nat)
   /-- Transfers made, in order. -/
   paid : List Share
+  /-- The wallet's ether, which pays each transfer's gas. -/
+  eth : Nat
+  /-- What one transfer's gas would cost now. -/
+  fee : Nat
 
 inductive Act where
   /-- Pay a share. -/
@@ -50,6 +57,8 @@ inductive Act where
   | release (c : Nat)
   /-- The wallet receives `n`. -/
   | deposit (n : Nat)
+  /-- The wallet receives `n` ether. -/
+  | ether (n : Nat)
   /-- The desk restarts: the token's state and the wallet persist. -/
   | restart
 
@@ -58,21 +67,25 @@ structure Rule where
   owed : Bool := true
   once : Bool := true
   cover : Bool := true
+  gas : Bool := true
 
 def Rule.model : Rule := {}
 
 def admits (r : Rule) (owed : List Share) (s : St) (x : Share) : Bool :=
   (!r.owed || owed.contains x) && (!r.once || !s.used.contains (nonce x)) &&
-    (!r.cover || decide (x.amount + s.committed ≤ s.balance))
+    (!r.cover || decide (x.amount + s.committed ≤ s.balance)) &&
+    (!r.gas || decide (s.fee ≤ s.eth))
 
 def step (r : Rule) (owed : List Share) (s : St) : Act → St
   | .pay x =>
     if admits r owed s x then
-      { s with balance := s.balance - x.amount, used := nonce x :: s.used, paid := s.paid ++ [x] }
+      { s with balance := s.balance - x.amount, used := nonce x :: s.used, paid := s.paid ++ [x],
+               eth := s.eth - s.fee }
     else s
   | .commit c => if s.committed + c ≤ s.balance then { s with committed := s.committed + c } else s
   | .release c => { s with committed := s.committed - c }
   | .deposit n => { s with balance := s.balance + n }
+  | .ether n => { s with eth := s.eth + n }
   | .restart => s
 
 def run (r : Rule) (owed : List Share) (s : St) (as : List Act) : St := as.foldl (step r owed) s
@@ -93,7 +106,7 @@ theorem inv_step (owed : List Share) (s : St) (a : Act) (h : Inv owed s) :
     · rename_i hx
       simp only [admits, Rule.model, Bool.not_true, Bool.false_or, Bool.and_eq_true,
         List.contains_iff_mem, Bool.not_eq_true', decide_eq_true_eq] at hx
-      obtain ⟨⟨ho, hu⟩, hc⟩ := hx
+      obtain ⟨⟨⟨ho, hu⟩, hc⟩, _⟩ := hx
       have hu' : nonce x ∉ s.used := by simpa using hu
       refine ⟨by simp only; omega, ?_, ?_, ?_⟩
       · simp only [List.mem_append, List.mem_singleton]
@@ -117,6 +130,7 @@ theorem inv_step (owed : List Share) (s : St) (a : Act) (h : Inv owed s) :
     · exact h
   | release c => exact ⟨by simp only [step]; have := h.covered; omega, h.owed_, h.used_, h.once⟩
   | deposit n => exact ⟨by simp only [step]; have := h.covered; omega, h.owed_, h.used_, h.once⟩
+  | ether n => exact ⟨by simp only [step]; exact h.covered, h.owed_, h.used_, h.once⟩
   | restart => exact h
 
 theorem inv_run (owed : List Share) :
@@ -144,6 +158,19 @@ theorem no_overcommit (owed : List Share) (s : St) (h : Inv owed s) (as : List A
     (run .model owed s as).committed ≤ (run .model owed s as).balance :=
   (inv_run owed as s h).covered
 
+/-- **No unaffordable send**: a transfer is made only when the wallet's
+    ether covers its gas. A share the desk cannot pay gas for is not
+    attempted; the code journals it owed and raises an alert. -/
+theorem no_unaffordable_send (owed : List Share) (s : St) (x : Share)
+    (h : (step .model owed s (.pay x)).paid ≠ s.paid) : s.fee ≤ s.eth := by
+  simp only [step] at h
+  split at h
+  · rename_i hx
+    simp only [admits, Rule.model, Bool.not_true, Bool.false_or, Bool.and_eq_true,
+      decide_eq_true_eq] at hx
+    exact hx.2
+  · exact absurd rfl h
+
 /-- **A restart pays nothing twice**: a share paid before a restart is
     refused after it. -/
 theorem restart_safe (owed : List Share) (s : St) (h : Inv owed s) (x : Share)
@@ -162,7 +189,7 @@ open Nucleus.ProofCommerce.Payout
 def referrer : Share := ⟨106, 0, 0xF00, 4500000⟩
 def author : Share := ⟨106, 1, 0xA1, 3000000⟩
 def owed : List Share := [referrer, author]
-def s₀ : St := ⟨50000000, 40000000, [], []⟩
+def s₀ : St := ⟨50000000, 40000000, [], [], 1000, 10⟩
 
 def paidAfter (r : Rule) (as : List Act) : List Share := (run r owed s₀ as).paid
 
@@ -173,7 +200,7 @@ theorem retry_after_restart :
   decide
 
 /-- With 40 committed of 44, the 4.5 USDC share waits; the 3 is paid. -/
-def tight : St := ⟨44000000, 40000000, [], []⟩
+def tight : St := ⟨44000000, 40000000, [], [], 1000, 10⟩
 theorem waits_for_cover :
     (run .model owed tight [.pay referrer, .pay author]).paid = [author] := by decide
 
@@ -194,6 +221,16 @@ theorem mutant_cover_breaks_no_overcommit :
     let s := run { cover := false } owed tight [.pay referrer]
     s.balance < s.committed := by decide
 
+/-- No ether for gas: nothing is sent. -/
+def dry : St := ⟨50000000, 40000000, [], [], 5, 10⟩
+theorem no_gas_no_send : (run .model owed dry [.pay referrer, .pay author]).paid = [] := by decide
+
+/-- P4, against `no_unaffordable_send`: no gas check; a transfer is sent
+    with 5 of the 10 its gas costs. -/
+theorem mutant_gas_breaks_no_unaffordable_send :
+    (run { gas := false } owed dry [.pay referrer]).paid = [referrer] ∧ dry.eth < dry.fee := by
+  decide
+
 end Nucleus.ProofCommerce.Payout.Examples
 
 namespace Nucleus.ProofCommerce.Payout
@@ -205,4 +242,6 @@ namespace Nucleus.ProofCommerce.Payout
 #guard_msgs in #print axioms no_overcommit
 /-- info: 'Nucleus.ProofCommerce.Payout.restart_safe' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms restart_safe
+/-- info: 'Nucleus.ProofCommerce.Payout.no_unaffordable_send' depends on axioms: [propext] -/
+#guard_msgs in #print axioms no_unaffordable_send
 end Nucleus.ProofCommerce.Payout

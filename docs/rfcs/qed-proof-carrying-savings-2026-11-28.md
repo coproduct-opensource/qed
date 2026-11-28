@@ -204,6 +204,12 @@ input cannot add a referral the order did not bind.
   change to a production service's effects, so it is the owner's call. Until
   then the desk pays with the buyer's own gas: the bounty buyer already
   posts and withdraws with it.
+  Owner decision, 2026-11-28: payouts stay on the buyer's own gas, with no
+  relayer rule. Before each payout the desk checks that the wallet's ether
+  covers its gas (priced at 120,000 gas at the node's price plus 5 %). A
+  payout it cannot afford is journaled `owed`, reported as an ALERT in the
+  status file's `lastError`, and not attempted
+  (`Payout.no_unaffordable_send`, mutant P4).
 - **Authors on `/market`.** The page does not walk artifacts, so author
   shares read 0 there and their 20 % reads as the buyer's. A desk that pays
   authors will disagree with the page until it does.

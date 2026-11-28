@@ -86,6 +86,9 @@ pub trait Wallet {
     fn committed(&mut self) -> Res<u128>;
     /// The token's `authorizationState(from, nonce)`.
     fn used(&mut self, nonce: &Hash) -> Res<bool>;
+    /// The wallet's ether and what one transfer's gas would cost now, both
+    /// in wei.
+    fn gas(&mut self) -> Res<(u128, u128)>;
     /// Submit a signed transfer; its transaction hash.
     fn send(&mut self, transfer: &Signed) -> Res<String>;
 }
@@ -99,6 +102,9 @@ pub enum Paid {
     /// The wallet does not cover it on top of the open rows; tried again
     /// on a later run.
     Waiting,
+    /// The wallet's ether does not cover the transfer's gas: not attempted
+    /// (`Payout.no_unaffordable_send`); owed, and an alert.
+    NoGas,
 }
 
 /// Pay every share in `owed` that is unpaid and covered (`Payout.step`,
@@ -128,6 +134,11 @@ pub fn pay(
             out.push((share.clone(), Paid::Waiting));
             continue;
         }
+        let (ether, fee) = wallet.gas()?;
+        if fee > ether {
+            out.push((share.clone(), Paid::NoGas));
+            continue;
+        }
         let signed = Authorization {
             from,
             to: share.party,
@@ -142,6 +153,9 @@ pub fn pay(
     }
     Ok(out)
 }
+
+/// The gas limit a payout is priced at before it is sent.
+pub const TRANSFER_GAS: u128 = 120_000;
 
 /// The buyer's wallet on chain: its token balance, the token's
 /// `authorizationState`, and a transfer sent by the buyer with its own gas.
@@ -179,6 +193,21 @@ impl Wallet for ChainWallet<'_> {
             .abi_encode(),
         )?;
         Ok(out.iter().any(|b| *b != 0))
+    }
+    fn gas(&mut self) -> Res<(u128, u128)> {
+        let ether = self.chain.balance(address_of(self.key))?;
+        // What `Chain::send` offers per gas (the node's price plus 5 %),
+        // times a gas limit above a `transferWithAuthorization`'s (about
+        // 60,000 on Base; 120,000 leaves the estimate's margin).
+        let price = self
+            .chain
+            .rpc("eth_gasPrice", json!([]))?
+            .as_str()
+            .and_then(|t| u128::from_str_radix(t.trim_start_matches("0x"), 16).ok())
+            .ok_or("eth_gasPrice: a quantity expected")?
+            .saturating_mul(21)
+            / 20;
+        Ok((ether, price.saturating_mul(TRANSFER_GAS)))
     }
     fn send(&mut self, transfer: &Signed) -> Res<String> {
         let receipt = self

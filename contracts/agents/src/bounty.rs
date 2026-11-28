@@ -1429,6 +1429,19 @@ impl Live {
                         share: share.clone(),
                         transaction: None,
                     },
+                    Some(crate::payout::Paid::NoGas) => {
+                        let why = format!(
+                            "ALERT: no ether for a payout's gas: {} to {} for order {} stays owed",
+                            share.amount,
+                            hex(&share.party),
+                            hex(&share.order)
+                        );
+                        println!("bounty: {why}");
+                        self.last_error = Some((now, why));
+                        Entry::Owed {
+                            share: share.clone(),
+                        }
+                    }
                     Some(crate::payout::Paid::Waiting) | None => Entry::Owed {
                         share: share.clone(),
                     },
