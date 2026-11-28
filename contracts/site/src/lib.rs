@@ -1237,7 +1237,11 @@ pub fn site(input: &Input, repository: &Path, options: &Options) -> Res<Vec<(Str
                 .ok()
                 .map(|i| (s, i))
         }) {
-            let data = market::view::data(input, &index, s["takenAt"].as_u64().unwrap_or(0));
+            let mut data = market::view::data(input, &index, s["takenAt"].as_u64().unwrap_or(0));
+            market::view::attach_attribution(
+                &mut data,
+                &market::view::attribution_checks(input, s, &index, &known),
+            );
             market_files.push((market::view::JSON_PATH.into(), pretty(&data)?));
         }
     }

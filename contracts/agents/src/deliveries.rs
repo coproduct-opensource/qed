@@ -154,11 +154,24 @@ impl Recorder for Record {
             party,
         }
         .line();
+        self.append(&line);
+    }
+    fn attribute(&mut self, attribution: &qed_deliveries::Attribution) {
+        self.append(&attribution.line());
+    }
+    fn signed_summary(&self) -> Result<String, String> {
+        self.signed.clone()
+    }
+}
+
+impl Record {
+    /// Append one line, synced, then sign the summary again.
+    fn append(&mut self, line: &str) {
         if self.lines >= MAXIMUM_LINES {
             self.unrecorded += 1;
         } else {
-            match nucleus_jsonl::append_line_synced(&self.path, &line) {
-                Ok(kept) if kept.proves(&self.path, &line) => self.lines += 1,
+            match nucleus_jsonl::append_line_synced(&self.path, line) {
+                Ok(kept) if kept.proves(&self.path, line) => self.lines += 1,
                 Ok(_) => {
                     self.unrecorded += 1;
                     println!("buyer: degraded: the delivery record did not keep a line");
@@ -170,9 +183,6 @@ impl Recorder for Record {
             }
         }
         self.refresh();
-    }
-    fn signed_summary(&self) -> Result<String, String> {
-        self.signed.clone()
     }
 }
 

@@ -281,6 +281,46 @@ impl Attempt {
     }
 }
 
+/// Who the desk says authored the lemmas a settled order's proof reused
+/// (proof-carrying savings, docs/rfcs/qed-proof-carrying-savings-2026-11-28.md):
+/// one record line `{"attribution": {...}}` per settled order of this buyer.
+/// Authors are payee keys (the key a vault's `Claimed` names: seller and
+/// asset), never addresses. The site recomputes each from the settled
+/// artifact with the same code and shows a mismatch.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Attribution {
+    /// The settled order's digest.
+    pub order: String,
+    pub authors: Vec<String>,
+    /// Seller-side declarations the library exclusion set left out, by name.
+    pub excluded: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttributionLine {
+    attribution: Attribution,
+}
+
+impl Attribution {
+    pub fn line(&self) -> String {
+        serde_json::to_string(&AttributionLine {
+            attribution: self.clone(),
+        })
+        .expect("a line serializes")
+    }
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let line: AttributionLine = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        let a = line.attribution;
+        unhex32(&a.order)?;
+        for author in &a.authors {
+            unhex32(author)?;
+        }
+        Ok(a)
+    }
+}
+
 /// Counts of distinct sellers, by the key each proved possession of.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -331,6 +371,10 @@ pub struct Summary {
     pub refused: BTreeMap<Reason, u64>,
     pub sellers: Sellers,
     pub unknown_sellers: Vec<UnknownSeller>,
+    /// The desk's attributions, in record order. Absent when there are
+    /// none, so a summary without any reads as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attributions: Vec<Attribution>,
 }
 
 impl Summary {
@@ -374,6 +418,7 @@ pub fn summarize(text: &str, unrecorded: u64, signed_at: u64) -> Result<Summary,
         refused: BTreeMap::new(),
         sellers: Sellers::default(),
         unknown_sellers: Vec::new(),
+        attributions: Vec::new(),
     };
     // Per key: whether every attempt so far named one of ours.
     let mut keys: HashMap<Hash, bool> = HashMap::new();
@@ -381,7 +426,10 @@ pub fn summarize(text: &str, unrecorded: u64, signed_at: u64) -> Result<Summary,
         let attempt = match Attempt::parse(text) {
             Ok(a) => a,
             Err(_) => {
-                s.unreadable += 1;
+                match Attribution::parse(text) {
+                    Ok(a) => s.attributions.push(a),
+                    Err(_) => s.unreadable += 1,
+                }
                 continue;
             }
         };
@@ -761,5 +809,36 @@ mod tests {
             verify("a.b", &binding(&buyer)),
             Err(Unreadable::Malformed(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod attribution_tests {
+    use super::*;
+
+    /// An attribution line is summarized as an attribution, not counted as
+    /// an attempt or as unreadable; a summary with none serializes as before.
+    #[test]
+    fn an_attribution_line_reads_back_into_the_summary() {
+        let a = Attribution {
+            order: hex(&[6; 32]),
+            authors: vec![hex(&[0xa1; 32])],
+            excluded: vec!["rfl".into(), "Nat.add_succ".into()],
+        };
+        let buyer = "0x133c25a80fb323de143e8ad5c6c620bf8713edfd";
+        let text = format!("{}\n{}\n", header_line(1, buyer), a.line());
+        let s = summarize(&text, 0, 2).unwrap();
+        assert_eq!((s.records, s.unreadable), (0, 0));
+        assert_eq!(s.attributions, vec![a]);
+        let empty = summarize(&format!("{}\n", header_line(1, buyer)), 0, 2).unwrap();
+        assert!(
+            !serde_json::to_string(&empty)
+                .unwrap()
+                .contains("attributions")
+        );
+        assert!(
+            Attribution::parse(r#"{"attribution":{"order":"0x12","authors":[],"excluded":[]}}"#)
+                .is_err()
+        );
     }
 }

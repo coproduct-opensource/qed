@@ -214,5 +214,44 @@ impl<P: PartialEq + Clone> Provenance<P> {
     }
 }
 
+/// One settlement in chain order, as an attributor reads it: the order, its
+/// payee, and its artifact's declarations when the reader has the artifact
+/// and its statement.
+#[derive(Clone, Debug)]
+pub struct Settled<P> {
+    pub order: Hash,
+    pub payee: P,
+    pub declarations: Option<Declarations>,
+}
+
+/// What an attributor can say of one settlement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Attributed<P> {
+    Authors(Vec<P>),
+    /// This artifact, or an earlier settlement's, could not be read: the
+    /// first carrier of a key is not known.
+    Unknown(Hash),
+}
+
+/// Attribute every settlement in chain order. A settlement is attributed
+/// only when every settlement before it was read.
+pub fn attribute_all<P: PartialEq + Clone>(settled: &[Settled<P>]) -> Vec<(Hash, Attributed<P>)> {
+    let mut index = Provenance::default();
+    let mut missing: Option<Hash> = None;
+    let mut out = Vec::with_capacity(settled.len());
+    for s in settled {
+        let a = match (&missing, &s.declarations) {
+            (Some(first), _) => Attributed::Unknown(*first),
+            (None, None) => {
+                missing = Some(s.order);
+                Attributed::Unknown(s.order)
+            }
+            (None, Some(d)) => Attributed::Authors(index.settle(d, s.payee.clone())),
+        };
+        out.push((s.order, a));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests;

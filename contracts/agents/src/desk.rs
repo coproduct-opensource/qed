@@ -151,6 +151,9 @@ pub struct Seen {
 /// `GET /deliveries`.
 pub trait Recorder: Send {
     fn record(&mut self, seen: &Seen);
+    /// Publish who authored the lemmas a settled order reused, in the
+    /// signed record. A recorder that keeps no record ignores it.
+    fn attribute(&mut self, _attribution: &qed_deliveries::Attribution) {}
     /// The current signed summary, or why there is none.
     fn signed_summary(&self) -> Result<String, String>;
 }
@@ -763,6 +766,14 @@ impl Desk {
                 .to_string(),
             ),
             _ => unknown(),
+        }
+    }
+
+    /// Publish an attribution in the signed delivery record, if the desk
+    /// keeps one.
+    pub fn publish_attribution(&mut self, attribution: &qed_deliveries::Attribution) {
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.attribute(attribution);
         }
     }
 

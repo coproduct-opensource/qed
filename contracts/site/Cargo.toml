@@ -34,4 +34,6 @@ qed-deliveries = { path = "../deliveries" }
 qed-analytics = { path = "../analytics" }
 # The split of a settlement's saving (proofs/commerce/Savings.lean), shared
 # with the buyer's desk that pays it.
-qed-savings = { path = "../savings" }
+qed-savings = { path = "../savings", features = ["walk"] }
+# The acceptance policy type the attribution walk takes.
+nucleus-proof-acceptance = { path = "../proof-acceptance/core" }

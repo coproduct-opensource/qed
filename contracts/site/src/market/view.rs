@@ -45,6 +45,11 @@ pub struct Known {
     pub artifacts: BTreeSet<String>,
     /// Statement SHA-256 (no 0x) → file name under `/statements/`.
     pub statements: BTreeMap<String, String>,
+    /// The artifacts, policies and statements themselves, to recompute
+    /// attribution (`savings::check`). Empty without a ledger snapshot.
+    pub artifacts_held: Vec<(String, Vec<u8>)>,
+    pub policies_held: serde_json::Map<String, Value>,
+    pub statements_held: Vec<(String, Vec<u8>)>,
 }
 
 impl Known {
@@ -61,6 +66,9 @@ impl Known {
                 .iter()
                 .map(|(f, _)| (f.split('.').next().unwrap_or("").to_owned(), f.clone()))
                 .collect(),
+            artifacts_held: s.artifacts.clone(),
+            policies_held: s.policies.clone(),
+            statements_held: s.statements.clone(),
         }
     }
     /// From `ledger.snapshot.json` beside the input, when it is there and reads.
@@ -368,6 +376,11 @@ fn state_cell(m: &Mainnet, post: &Value) -> Line {
         line.push(t(format!(", matched +{}", usdc(m, a.parse().unwrap_or(0)))));
     }
     for o in post["orders"].as_array().into_iter().flatten() {
+        if o["attribution"]["check"] == "mismatch" {
+            line.push(t(
+                ", attribution mismatch: the desk's published authors differ from the artifact's",
+            ));
+        }
         let s = &o["saving"];
         let saved: u128 = s["saving"]
             .as_str()
@@ -523,7 +536,8 @@ pub fn page_from(
         ));
         return Some(doc(blocks));
     };
-    let data = data(input, &index, s["takenAt"].as_u64().unwrap_or(0));
+    let mut data = data(input, &index, s["takenAt"].as_u64().unwrap_or(0));
+    attach_attribution(&mut data, &attribution_checks(input, s, &index, known));
     let source_text = crate::status::source_sentence(m, s, source);
     let stamp = [
         s["block"].as_u64().unwrap_or(0).to_string(),
@@ -758,4 +772,56 @@ fn saving_data(r: &super::savings::Record) -> Value {
                   "authors": r.split.authors,
                   "buyer": r.split.buyer.to_string()},
     })
+}
+
+/// The desk's published attributions (from the buyer's signed delivery
+/// record in the snapshot), each checked against the site's recomputation
+/// from the artifacts it holds. Empty when there is no verified record.
+pub fn attribution_checks(
+    input: &Input,
+    snap: &Value,
+    index: &Index,
+    known: &Known,
+) -> Vec<(String, super::savings::Check)> {
+    let Some(st) = input.mainnet.as_ref().and_then(|m| m.status.as_ref()) else {
+        return vec![];
+    };
+    let crate::status::Deliveries::Read(summary) = crate::status::deliveries(st, snap) else {
+        return vec![];
+    };
+    let lib = super::savings::Library {
+        artifacts: &known.artifacts_held,
+        policies: &known.policies_held,
+        statements: &known.statements_held,
+    };
+    super::savings::check(index, &lib, &summary.attributions)
+}
+
+/// Put each check on its order in `market.json`: `attribution.check` is
+/// `agrees`, `mismatch` (with both author lists) or `not recomputed`.
+pub fn attach_attribution(data: &mut Value, checks: &[(String, super::savings::Check)]) {
+    use super::savings::Check;
+    let Some(posts) = data["posts"].as_array_mut() else {
+        return;
+    };
+    for post in posts {
+        let Some(orders) = post["orders"].as_array_mut() else {
+            continue;
+        };
+        for o in orders {
+            let d = o["digest"].as_str().unwrap_or("").to_ascii_lowercase();
+            if let Some((_, c)) = checks.iter().find(|(order, _)| *order == d) {
+                o["attribution"] = match c {
+                    Check::Agrees => json!({"check": "agrees"}),
+                    Check::Mismatch {
+                        published,
+                        recomputed,
+                    } => {
+                        json!({"check": "mismatch", "published": published, "recomputed": recomputed})
+                    }
+                    Check::NotRecomputed(why) => json!({"check": "not recomputed", "why": why}),
+                };
+            }
+        }
+    }
 }

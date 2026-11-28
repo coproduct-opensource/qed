@@ -205,3 +205,39 @@ input cannot add a referral the order did not bind.
 - **Live checks.** Neither the improvement bounty on S0001 nor a referred
   lower offer on a live row has run.
 - **The v2 vault**, which splits at settlement, is not built.
+
+## Published attribution, checked by the site (owner decision 2026-11-28)
+
+The desk publishes each settled order's attribution in its signed delivery
+record. It writes one `{"attribution": {order, authors, excluded}}` line per
+order, and the signed summary carries them as `attributions`. Authors are
+payee keys, never addresses.
+
+The site recomputes the attribution with the same code
+(`qed_savings::walk`, feature `walk`). It reads every settlement in chain
+order from the artifacts, policies and statements it holds. Each order in
+`market.json` gets `attribution.check`, which is one of:
+
+- `agrees`;
+- `mismatch`, with both author lists, and the page shows "attribution
+  mismatch";
+- `not recomputed`, when this artifact or an earlier one is not held.
+
+A summary with no attributions serializes exactly as before. Two kinds of
+older software read the new lines badly:
+
+- A desk older than this change counts an attribution line as unreadable.
+  It shows the line as unreadable; it does not hide it.
+- A site older than this change refuses a summary that carries
+  `attributions`, because the summary type is `deny_unknown_fields`.
+
+Measured on the Base fixture (`a_tampered_published_attribution_is_flagged`):
+
+- **Recomputation:** the site holds the artifact of all 11 settlements and
+  recomputes every one.
+- **Authors:** the first settlement has no author. Each of the next ten has
+  one: the payee of the authors' own first trade of the bounty proof, which
+  first carried `Nucleus.helper` and `Nucleus.proof`. The outside seller
+  reused nothing of its own, and it is not its own author.
+- **What this means:** a first-carrier rule credits whoever settles a public
+  proof first. Here that was the authors' 1 USDC trade.

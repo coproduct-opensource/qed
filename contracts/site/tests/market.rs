@@ -577,3 +577,116 @@ fn a_referral_counts_only_when_it_opens_the_orders_salt() {
     ));
     assert_eq!(elsewhere.referrer, None);
 }
+
+// ---- Attribution: the desk's, recomputed by the site -------------------------
+
+struct Held {
+    artifacts: Vec<(String, Vec<u8>)>,
+    policies: serde_json::Map<String, serde_json::Value>,
+    statements: Vec<(String, Vec<u8>)>,
+}
+fn held() -> Held {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("input");
+    let read_dir = |sub: &str| -> Vec<(String, Vec<u8>)> {
+        let mut v: Vec<_> = std::fs::read_dir(dir.join(sub))
+            .unwrap()
+            .map(|e| {
+                let e = e.unwrap();
+                (
+                    e.file_name().into_string().unwrap(),
+                    std::fs::read(e.path()).unwrap(),
+                )
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    Held {
+        artifacts: read_dir("artifacts")
+            .into_iter()
+            .map(|(f, b)| (f.trim_end_matches(".bin").to_owned(), b))
+            .collect(),
+        policies: serde_json::from_slice(&std::fs::read(dir.join("policies.json")).unwrap())
+            .unwrap(),
+        statements: read_dir("statements"),
+    }
+}
+
+/// Each published attribution the site can recompute agrees when the desk
+/// published what the walk gives, and a tampered one (an author added) is
+/// flagged with both lists. Driven red by tolerating one extra author: the
+/// tampered list one longer passed.
+#[test]
+fn a_tampered_published_attribution_is_flagged() {
+    use market::savings::{Check, Library, check, settlements};
+    let index = fixture();
+    let h = held();
+    let lib = Library {
+        artifacts: &h.artifacts,
+        policies: &h.policies,
+        statements: &h.statements,
+    };
+    let settled = settlements(&index, &lib);
+    let read: Vec<_> = settled
+        .iter()
+        .filter(|s| s.declarations.is_some())
+        .collect();
+    assert!(!read.is_empty(), "no settled artifact is held");
+    let recomputed = qed_savings::walk::attribute_all(&settled);
+    // Publish exactly what the walk gives, for every order it attributes.
+    let honest: Vec<qed_deliveries::Attribution> = recomputed
+        .iter()
+        .filter_map(|(o, a)| match a {
+            qed_savings::walk::Attributed::Authors(v) => Some(qed_deliveries::Attribution {
+                order: market::hx(o),
+                authors: v.iter().map(|w| market::hx(w)).collect(),
+                excluded: vec![],
+            }),
+            _ => None,
+        })
+        .collect();
+    assert!(!honest.is_empty());
+    assert!(
+        check(&index, &lib, &honest)
+            .iter()
+            .all(|(_, c)| *c == Check::Agrees)
+    );
+    // Tamper: credit an outsider on the first, and swap the second's author.
+    let mut tampered = honest.clone();
+    tampered[0].authors.push(market::hx(&[0xee; 32]));
+    let flagged = check(&index, &lib, &tampered);
+    match &flagged[0].1 {
+        Check::Mismatch {
+            published,
+            recomputed,
+        } => {
+            assert!(published.contains(&market::hx(&[0xee; 32])));
+            assert!(!recomputed.contains(&market::hx(&[0xee; 32])));
+        }
+        other => panic!("not flagged: {other:?}"),
+    }
+    if let Some(with_author) = tampered.iter_mut().skip(1).find(|a| !a.authors.is_empty()) {
+        with_author.authors[0] = market::hx(&[0xdd; 32]);
+        let order = with_author.order.clone();
+        let flagged = check(&index, &lib, &tampered);
+        let c = &flagged.iter().find(|(o, _)| *o == order).unwrap().1;
+        assert!(matches!(c, Check::Mismatch { .. }), "{c:?}");
+    }
+    // An order the index never settled is not recomputed, never "agrees".
+    let unknown = qed_deliveries::Attribution {
+        order: market::hx(&[0x01; 32]),
+        authors: vec![],
+        excluded: vec![],
+    };
+    assert!(matches!(
+        check(&index, &lib, &[unknown])[0].1,
+        Check::NotRecomputed(_)
+    ));
+    println!(
+        "settled {}, read {}, attributed {}, authors {:?}",
+        settled.len(),
+        read.len(),
+        honest.len(),
+        honest.iter().map(|a| a.authors.len()).collect::<Vec<_>>()
+    );
+}

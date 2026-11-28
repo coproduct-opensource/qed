@@ -212,3 +212,142 @@ pub fn run<'a>(r: &Rule, entries: impl IntoIterator<Item = &'a Entry>) -> State 
 #[cfg(test)]
 #[path = "savings_tests.rs"]
 mod tests;
+
+// ---- Attribution, recomputed and checked against the desk's ----------------
+
+/// What the site holds to recompute attribution: artifacts by keccak-256
+/// (no 0x), policies by policy hash (`input/policies.json`), statements by
+/// file name.
+pub struct Library<'a> {
+    pub artifacts: &'a [(String, Vec<u8>)],
+    pub policies: &'a serde_json::Map<String, serde_json::Value>,
+    pub statements: &'a [(String, Vec<u8>)],
+}
+
+impl Library<'_> {
+    fn policy(&self, hash: &str) -> Option<(nucleus_proof_acceptance::Policy, &[u8])> {
+        let p = self.policies.get(hash)?;
+        let policy = nucleus_proof_acceptance::Policy {
+            statement_sha256: word(&format!(
+                "0x{}",
+                p["statementSha256"].as_str()?.trim_start_matches("0x")
+            )),
+            claim: p["claim"].as_str()?.to_owned(),
+            permitted_axioms: p["permittedAxioms"]
+                .as_array()?
+                .iter()
+                .filter_map(|a| a.as_str().map(str::to_owned))
+                .collect(),
+            maximum_artifact_bytes: u32::try_from(p["maximumArtifactBytes"].as_u64()?).ok()?,
+        };
+        // A policy counts only when it hashes to the order's policy hash.
+        if super::hx(&policy.hash()) != hash.to_ascii_lowercase() {
+            return None;
+        }
+        let file = p["statementFile"].as_str()?;
+        let (_, bytes) = self.statements.iter().find(|(f, _)| f == file)?;
+        Some((policy, bytes))
+    }
+}
+
+/// Every settlement in chain order with its payee key and, when the site
+/// holds its artifact, policy and statement, its declarations.
+pub fn settlements(index: &Index, lib: &Library) -> Vec<qed_savings::walk::Settled<Word>> {
+    let mut funded: Vec<(String, Word, Option<String>)> = Vec::new();
+    let mut out = Vec::new();
+    for l in &index.events {
+        match &l.event {
+            super::Event::Funded {
+                digest,
+                payee_key,
+                terms,
+                ..
+            } => funded.push((
+                digest.to_ascii_lowercase(),
+                word(payee_key),
+                terms.as_ref().map(|t| t.policy_hash.to_ascii_lowercase()),
+            )),
+            super::Event::Settled {
+                digest,
+                artifact_hash,
+                ..
+            } => {
+                let Some((_, payee, policy)) =
+                    funded.iter().find(|(d, ..)| d.eq_ignore_ascii_case(digest))
+                else {
+                    continue;
+                };
+                let artifact = lib
+                    .artifacts
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case(artifact_hash.trim_start_matches("0x")));
+                let declarations = match (artifact, policy.as_deref().and_then(|p| lib.policy(p))) {
+                    (Some((_, a)), Some((policy, statement))) => {
+                        qed_savings::walk::declarations(&policy, statement, a).ok()
+                    }
+                    _ => None,
+                };
+                out.push(qed_savings::walk::Settled {
+                    order: word(digest),
+                    payee: *payee,
+                    declarations,
+                });
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// How a published attribution compares with the site's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Check {
+    Agrees,
+    /// The desk published other authors than the site recomputes.
+    Mismatch {
+        published: Vec<String>,
+        recomputed: Vec<String>,
+    },
+    /// The site could not recompute it: this or an earlier artifact is not
+    /// held, so the first carrier of a key is not known.
+    NotRecomputed(String),
+}
+
+/// Check each published attribution against the site's recomputation.
+pub fn check(
+    index: &Index,
+    lib: &Library,
+    published: &[qed_deliveries::Attribution],
+) -> Vec<(String, Check)> {
+    let recomputed = qed_savings::walk::attribute_all(&settlements(index, lib));
+    let sorted = |v: Vec<String>| {
+        let mut v: Vec<String> = v.into_iter().map(|s| s.to_ascii_lowercase()).collect();
+        v.sort();
+        v
+    };
+    published
+        .iter()
+        .map(|a| {
+            let order = word(&a.order);
+            let c = match recomputed.iter().find(|(o, _)| *o == order) {
+                None => Check::NotRecomputed("no settlement of this order in the index".into()),
+                Some((_, qed_savings::walk::Attributed::Unknown(first))) => Check::NotRecomputed(
+                    format!("the artifact of order {} is not held", super::hx(first)),
+                ),
+                Some((_, qed_savings::walk::Attributed::Authors(v))) => {
+                    let recomputed = sorted(v.iter().map(|w| super::hx(w)).collect());
+                    let published = sorted(a.authors.clone());
+                    if recomputed == published {
+                        Check::Agrees
+                    } else {
+                        Check::Mismatch {
+                            published,
+                            recomputed,
+                        }
+                    }
+                }
+            };
+            (a.order.to_ascii_lowercase(), c)
+        })
+        .collect()
+}
