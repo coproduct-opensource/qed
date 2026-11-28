@@ -28,6 +28,7 @@ pub mod job;
 pub mod ladder;
 pub mod message;
 pub mod ops;
+pub mod payout;
 pub mod post;
 pub mod probe;
 pub mod relay;
