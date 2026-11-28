@@ -50,6 +50,7 @@ pub struct Known {
     pub artifacts_held: Vec<(String, Vec<u8>)>,
     pub policies_held: serde_json::Map<String, Value>,
     pub statements_held: Vec<(String, Vec<u8>)>,
+    pub published_held: Vec<Value>,
 }
 
 impl Known {
@@ -69,6 +70,7 @@ impl Known {
             artifacts_held: s.artifacts.clone(),
             policies_held: s.policies.clone(),
             statements_held: s.statements.clone(),
+            published_held: s.published.clone(),
         }
     }
     /// From `ledger.snapshot.json` beside the input, when it is there and reads.
@@ -793,6 +795,7 @@ pub fn attribution_checks(
         artifacts: &known.artifacts_held,
         policies: &known.policies_held,
         statements: &known.statements_held,
+        published: &known.published_held,
     };
     super::savings::check(index, &lib, &summary.attributions)
 }

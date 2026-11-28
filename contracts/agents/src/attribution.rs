@@ -23,6 +23,10 @@ pub const FROM_VARIABLE: &str = "NUCLEUS_SAVINGS_FROM";
 pub struct Library {
     pub policies: serde_json::Map<String, Value>,
     pub statements: Vec<(String, Vec<u8>)>,
+    /// `published.json` (proof files public from a block) with the
+    /// artifacts it names, from `artifacts/<keccak>.bin`.
+    pub published: Vec<Value>,
+    pub artifacts: Vec<(String, Vec<u8>)>,
 }
 
 impl Library {
@@ -45,10 +49,53 @@ impl Library {
                 statements.push((file.to_owned(), bytes));
             }
         }
+        let published: Vec<Value> = match fs::read(dir.join("published.json")) {
+            Ok(bytes) => serde_json::from_slice(&bytes)?,
+            Err(_) => Vec::new(),
+        };
+        let mut artifacts = Vec::new();
+        for e in &published {
+            if let Some(k) = e["artifact"].as_str() {
+                let k = k.trim_start_matches("0x").to_ascii_lowercase();
+                if let Ok(bytes) = fs::read(dir.join("artifacts").join(format!("{k}.bin"))) {
+                    artifacts.push((k, bytes));
+                }
+            }
+        }
         Ok(Self {
             policies,
             statements,
+            published,
+            artifacts,
         })
+    }
+    /// Each published proof file's keys, with the block it was public from.
+    pub fn published_keys(&self) -> Vec<(u64, std::collections::HashSet<walk::Key>)> {
+        let policy = |hash: &str| {
+            let (p, file) = walk::policy_from_json(hash, self.policies.get(hash)?)?;
+            let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
+            Some((p, bytes.clone()))
+        };
+        let artifact = |k: &str| {
+            self.artifacts
+                .iter()
+                .find(|(h, _)| h.eq_ignore_ascii_case(k))
+                .map(|(_, b)| b.clone())
+        };
+        walk::published_keys(&self.published, &policy, &artifact)
+    }
+    /// The keys of every statement export the library holds: public.
+    pub fn public(&self) -> std::collections::HashSet<walk::Key> {
+        let held: Vec<_> = self
+            .policies
+            .iter()
+            .filter_map(|(hash, p)| {
+                let (policy, file) = walk::policy_from_json(hash, p)?;
+                let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
+                Some((policy, bytes.clone()))
+            })
+            .collect();
+        walk::public_keys(&held)
     }
     fn declarations(&self, policy_hash: &Hash, artifact: &[u8]) -> Option<walk::Declarations> {
         let hash = hex(policy_hash);
@@ -62,8 +109,12 @@ impl Library {
 #[derive(Clone, Debug)]
 pub struct Read {
     pub order: Hash,
+    /// The block it settled in.
+    pub block: u64,
     pub payee_key: Hash,
     pub seller: Address,
+    /// The paying buyer as a payee (its address and the order's asset).
+    pub buyer_key: Option<Hash>,
     pub policy_hash: Hash,
     pub artifact: Option<Vec<u8>>,
 }
@@ -92,18 +143,23 @@ pub fn read_settlements(chain: &Chain, vault: Address, from: u64) -> Res<Vec<Rea
             .and_then(|t| unhex(t).ok())
             .and_then(|b| <[u8; 32]>::try_from(b).ok())
             .ok_or("a Settled log without its digest")?;
+        let block = log["blockNumber"]
+            .as_str()
+            .and_then(|b| u64::from_str_radix(b.trim_start_matches("0x"), 16).ok())
+            .ok_or("a Settled log without its block")?;
         let tx = log["transactionHash"]
             .as_str()
             .ok_or("no transaction hash")?;
         let sent = chain.rpc("eth_getTransactionByHash", json!([tx]))?;
         let input = unhex(sent["input"].as_str().unwrap_or("0x"))?;
         match crate::world::settled_order_in(&input) {
-            Some((seller, asset, policy_hash, artifact)) => {
-                let mut key = seller.to_vec();
-                key.extend_from_slice(&asset);
+            Some((buyer, seller, asset, policy_hash, artifact)) => {
+                let key = |who: &Address| keccak(&[who.as_slice(), asset.as_slice()].concat());
                 out.push(Read {
                     order,
-                    payee_key: keccak(&key),
+                    block,
+                    payee_key: key(&seller),
+                    buyer_key: Some(key(&buyer)),
                     seller,
                     policy_hash,
                     artifact: Some(artifact),
@@ -111,7 +167,9 @@ pub fn read_settlements(chain: &Chain, vault: Address, from: u64) -> Res<Vec<Rea
             }
             None => out.push(Read {
                 order,
+                block,
                 payee_key: [0; 32],
+                buyer_key: None,
                 seller: [0; 20],
                 policy_hash: [0; 32],
                 artifact: None,
@@ -146,12 +204,16 @@ pub fn attribute(settled: &[Read], library: &Library, order: &Hash) -> Option<At
         .zip(&declared)
         .map(|(s, d)| Settled {
             order: s.order,
+            block: s.block,
             payee: s.payee_key,
+            buyer: s.buyer_key,
             declarations: d.clone(),
         })
         .collect();
     let at = settled.iter().position(|s| s.order == *order)?;
-    let (_, result) = walk::attribute_all(&input).into_iter().nth(at)?;
+    let (_, result) = walk::attribute_all(&input, &library.public(), &library.published_keys())
+        .into_iter()
+        .nth(at)?;
     let Attributed::Authors(keys) = result else {
         return None;
     };
@@ -183,7 +245,9 @@ mod tests {
     fn read(order: u8, seller: u8) -> Read {
         Read {
             order: [order; 32],
+            block: u64::from(order),
             payee_key: keccak(&[[seller; 20], [0x33; 20]].concat()),
+            buyer_key: Some(keccak(&[[0xbb; 20], [0x33; 20]].concat())),
             seller: [seller; 20],
             policy_hash: unhex(POLICY).unwrap().try_into().unwrap(),
             artifact: Some(ARTIFACT.to_vec()),

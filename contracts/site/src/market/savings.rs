@@ -222,9 +222,39 @@ pub struct Library<'a> {
     pub artifacts: &'a [(String, Vec<u8>)],
     pub policies: &'a serde_json::Map<String, serde_json::Value>,
     pub statements: &'a [(String, Vec<u8>)],
+    /// `published.json`'s entries: proof files public from a block.
+    pub published: &'a [serde_json::Value],
 }
 
 impl Library<'_> {
+    /// Each published proof file's keys, with the block it was public from.
+    pub fn published_keys(&self) -> Vec<(u64, std::collections::HashSet<qed_savings::walk::Key>)> {
+        let policy = |hash: &str| {
+            let (p, file) = qed_savings::walk::policy_from_json(hash, self.policies.get(hash)?)?;
+            let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
+            Some((p, bytes.clone()))
+        };
+        let artifact = |k: &str| {
+            self.artifacts
+                .iter()
+                .find(|(h, _)| h.eq_ignore_ascii_case(k))
+                .map(|(_, b)| b.clone())
+        };
+        qed_savings::walk::published_keys(self.published, &policy, &artifact)
+    }
+    /// The keys of every statement export the site holds: public.
+    pub fn public(&self) -> std::collections::HashSet<qed_savings::walk::Key> {
+        let held: Vec<(nucleus_proof_acceptance::Policy, Vec<u8>)> = self
+            .policies
+            .iter()
+            .filter_map(|(hash, p)| {
+                let (policy, file) = qed_savings::walk::policy_from_json(hash, p)?;
+                let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
+                Some((policy, bytes.clone()))
+            })
+            .collect();
+        qed_savings::walk::public_keys(&held)
+    }
     fn policy(&self, hash: &str) -> Option<(nucleus_proof_acceptance::Policy, &[u8])> {
         let (policy, file) = qed_savings::walk::policy_from_json(hash, self.policies.get(hash)?)?;
         let (_, bytes) = self.statements.iter().find(|(f, _)| *f == file)?;
@@ -235,7 +265,7 @@ impl Library<'_> {
 /// Every settlement in chain order with its payee key and, when the site
 /// holds its artifact, policy and statement, its declarations.
 pub fn settlements(index: &Index, lib: &Library) -> Vec<qed_savings::walk::Settled<Word>> {
-    let mut funded: Vec<(String, Word, Option<String>)> = Vec::new();
+    let mut funded: Vec<(String, Word, Option<String>, Option<Word>)> = Vec::new();
     let mut out = Vec::new();
     for l in &index.events {
         match &l.event {
@@ -243,18 +273,31 @@ pub fn settlements(index: &Index, lib: &Library) -> Vec<qed_savings::walk::Settl
                 digest,
                 payee_key,
                 terms,
+                buyer,
+                asset,
                 ..
-            } => funded.push((
-                digest.to_ascii_lowercase(),
-                word(payee_key),
-                terms.as_ref().map(|t| t.policy_hash.to_ascii_lowercase()),
-            )),
+            } => {
+                // The buyer as a payee: its address and the order's asset.
+                // An elided address cannot be compared, so it reads unknown.
+                let buyer_key = match (super::unhex(buyer), super::unhex(asset)) {
+                    (Ok(b), Ok(a)) if b.len() == 20 && a.len() == 20 => {
+                        Some(super::payee_key(&b, &a))
+                    }
+                    _ => None,
+                };
+                funded.push((
+                    digest.to_ascii_lowercase(),
+                    word(payee_key),
+                    terms.as_ref().map(|t| t.policy_hash.to_ascii_lowercase()),
+                    buyer_key,
+                ))
+            }
             super::Event::Settled {
                 digest,
                 artifact_hash,
                 ..
             } => {
-                let Some((_, payee, policy)) =
+                let Some((_, payee, policy, buyer)) =
                     funded.iter().find(|(d, ..)| d.eq_ignore_ascii_case(digest))
                 else {
                     continue;
@@ -271,7 +314,9 @@ pub fn settlements(index: &Index, lib: &Library) -> Vec<qed_savings::walk::Settl
                 };
                 out.push(qed_savings::walk::Settled {
                     order: word(digest),
+                    block: l.block,
                     payee: *payee,
+                    buyer: *buyer,
                     declarations,
                 });
             }
@@ -301,7 +346,11 @@ pub fn check(
     lib: &Library,
     published: &[qed_deliveries::Attribution],
 ) -> Vec<(String, Check)> {
-    let recomputed = qed_savings::walk::attribute_all(&settlements(index, lib));
+    let recomputed = qed_savings::walk::attribute_all(
+        &settlements(index, lib),
+        &lib.public(),
+        &lib.published_keys(),
+    );
     let sorted = |v: Vec<String>| {
         let mut v: Vec<String> = v.into_iter().map(|s| s.to_ascii_lowercase()).collect();
         v.sort();

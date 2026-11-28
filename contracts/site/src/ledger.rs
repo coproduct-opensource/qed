@@ -151,6 +151,9 @@ pub struct Snapshot {
     /// Buyers' statements by file name `<sha256>.<ndjson|v2>`
     /// (`input/statements/`), each named in a policy.
     pub statements: Vec<(String, Vec<u8>)>,
+    /// `input/published.json`: proof files public from a block
+    /// (proof-carrying savings). Empty when absent.
+    pub published: Vec<Value>,
 }
 
 impl Snapshot {
@@ -288,6 +291,10 @@ impl Snapshot {
             statements.push((file.to_owned(), bytes));
         }
         Ok(Self {
+            published: match fs::read(input_dir.join("published.json")) {
+                Ok(bytes) => serde_json::from_slice(&bytes)?,
+                Err(_) => Vec::new(),
+            },
             value,
             artifacts,
             policies,

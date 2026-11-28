@@ -51,6 +51,10 @@ structure Rule where
   notSeller : Bool := true
   /-- A declaration of the excluded library earns nothing (off: it can). -/
   library : Bool := true
+  /-- A declaration public when it was introduced enters no index (off: it does). -/
+  publicCheck : Bool := true
+  /-- The paying buyer is not an author (off: it can be). -/
+  noBuyer : Bool := true
 
 def Rule.model : Rule := {}
 
@@ -179,6 +183,10 @@ structure Entry where
   referral : Option Nat := none
   decls : List Nat := []
   claimed : List Nat := []
+  /-- The declarations public as of this settlement's block: in any
+      statement export, in the site's published statement and artifact
+      files, or in the exclusion set (`contracts/savings` computes it). -/
+  published : List Nat := []
 
 /-- A settled order's saving, and who is owed what. `buyer` is the post's
     poster, `seller` the order's payee. -/
@@ -221,10 +229,13 @@ def refOf (s : St) (d : Nat) : Option Nat := ((s.refs.find? (·.1 == d)).map (·
 def lookup (prov : List (Nat × Nat)) (d : Nat) : Option Nat := (prov.find? (·.1 == d)).map (·.2)
 
 /-- The authors of an artifact's declarations outside the exclusion set,
-    distinct, less the seller. -/
+    distinct, less the seller and the paying buyer (a party is one number
+    here; the code compares payee keys, the buyer's being its address and
+    the order's asset). -/
 def authorsOf (r : Rule) (lib : List Nat) (prov : List (Nat × Nat)) (decls : List Nat)
-    (seller : Nat) : List Nat :=
-  (((decls.filter (fun d => !r.library || !lib.contains d)).filterMap (lookup prov)).filter (fun a => !r.notSeller || a != seller)).eraseDups
+    (seller buyer : Nat) : List Nat :=
+  (((decls.filter (fun d => !r.library || !lib.contains d)).filterMap (lookup prov)).filter
+    (fun a => (!r.notSeller || a != seller) && (!r.noBuyer || a != buyer))).eraseDups
 
 /-- The record a settlement of `d` writes, if any. -/
 def candidate (r : Rule) (ctx : Ctx) (s : St) (x : Entry) (d : Nat) : Option Record :=
@@ -235,7 +246,7 @@ def candidate (r : Rule) (ctx : Ctx) (s : St) (x : Entry) (d : Nat) : Option Rec
     | none => none
     | some p =>
       let ref := if r.boundRef then refOf s d else x.referral
-      let au := if r.fromArtifact then authorsOf r s.lib s.prov x.decls o.payee else x.claimed
+      let au := if r.fromArtifact then authorsOf r s.lib s.prov x.decls o.payee p.poster else x.claimed
       some ⟨d, p.id, p.statement, p.poster, o.payee, x.block, priceOf s p.id, o.amount, ref, au,
         split r (priceOf s p.id) o.amount ref.isSome au.length⟩
 
@@ -250,8 +261,10 @@ def newRefs (s : St) (x : Entry) : List (Nat × Option Nat) :=
   | .funded d _ _ _ _ => if s.market.orders.any (·.digest == d) then s.refs else s.refs ++ [(d, x.referral)]
   | _ => s.refs
 
-def newProv (s : St) (x : Entry) : Option Record → List (Nat × Nat)
-  | some m => s.prov ++ x.decls.map (·, m.seller)
+/-- The index after a settlement: the declarations it carried, less those
+    public as of its block, under its seller. -/
+def newProv (r : Rule) (s : St) (x : Entry) : Option Record → List (Nat × Nat)
+  | some m => s.prov ++ (x.decls.filter (fun d => !r.publicCheck || !x.published.contains d)).map (·, m.seller)
   | none => s.prov
 
 def step (r : Rule) (ctx : Ctx) (s : St) (x : Entry) : St where
@@ -260,7 +273,7 @@ def step (r : Rule) (ctx : Ctx) (s : St) (x : Entry) : St where
     | .posted p => s.prices ++ [(p.id, x.price)]
     | _ => s.prices
   refs := newRefs s x
-  prov := newProv s x (newRecord r ctx s x)
+  prov := newProv r s x (newRecord r ctx s x)
   records := s.records ++ (newRecord r ctx s x).toList
   lib := s.lib
 
@@ -273,9 +286,9 @@ def run (r : Rule) (ctx : Ctx) (s : St) (xs : List Entry) : St :=
 structure Spec (ctx : Ctx) (s : St) (x : Entry) (d : Nat) (m : Record) : Prop where
   order : ∃ o ∈ s.market.orders, o.digest = d ∧ o.phase = .funded ∧ ∃ p ∈ s.market.posts,
     joins ctx p o = true ∧ m = ⟨d, p.id, p.statement, p.poster, o.payee, x.block, priceOf s p.id,
-      o.amount, refOf s d, authorsOf .model s.lib s.prov x.decls o.payee,
+      o.amount, refOf s d, authorsOf .model s.lib s.prov x.decls o.payee p.poster,
       split .model (priceOf s p.id) o.amount (refOf s d).isSome
-        (authorsOf .model s.lib s.prov x.decls o.payee).length⟩
+        (authorsOf .model s.lib s.prov x.decls o.payee p.poster).length⟩
 
 theorem candidate_spec (ctx : Ctx) (s : St) (x : Entry) (d : Nat) (m : Record)
     (h : candidate .model ctx s x d = some m) : Spec ctx s x d m := by
@@ -510,7 +523,7 @@ theorem referral_bound_before_funding (ctx : Ctx) (s : St) (x : Entry) (m : Reco
     of the record's own price, amount, referrer and authors. -/
 theorem authors_from_artifact (ctx : Ctx) (s : St) (x : Entry) (m : Record)
     (h : newRecord .model ctx s x = some m) :
-    m.authors = authorsOf .model s.lib s.prov x.decls m.seller ∧ m.seller ∉ m.authors ∧
+    m.authors = authorsOf .model s.lib s.prov x.decls m.seller m.buyer ∧ m.seller ∉ m.authors ∧
       m.split = split .model m.cap m.amount m.referrer.isSome m.authors.length := by
   obtain ⟨d, _, md, sp⟩ := newRecord_spec ctx s x m h
   obtain ⟨o, _, _, _, p, _, _, rfl⟩ := sp.order
@@ -535,6 +548,34 @@ theorem excluded_never_earns (ctx : Ctx) (s : St) (x : Entry) (m : Record)
   have hd' := List.mem_filter.mp hd
   exact ⟨d, hd'.1, by simpa using hd'.2, hl⟩
 
+
+/-- **No credit for a public declaration**: a settlement adds to the index
+    only declarations that were not public as of its block, so a lemma
+    whose proof was public before it was introduced earns no one a share. -/
+theorem no_credit_for_public (ctx : Ctx) (s : St) (x : Entry) :
+    ∀ e ∈ (step .model ctx s x).prov, e ∈ s.prov ∨ x.published.contains e.1 = false := by
+  intro e he
+  simp only [step] at he
+  cases hn : newRecord .model ctx s x with
+  | none => rw [hn] at he; exact .inl he
+  | some m =>
+    rw [hn] at he
+    simp only [newProv, Rule.model, Bool.not_true, Bool.false_or, List.mem_append,
+      List.mem_map, List.mem_filter] at he
+    rcases he with he | ⟨d, ⟨_, hp⟩, rfl⟩
+    · exact .inl he
+    · exact .inr (by simpa using hp)
+
+/-- **No self-credit**: neither the settlement's seller nor the buyer who
+    pays it is ever one of its authors. -/
+theorem no_self_credit (ctx : Ctx) (s : St) (x : Entry) (m : Record)
+    (h : newRecord .model ctx s x = some m) : m.seller ∉ m.authors ∧ m.buyer ∉ m.authors := by
+  obtain ⟨ha, _, _⟩ := authors_from_artifact ctx s x m h
+  rw [ha]
+  simp only [authorsOf, Rule.model, Bool.not_true, Bool.false_or]
+  constructor
+  · intro hm; have := (List.mem_filter.mp (List.mem_eraseDups.mp hm)).2; simp at this
+  · intro hm; have := (List.mem_filter.mp (List.mem_eraseDups.mp hm)).2; simp at this
 
 theorem run_prefix (r : Rule) (ctx : Ctx) :
     ∀ (ys : List Entry) (s : St), ∃ extra, (run r ctx s ys).records = s.records ++ extra
@@ -667,6 +708,29 @@ def recordsWith (r : Rule) (lib : List Nat) (xs : List Entry) : List Record :=
 theorem library_earns_nothing :
     (recordsWith .model [2] both).map (·.authors) = [[], []] := by decide
 
+/-- Declaration 2 was public (say, in a published statement) when author
+    A's settlement carried it: it enters no index, and the S0006 seller
+    reusing it owes A nothing. -/
+def publishedAt (ds : List Nat) (xs : List Entry) : List Entry :=
+  xs.map fun x => match x.event with
+    | .settled _ => { x with published := ds }
+    | _ => x
+def publicFirst : List Entry := publishedAt [2] first ++ second
+
+theorem public_earns_nothing :
+    (records .model publicFirst).map (·.authors) = [[], []] := by decide
+
+/-- The S0006 post is author A's own: A pays for it, and is not its author. -/
+def tradeFor (poster id statement price amount payee : Nat) (decls : List Nat) (blk : Nat) :
+    List Entry :=
+  [{ block := blk, event := .posted (postAt id statement poster blk), price := price },
+   { block := blk + 1, event := .funded (100 + id) (tctx id 7) 50 payee amount },
+   { block := blk + 2, event := .settled (100 + id), decls := decls }]
+def ownBuyer : List Entry := first ++ tradeFor authorA 6 s0006 (usdc 40) (usdc 25) sellerKey [2, 3] 110
+
+theorem buyer_earns_nothing :
+    (records .model ownBuyer).map (·.authors) = [[], []] := by decide
+
 end Nucleus.ProofCommerce.Savings.Examples
 
 /-! ## Mutants
@@ -745,7 +809,7 @@ def lastWins (xs : List Entry) : List (Nat × Nat) :=
 def readTime (xs : List Entry) : List (List Nat) :=
   ((run .model tctx init xs).records.zip
     (xs.filter (fun x => match x.event with | .settled _ => true | _ => false))).map
-    fun (m, x) => authorsOf .model [] (lastWins xs) x.decls m.seller
+    fun (m, x) => authorsOf .model [] (lastWins xs) x.decls m.seller m.buyer
 
 def later : List Entry := both ++ trade 7 0x7 (usdc 10) (usdc 10) authorB none [1, 2] 120
 
@@ -753,6 +817,15 @@ theorem mutant_readTime_breaks_monotone : (readTime later).take 2 ≠ readTime b
 
 theorem model_keeps :
     (records .model later).take 2 = records .model both := by decide
+
+/-- S13, against `no_credit_for_public`: public declarations enter the
+    index; A is credited with declaration 2. -/
+theorem mutant_publicCheck_breaks_no_credit_for_public :
+    (records { publicCheck := false } publicFirst).map (·.authors) = [[], [authorA]] := by decide
+
+/-- S14, against `no_self_credit`: the paying buyer is credited. -/
+theorem mutant_noBuyer_breaks_no_self_credit :
+    (records { noBuyer := false } ownBuyer).map (·.authors) = [[], [authorA]] := by decide
 
 /-- S12, against `excluded_never_earns`: no exclusion; author A is credited
     with the library declaration 2. -/
@@ -786,4 +859,8 @@ namespace Nucleus.ProofCommerce.Savings
 #guard_msgs in #print axioms monotone
 /-- info: 'Nucleus.ProofCommerce.Savings.excluded_never_earns' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms excluded_never_earns
+/-- info: 'Nucleus.ProofCommerce.Savings.no_credit_for_public' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms no_credit_for_public
+/-- info: 'Nucleus.ProofCommerce.Savings.no_self_credit' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms no_self_credit
 end Nucleus.ProofCommerce.Savings

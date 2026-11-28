@@ -39,8 +39,8 @@ fn the_bounty_artifacts_library_declarations_are_excluded() {
     // The first carrier is credited with the helper and the proof only.
     let (a, b) = ([0xa1; 20], [0xb1; 20]);
     let mut index = Provenance::default();
-    assert!(index.settle(&d, a).is_empty());
-    assert_eq!(index.settle(&d, b), vec![a]);
+    assert!(index.settle(&d, a, &[0xbb; 20]).is_empty());
+    assert_eq!(index.settle(&d, b, &[0xbb; 20]), vec![a]);
     assert_eq!(index.first.len(), 2);
 }
 
@@ -63,8 +63,8 @@ fn the_first_carrier_is_the_author_and_statement_keys_are_nobodys() {
     let d = declarations(&policy(BOUNTY), BOUNTY, BOUNTY_ARTIFACT).unwrap();
     let (a, b) = ([0xa1; 20], [0xb1; 20]);
     let mut index = Provenance::default();
-    assert!(index.settle(&d, a).is_empty());
-    assert!(index.settle(&d, a).is_empty());
+    assert!(index.settle(&d, a, &[0xbb; 20]).is_empty());
+    assert!(index.settle(&d, a, &[0xbb; 20]).is_empty());
     let mut later = index.clone();
     later.settle(
         &Declarations {
@@ -73,9 +73,12 @@ fn the_first_carrier_is_the_author_and_statement_keys_are_nobodys() {
             names: vec![],
         },
         [0xc1; 20],
+        &[0xbb; 20],
     );
-    assert!(later.settle(&d, b).is_empty());
-    assert_eq!(index.settle(&d, b), vec![a]);
+    assert!(later.settle(&d, b, &[0xbb; 20]).is_empty());
+    // The buyer of B's order is A: A is not credited (`Savings.no_self_credit`).
+    assert!(index.clone().settle(&d, b, &a).is_empty());
+    assert_eq!(index.settle(&d, b, &[0xbb; 20]), vec![a]);
 }
 
 #[test]
@@ -90,4 +93,47 @@ fn the_set_is_sorted_distinct_keys() {
     assert!(keys.windows(2).all(|w| w[0] < w[1]));
     assert!(is_library(keys[0].try_into().unwrap()));
     assert!(!is_library(&[0; 32]));
+}
+
+/// A declaration public before its first carrier settled is credited to
+/// no one (`Savings.no_credit_for_public`): with the bounty proof's keys
+/// public, B's settlement after A's names nobody. Driven red by ignoring
+/// the public set in both the index and the lookup: A was credited.
+#[test]
+fn a_public_declaration_is_credited_to_no_one() {
+    let d = declarations(&policy(BOUNTY), BOUNTY, BOUNTY_ARTIFACT).unwrap();
+    let public: HashSet<Key> = d.seller.iter().copied().collect();
+    let settled = |order: u8, payee: [u8; 20]| Settled {
+        order: [order; 32],
+        block: u64::from(order) * 10,
+        payee,
+        buyer: Some([0xbb; 20]),
+        declarations: Some(d.clone()),
+    };
+    let out = attribute_all(
+        &[settled(1, [0xa1; 20]), settled(2, [0xb1; 20])],
+        &public,
+        &[],
+    );
+    assert_eq!(out[1].1, Attributed::Authors(vec![]));
+    let open = attribute_all(
+        &[settled(1, [0xa1; 20]), settled(2, [0xb1; 20])],
+        &HashSet::new(),
+        &[],
+    );
+    assert_eq!(open[1].1, Attributed::Authors(vec![[0xa1; 20]]));
+    // Published from block 5, before the first carrier (block 10): no credit.
+    // Published from block 15, after it: the first carrier is credited.
+    let early = attribute_all(
+        &[settled(1, [0xa1; 20]), settled(2, [0xb1; 20])],
+        &HashSet::new(),
+        &[(5, public.clone())],
+    );
+    assert_eq!(early[1].1, Attributed::Authors(vec![]));
+    let late = attribute_all(
+        &[settled(1, [0xa1; 20]), settled(2, [0xb1; 20])],
+        &HashSet::new(),
+        &[(15, public.clone())],
+    );
+    assert_eq!(late[1].1, Attributed::Authors(vec![[0xa1; 20]]));
 }

@@ -173,6 +173,9 @@ pub fn library_keys(export: Vec<u8>, permitted_axioms: Vec<String>) -> Result<Ve
 pub struct Provenance<P> {
     pub first: Vec<(Key, P)>,
     pub statements: HashSet<Key>,
+    /// Keys of published proof files public by now: introduced by no one
+    /// (`Savings.newProv`), though an earlier introducer keeps its credit.
+    pub published: HashSet<Key>,
 }
 
 impl<P> Default for Provenance<P> {
@@ -180,16 +183,28 @@ impl<P> Default for Provenance<P> {
         Self {
             first: Vec::new(),
             statements: HashSet::new(),
+            published: HashSet::new(),
         }
     }
 }
 
 impl<P: PartialEq + Clone> Provenance<P> {
-    /// One settlement by `seller` with these declarations, in chain order:
-    /// its authors (`Savings.authorsOf`), then the index extended with what
-    /// it carried (`Savings.newProv`). Library keys and keys a statement
-    /// carried are never attributed.
-    pub fn settle(&mut self, d: &Declarations, seller: P) -> Vec<P> {
+    /// An index that treats `public` (every declaration of every statement
+    /// export the reader holds) as public from the start.
+    pub fn with_public(public: HashSet<Key>) -> Self {
+        Self {
+            first: Vec::new(),
+            statements: public,
+            published: HashSet::new(),
+        }
+    }
+    /// One settlement by `seller`, paid for by `buyer`, with these
+    /// declarations, in chain order: its authors (`Savings.authorsOf`), then
+    /// the index extended with what it carried (`Savings.newProv`). Never
+    /// attributed: library keys and keys any statement carried (public,
+    /// `Savings.no_credit_for_public`), and the seller or the buyer
+    /// (`Savings.no_self_credit`).
+    pub fn settle(&mut self, d: &Declarations, seller: P, buyer: &P) -> Vec<P> {
         self.statements.extend(d.statement.iter().copied());
         let decls: Vec<Key> = d
             .attributable()
@@ -208,8 +223,16 @@ impl<P: PartialEq + Clone> Provenance<P> {
             Vec::new()
         } else {
             authors_of(&Rule::MODEL, &first, &decls, &seller)
+                .into_iter()
+                .filter(|a| a != buyer)
+                .collect()
         };
-        extend(&mut self.first, &decls, &seller);
+        let introduced: Vec<Key> = decls
+            .iter()
+            .filter(|k| !self.published.contains(*k))
+            .copied()
+            .collect();
+        extend(&mut self.first, &introduced, &seller);
         authors
     }
 }
@@ -220,7 +243,12 @@ impl<P: PartialEq + Clone> Provenance<P> {
 #[derive(Clone, Debug)]
 pub struct Settled<P> {
     pub order: Hash,
+    /// The block it settled in: what was public "as of" it.
+    pub block: u64,
     pub payee: P,
+    /// The paying buyer as a payee (its address and the order's asset);
+    /// `None` when the reader cannot see it (an elided address).
+    pub buyer: Option<P>,
     pub declarations: Option<Declarations>,
 }
 
@@ -233,22 +261,58 @@ pub enum Attributed<P> {
     Unknown(Hash),
 }
 
-/// Attribute every settlement in chain order. A settlement is attributed
-/// only when every settlement before it was read.
-pub fn attribute_all<P: PartialEq + Clone>(settled: &[Settled<P>]) -> Vec<(Hash, Attributed<P>)> {
-    let mut index = Provenance::default();
+/// Attribute every settlement in chain order. `public` is the keys of every
+/// statement export the reader holds (public at every block); `published`
+/// is the keys of each published proof file with the first block it was
+/// public at. A key is public for a settlement when it is in `public`, in
+/// the library set, or in a published file public before that settlement's
+/// block (`Savings.no_credit_for_public`). A settlement is attributed
+/// only when every settlement before it was read; one whose buyer the
+/// reader cannot see is unknown itself, and still extends the index.
+pub fn attribute_all<P: PartialEq + Clone>(
+    settled: &[Settled<P>],
+    public: &HashSet<Key>,
+    published: &[(u64, HashSet<Key>)],
+) -> Vec<(Hash, Attributed<P>)> {
+    let mut index = Provenance::with_public(public.clone());
     let mut missing: Option<Hash> = None;
     let mut out = Vec::with_capacity(settled.len());
     for s in settled {
+        // Settlements come in chain order, so what is public only grows.
+        for (from, keys) in published {
+            if *from < s.block {
+                index.published.extend(keys.iter().copied());
+            }
+        }
         let a = match (&missing, &s.declarations) {
             (Some(first), _) => Attributed::Unknown(*first),
             (None, None) => {
                 missing = Some(s.order);
                 Attributed::Unknown(s.order)
             }
-            (None, Some(d)) => Attributed::Authors(index.settle(d, s.payee.clone())),
+            (None, Some(d)) => match &s.buyer {
+                Some(buyer) => Attributed::Authors(index.settle(d, s.payee.clone(), buyer)),
+                None => {
+                    // The index still learns what this settlement carried.
+                    let seller = s.payee.clone();
+                    index.settle(d, seller.clone(), &seller);
+                    Attributed::Unknown(s.order)
+                }
+            },
         };
         out.push((s.order, a));
+    }
+    out
+}
+
+/// The keys of every declaration of each statement export: what
+/// `attribute_all` treats as public.
+pub fn public_keys(statements: &[(Policy, Vec<u8>)]) -> HashSet<Key> {
+    let mut out = HashSet::new();
+    for (policy, bytes) in statements {
+        if let Ok(keys) = library_keys(bytes.clone(), policy.permitted_axioms.clone()) {
+            out.extend(keys);
+        }
     }
     out
 }
@@ -280,4 +344,29 @@ pub fn policy_from_json(hash: &str, p: &serde_json::Value) -> Option<(Policy, St
         return None;
     }
     Some((policy, p["statementFile"].as_str()?.to_owned()))
+}
+
+/// A policy and its statement bytes, by policy hash.
+pub type PolicyOf<'a> = dyn Fn(&str) -> Option<(Policy, Vec<u8>)> + 'a;
+
+/// The published proof files (`published.json`: `[{artifact, policy,
+/// fromBlock}]`, the artifact's keccak-256 file name, the policy hash its
+/// statement is under, and the first block it was public at), each as its
+/// seller-side keys. An entry the reader cannot read is left out, and says
+/// so by its absence from the result's count.
+pub fn published_keys(
+    entries: &[serde_json::Value],
+    policy: &PolicyOf,
+    artifact: &dyn Fn(&str) -> Option<Vec<u8>>,
+) -> Vec<(u64, HashSet<Key>)> {
+    entries
+        .iter()
+        .filter_map(|e| {
+            let from = e["fromBlock"].as_u64()?;
+            let (p, statement) = policy(e["policy"].as_str()?)?;
+            let bytes = artifact(e["artifact"].as_str()?.trim_start_matches("0x"))?;
+            let d = declarations(&p, &statement, &bytes).ok()?;
+            Some((from, d.seller.into_iter().collect()))
+        })
+        .collect()
 }

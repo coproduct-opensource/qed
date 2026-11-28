@@ -248,12 +248,12 @@ Measured on the Base fixture (`a_tampered_published_attribution_is_flagged`):
 
 - **Recomputation:** the site holds the artifact of all 11 settlements and
   recomputes every one.
-- **Authors:** the first settlement has no author. Each of the next ten has
-  one: the payee of the authors' own first trade of the bounty proof, which
-  first carried `Nucleus.helper` and `Nucleus.proof`. The outside seller
-  reused nothing of its own, and it is not its own author.
-- **What this means:** a first-carrier rule credits whoever settles a public
-  proof first. Here that was the authors' 1 USDC trade.
+- **Authors (corrected 2026-11-28):** the first settlement has no author.
+  Each of the next ten has one. *I first wrote that this author was the
+  authors' 1 USDC trade of the bounty. It is not.* The credited payee
+  (`0xee71…`) is the first carrier, order `0x91e7…`: the first relayed
+  trade on the earlier vault, which joins no post. All 11 settlements carry
+  the same 285-byte artifact.
 
 ## The payout, wired
 
@@ -281,3 +281,53 @@ Measured on the Base fixture (`a_tampered_published_attribution_is_flagged`):
   layout. Without the library, no author is paid. The desk reads one vault
   and the site reads every indexed vault, so where those differ the site
   shows a mismatch.
+
+## No credit for public or self (owner decision 2026-11-28)
+
+A declaration earns no author share when either of these holds:
+
+- **(a) It was public before the settlement that introduced it.** "Public"
+  means it is in one of three places:
+  - any statement export the reader holds (public at every block);
+  - the library exclusion set;
+  - a proof file listed in `published.json` as `{artifact, policy,
+    fromBlock}`, public from blocks after `fromBlock`.
+
+  Such a declaration enters no index (`Savings.no_credit_for_public`,
+  mutant S13). An earlier, non-public introducer keeps its credit.
+- **(b) The would-be author is the settlement's seller, or the buyer who
+  pays it.** Both are compared as payee keys (address and asset)
+  (`Savings.no_self_credit`, mutant S14). A settlement whose buyer the
+  published index elides cannot be checked for (b). It reads as unknown,
+  and it still extends the index.
+
+The desk and the site read the same files: `published.json` and
+`artifacts/` in the library, or in the site's input.
+
+Measured on the Base fixture
+(`on_base_a_proof_published_before_its_first_settlement_earns_no_one_a_share`):
+
+| `published.json` | settlements | unknown (buyer elided) | crediting `0xee71…` | crediting no one |
+|---|---|---|---|---|
+| absent | 11 | 2 | 9 | 0 |
+| the bounty artifact from block 57,024,789 | 11 | 2 | 0 | 9 |
+
+The authors' 1 USDC trade (`0xa2f1…`) is one of the two unknowns. It
+credits no one in either row, and nothing credits it.
+
+**What the rule does not settle on its own.** With no `published.json` the
+nine later settlements still credit the first carrier, for two reasons:
+
+- No statement carries the proof.
+- The first carrier's payee is neither their buyer (`0x20f1…`, the bounty
+  buyer with USDC) nor their seller. The authors' wallets are separate
+  payees, and (b) compares payees, not owners.
+
+So credit stops only if the proof file was public before block 57,024,790.
+The proof (`suffix.ndjson`, with the same digests, and
+`site/input/artifacts/ec7444….bin`) entered the public repository in its
+first commit, 2026-11-12 22:52 −0500. Mapping that time to a Base block
+takes a block-timestamp read, which this change did not make. The entry in
+the table above is the test's assumption, not a measured block. The real
+`published.json` entry, with the first block whose timestamp is at or
+after that commit, is the authors' to write.

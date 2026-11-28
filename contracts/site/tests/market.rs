@@ -625,6 +625,7 @@ fn a_tampered_published_attribution_is_flagged() {
         artifacts: &h.artifacts,
         policies: &h.policies,
         statements: &h.statements,
+        published: &[],
     };
     let settled = settlements(&index, &lib);
     let read: Vec<_> = settled
@@ -632,7 +633,8 @@ fn a_tampered_published_attribution_is_flagged() {
         .filter(|s| s.declarations.is_some())
         .collect();
     assert!(!read.is_empty(), "no settled artifact is held");
-    let recomputed = qed_savings::walk::attribute_all(&settled);
+    let recomputed =
+        qed_savings::walk::attribute_all(&settled, &lib.public(), &lib.published_keys());
     // Publish exactly what the walk gives, for every order it attributes.
     let honest: Vec<qed_deliveries::Attribution> = recomputed
         .iter()
@@ -689,4 +691,54 @@ fn a_tampered_published_attribution_is_flagged() {
         honest.len(),
         honest.iter().map(|a| a.authors.len()).collect::<Vec<_>>()
     );
+}
+
+/// The Base fixture under `no_credit_for_public` and `no_self_credit`.
+/// All 11 settlements carry the bounty proof's 285-byte artifact. The two
+/// whose buyer the published index elides are unknown. Each of the other
+/// nine credits the first carrier (`0x91e7…`, the first relayed trade on the
+/// earlier vault, payee `0xee71…`): no statement carries the proof, and that
+/// payee is neither the later orders' buyer nor their seller.
+/// With the artifact listed in `published.json` as public from before that
+/// first settlement, the nine credit no one. Driven red by ignoring
+/// `published.json`: the nine still credited `0xee71…`.
+#[test]
+fn on_base_a_proof_published_before_its_first_settlement_earns_no_one_a_share() {
+    use market::savings::{Library, settlements};
+    use qed_savings::walk::{Attributed, attribute_all};
+    let index = fixture();
+    let h = held();
+    let tally = |published: &[serde_json::Value]| {
+        let lib = Library {
+            artifacts: &h.artifacts,
+            policies: &h.policies,
+            statements: &h.statements,
+            published,
+        };
+        let s = settlements(&index, &lib);
+        attribute_all(&s, &lib.public(), &lib.published_keys())
+    };
+    let open = tally(&[]);
+    assert_eq!(open.len(), 11);
+    let unknown = open
+        .iter()
+        .filter(|(_, a)| matches!(a, Attributed::Unknown(_)))
+        .count();
+    let first = market::word("0xee7156cc71d1d5ae5309304c7ff3c9f1883bfd9832fda897b2f199c958ac8b2b");
+    let credited = open
+        .iter()
+        .filter(|(_, a)| *a == Attributed::Authors(vec![first]))
+        .count();
+    assert_eq!((unknown, credited), (2, 9));
+    let published = [serde_json::json!({
+        "artifact": "ec7444f56a0c81b741210d072b10c80a412c09873041b1c83cbad35d09b869a8",
+        "policy": "0x91370b722911e754ab3a6673a697d1275ff6ad9fee7ec865ddac1d12757d625e",
+        "fromBlock": 57_024_789u64,
+    })];
+    let public = tally(&published);
+    let nobody = public
+        .iter()
+        .filter(|(_, a)| *a == Attributed::Authors(vec![]))
+        .count();
+    assert_eq!(nobody, 9);
 }
